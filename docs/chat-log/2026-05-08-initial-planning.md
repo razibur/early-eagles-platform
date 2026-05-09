@@ -1,17 +1,17 @@
 # Initial planning conversation — 2026-05-08
 
-> Reference transcript of the first planning session for the Early Eagles platform.
+> Reference transcript of the first planning + scaffolding session for the Early Eagles platform.
 > Organized topically (not turn-by-turn) so future-you can find what you need.
 > Source: chat with Claude (Opus 4.7) acting as solution architect.
 
 ## Participants
 
-- **Owner:** Moh. Razib (moh.razib@gmail.com) — solo developer, plays for Early Eagles club
+- **Owner:** Moh. Razib (moh.razib@gmail.com), Skylights LLC — solo developer, plays for Early Eagles club
 - **Architect:** Claude (Opus 4.7)
 
 ## Summary in one paragraph
 
-The session moved through four major reframes — from "small club web app" → "future-proof multi-surface platform" → "no-time-limit, fully future-proof" → "enterprise B2B SaaS sellable to other clubs." Each reframe rewrote the architecture, stack, and roadmap. The session ended with three operative documents (`Plan.md`, `project-scope.md`, `docs/adr/0002-enterprise-saas-reframe.md`) and four supporting docs (`docs/adr/0001-...`, `docs/alternatives/pre-brainstorm-supabase-stack.md`, plus the original 7 `BrainStorm/` files preserved). The current operative architecture is **enterprise multi-tenant B2B SaaS on ASP.NET Core 9 + Azure + Clerk B2B + Stripe Billing**, with Early Eagles as Tenant 0.
+The session moved through four major reframes — from "small club web app" → "future-proof multi-surface platform" → "no-time-limit, fully future-proof" → "enterprise B2B SaaS sellable to other clubs." Each reframe rewrote the architecture, stack, and roadmap. After the architecture was settled, the session produced a detailed `Implementation-Plan.md` (~250 numbered tasks), a `CLAUDE.md` for future AI assistants, and full repository scaffolding (README, LICENSE under Skylights LLC, .gitignore, .editorconfig). The session ended with `git init` + first commit pushed to private GitHub repo **razibur/early-eagles-platform**. The current operative architecture is **enterprise multi-tenant B2B SaaS on ASP.NET Core 9 + Azure + Clerk B2B + Stripe Billing**, with Early Eagles as Tenant 0.
 
 ---
 
@@ -55,9 +55,9 @@ Phasing: v1.0 attendance (6–7 wks) → v1.1 chat (3–4 wks) → v1.2 events (
 
 ## Reframe 2 — Reading the BrainStorm folder
 
-The owner had a `BrainStorm/` folder with seven docs. Reading them changed the picture.
+The owner had a `BrainStorm/` folder with seven docs. Reading them changed the picture. (**Note:** by end of session, the BrainStorm folder was no longer on disk at the project root — it may have lived elsewhere on the owner's machine. The 7 docs are summarized below for reference; nothing was committed from them.)
 
-### Files found
+### Files reviewed
 
 | File | Direction |
 |---|---|
@@ -222,28 +222,140 @@ This was the biggest reframe. Three implications:
 
 ---
 
+## ADR concept explained
+
+The owner asked what "ADR" means. The architect explained:
+
+- **ADR (Architecture Decision Record)** — a short markdown doc capturing one significant decision: what was decided, why, alternatives considered, trade-offs accepted.
+- **Format used:** Title, Status, Date, Context, Decision, Consequences (positive/negative/neutral), Alternatives Considered, Revisit Triggers.
+- **Immutability rule:** ADRs are never edited after acceptance. New ADRs supersede old ones (e.g., ADR-0002 supersedes ADR-0001). Old ADR stays in repo as history with `Status: Superseded by ADR-XXXX`.
+- **Why useful for solo projects:** the biggest beneficiary is future-you in 6+ months when the context is gone.
+
+---
+
+## Implementation plan creation
+
+The owner asked to break the project into small tasks grouped by phases. The architect produced **`Implementation-Plan.md`** with **~250 numbered tasks** across the 9 phases.
+
+### Conventions
+
+- **Task IDs:** `P{phase}-{number}` (e.g., `P0-034`) — stable forever, never renumbered.
+- **Effort sizes:** S (1–3h), M (4–8h), L (1–2d), XL (break it down).
+- **Each task:** title + description + dependencies + acceptance criterion.
+- **Cross-cutting tasks** (CC-001..CC-010): continuous concerns like ADR writing, dependency reviews, audit log spot-checks, cost reviews, backup drills.
+
+### Detail level by phase
+
+- **Phase 0 — Enterprise Foundations:** 99 tasks fully detailed, grouped into Pre-work · Repo · Backend solution · Multi-tenancy · Clerk · Stripe · Audit · Service Bus · Email · Bicep IaC · Frontend · CI/CD · Observability · Documentation.
+- **Phase 1 — Attendance core (Tenant 0):** 30 tasks fully detailed.
+- **Phase 2 — SaaS commercialization:** 25 tasks fully detailed.
+- **Phases 3–9:** 10–20 tasks each, lighter detail (will be re-planned closer to the time).
+- **Sequencing notes** at the end calling out parallelism opportunities and gates (e.g., P0-034 tenant-isolation test must pass before Phase 1).
+
+### Tracking philosophy
+
+The plan file is the **catalog**, not the **tracker**. Live status belongs in GitHub Projects / Linear. PR titles reference task IDs (e.g., `P0-034: tenant isolation integration test`).
+
+---
+
+## CLAUDE.md (slash command `/init`)
+
+The owner ran `/init`. The architect inspected the repo (documentation-only, no code) and produced **`CLAUDE.md`** with:
+
+- **Honest framing** that no code exists yet — no real build/test/lint commands.
+- **Read-order** for the planning docs.
+- **Project framing** (B2B SaaS, Tenant 0 = Early Eagles, multi-tenant from day one, en/bn, dues tracked-not-collected).
+- **Operative stack table** (one-page reference).
+- **Non-negotiable conventions:** ADRs immutable; task IDs reference Implementation-Plan; multi-tenancy + audit logging + i18n + feature flags required.
+- **Out-of-scope items** to prevent scope drift.
+- **Expected monorepo layout** for when Phase 0 begins.
+- **Reminder** that this file must be updated with real commands when code lands.
+
+---
+
+## Decision: what's the next step
+
+The architect proposed three paths:
+
+1. **Today (free, ~30 min):** `git init` + repo scaffolding + first commit.
+2. **This week (free):** Validate the SaaS bet by talking to 2–3 other club admins.
+3. **Next week (~$15, owner-only):** Pre-work P0-001..P0-013 — register domain, create Azure / Clerk / Stripe accounts.
+
+The owner mentioned **Skylights LLC** as the company name and chose **path 1** (do step 1 now).
+
+---
+
+## Repository scaffolding (P0-014 partial)
+
+Four files written:
+
+| File | Content |
+|---|---|
+| `README.md` | Project overview, status (pre-Phase-0), document read-order, contact (moh.razib@gmail.com), copyright Skylights LLC |
+| `LICENSE` | **Proprietary** — Copyright (c) 2026 Skylights LLC. All Rights Reserved. Forbids copying/modification/distribution without written permission. |
+| `.gitignore` | Comprehensive — .NET (bin/, obj/, .vs/, *.user, etc.), Node (node_modules/, .next/, .turbo/), secrets (.env*, *.pfx, secrets.json, appsettings.*.local.json), IDE/OS (.idea/, .DS_Store), logs, coverage, Bicep (.bicepparam.local) |
+| `.editorconfig` | UTF-8, LF line endings, trim trailing whitespace; 4-space indent for C#/.csproj; 2-space for TS/JS/JSON/YAML/HTML/CSS/Bicep; markdown preserves trailing whitespace |
+
+---
+
+## Git initialization + first commit
+
+```
+cd D:/Projects/EarlyEagles
+git init -b main                                  # default branch: main
+git add .editorconfig .gitignore CLAUDE.md \
+        Implementation-Plan.md LICENSE Plan.md \
+        README.md project-scope.md docs/          # specific files, not -A
+git commit -m "Initial commit: planning docs and repository scaffolding"
+```
+
+- **Commit SHA:** `8ab94a2`
+- **12 files, 1,814 insertions**
+- **Author config (already global):** `razibur` / `razibur@outlook.com`
+
+---
+
+## GitHub repo creation + push
+
+After confirming `gh` CLI was installed (v2.49.2) and authenticated as `razibur`, the owner chose **Option 1: razibur/early-eagles-platform private** (transfer to Skylights LLC org later).
+
+```
+gh repo create razibur/early-eagles-platform --private --source=. \
+  --remote=origin --push \
+  --description "Multi-tenant B2B SaaS platform for badminton clubs. Owned by Skylights LLC. Tenant 0: Early Eagles club."
+```
+
+- **URL:** https://github.com/razibur/early-eagles-platform
+- **Visibility:** Private
+- **Default branch:** main
+- **Tracking:** origin/main
+- **Token scopes confirmed:** `gist`, `read:org`, `repo`, `workflow`
+
+The architect noted that **branch protection** (P0-015) was not yet enabled — for a solo developer, "require 1 review" is annoying without a second contributor; protection becomes useful when CI lands and `required_status_checks` becomes the real gate.
+
+---
+
 ## Final document tree
 
 ```
-D:\Projects\EarlyEagles\
-├── project-scope.md                            ← Problem · Solution · Features (B2B SaaS)
-├── Plan.md                                     ← Master plan (operative)
-├── BrainStorm\                                 ← Original 7 docs (kept as inspiration)
-│   ├── App-Idea.md
-│   ├── sprint-start-Idea.md
-│   ├── Mobile-App-Idea.md
-│   ├── Assistant-Idea.md
-│   ├── Agent-Idea.md
-│   ├── Coach-Idea.md
-│   └── XR-MatchCourt-Idea.md
-└── docs\
-    ├── adr\
-    │   ├── 0001-stack-and-architecture.md      ← Original direction (largely superseded)
-    │   └── 0002-enterprise-saas-reframe.md     ← OPERATIVE
-    ├── alternatives\
-    │   └── pre-brainstorm-supabase-stack.md    ← First rejected option
-    └── chat-log\
-        └── 2026-05-08-initial-planning.md      ← This file
+D:\Projects\EarlyEagles\               (now a git repo at razibur/early-eagles-platform)
+├── .git/
+├── .editorconfig                      ← .NET (4-space) + Web (2-space)
+├── .gitignore                         ← .NET / Node / secrets / IDE / OS
+├── README.md                          ← project overview, links, Skylights LLC
+├── LICENSE                            ← proprietary, © 2026 Skylights LLC
+├── CLAUDE.md                          ← guidance for Claude Code
+├── project-scope.md                   ← Problem · Solution · Features
+├── Plan.md                            ← architecture · stack · 9-phase roadmap
+├── Implementation-Plan.md             ← ~250 numbered tasks
+└── docs/
+    ├── adr/
+    │   ├── 0001-stack-and-architecture.md       ← original direction (largely superseded)
+    │   └── 0002-enterprise-saas-reframe.md      ← OPERATIVE
+    ├── alternatives/
+    │   └── pre-brainstorm-supabase-stack.md     ← first rejected option
+    └── chat-log/
+        └── 2026-05-08-initial-planning.md       ← this file
 ```
 
 ---
@@ -274,6 +386,12 @@ D:\Projects\EarlyEagles\
 22. ✅ IaC: Bicep (chosen in R4)
 23. ✅ Subscription billing: Stripe Billing (chosen in R4)
 24. ✅ Pricing tiers: Free / Pro / Enterprise (sketched in R4, refine before Phase 2)
+25. ✅ Implementation plan: ~250 tasks across 9 phases with stable IDs (P0-001..P9-NNN)
+26. ✅ Company / IP owner: **Skylights LLC**
+27. ✅ License: Proprietary, all rights reserved
+28. ✅ GitHub repo: **razibur/early-eagles-platform** (private; transfer to Skylights LLC org later)
+29. ✅ Default branch: `main`
+30. ✅ First commit: `8ab94a2` — 12 files, 1,814 insertions
 
 ---
 
@@ -284,26 +402,42 @@ D:\Projects\EarlyEagles\
 - **Pool model (multi-tenancy)** — single database, single schema, `tenant_id` column on every row. Cheapest, most efficient, isolation enforced in app code.
 - **Silo model (multi-tenancy)** — one database per tenant. Strongest isolation, highest cost, easiest data residency. Available as Enterprise-tier upsell.
 - **Bridge model (multi-tenancy)** — single database, schema-per-tenant. Middle ground.
-- **PWA (Progressive Web App)** — installable web app; home-screen icon, offline support, push notifications. Stand-in for a native app for many use cases.
+- **PWA (Progressive Web App)** — installable web app; home-screen icon, offline support, push notifications.
 - **IaC (Infrastructure as Code)** — provisioning cloud resources via code (Bicep, Terraform), not by clicking in a portal. Required for reproducibility.
-- **SCIM** — System for Cross-domain Identity Management. Automatic user provisioning protocol used by enterprise customers (e.g., Okta auto-creates users in your app when they're added to the customer's directory).
-- **SSO (Single Sign-On)** — enterprise users sign in via their company's identity provider (Okta, Azure AD) instead of creating a new password. Required at Enterprise tier.
+- **SCIM** — System for Cross-domain Identity Management. Automatic user provisioning protocol used by enterprise customers.
+- **SSO (Single Sign-On)** — enterprise users sign in via their company's IdP (Okta, Azure AD) instead of creating a password. Required at Enterprise tier.
 - **SBOM (Software Bill of Materials)** — list of all dependencies in a build. Required for some compliance regimes; signals security posture.
-- **WAF (Web Application Firewall)** — edge filter that blocks SQL injection, XSS, and similar attacks before they reach your application.
+- **WAF (Web Application Firewall)** — edge filter that blocks SQLi/XSS-class attacks before they reach the application.
 
 ---
 
 ## Open items at end of session
 
-- Phase 0 not yet started (no code, no infrastructure provisioned).
-- Pricing tiers are sketched but not validated against any market research.
-- Specific cloud region for Azure resources not chosen (likely U.S. East or U.S. Central given user base in U.S.).
+### Resolved during this session
+
+- [x] git initialized + first commit + pushed to private GitHub repo
+- [x] License decided (proprietary, Skylights LLC)
+- [x] Repo location decided (razibur/early-eagles-platform; transfer plan to Skylights LLC org later)
+- [x] Implementation plan written
+
+### Still open
+
+- Phase 0 not yet started (no infrastructure provisioned, no .NET solution, no Next.js app).
+- Owner-only pre-work P0-001..P0-013 not yet started (domain registration, Azure subscription, Clerk/Stripe/etc. accounts).
+- Pricing tiers sketched but not validated against any market research (the architect recommended talking to 2–3 other club admins before spending).
+- Specific Azure region not chosen (likely U.S. East or U.S. Central).
 - Mobile framework (Flutter vs Expo) deliberately deferred to Phase 6.
-- Marketing/landing page strategy for Phase 2 not designed.
+- Marketing / landing page strategy for Phase 2 not designed.
 - Legal docs (ToS / Privacy / DPA) not drafted; tool not selected (Termly vs hand-drafted).
+- Branch protection on `main` not yet enabled (P0-015) — fine for solo dev until CI lands.
+- **BrainStorm/ folder** referenced earlier was not on disk at session end — the 7 docs are summarized in this chat log but not committed.
+- **Skylights LLC** appears in `README.md` and `LICENSE` only — not yet added to `project-scope.md`, `Plan.md`, or ADRs (ADRs are immutable; future ADRs can mention it).
+- Skylights LLC GitHub organization not yet created; current repo is under personal account `razibur`.
 
-## Next step proposed
+## Next steps proposed
 
-Phase 0 scaffolding — Bicep templates, Clean Architecture solution skeleton, tenant-resolution middleware, Clerk + Stripe wiring, GitHub Actions for dev/staging/prod, Application Insights baseline. Estimated effort not given (depends on owner's pace and learning curve with .NET + Bicep).
+1. **Owner-only pre-work** (P0-001..P0-013): register domain, create Azure subscription, GitHub org for Skylights LLC, Clerk / Stripe / Sentry / Better Stack / PostHog / Resend / Flagsmith / R2 accounts, password manager vault. Estimated ~2–4 hours.
+2. **Architect-driven** (P0-014 onward, after accounts exist): Bicep IaC for dev environment, .NET solution skeleton with Clean Architecture, Next.js app, GitHub Actions, multi-tenant middleware, tenant isolation tests.
+3. **Optional sanity check** before spending real money: talk to 2–3 admins of other Bangladeshi-diaspora badminton clubs and gauge willingness to pay $25–40/month. Saves months if the SaaS framing is wrong.
 
-The owner had not yet authorized starting Phase 0 at the end of this session.
+The session ended with the owner pausing for the day after the GitHub push completed.

@@ -78,6 +78,11 @@ azure.yaml.local
 !.vscode/launch.json
 *.iml
 
+# Claude Code (per-user settings; project-shared settings.json is allowed)
+.claude/settings.local.json
+.claude/.cache/
+.claude/logs/
+
 # OS
 .DS_Store
 Thumbs.db
