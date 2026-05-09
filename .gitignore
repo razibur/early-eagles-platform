@@ -1,0 +1,91 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.key
+*.pem
+secrets.json
+appsettings.*.local.json
+appsettings.Development.json
+local.settings.json
+
+# .NET / ASP.NET Core
+bin/
+obj/
+out/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.swp
+*.swo
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.nupkg
+*.snupkg
+.nuget/
+
+# Test results / coverage
+TestResults/
+[Cc]overage/
+*.coverage
+*.coveragexml
+.nyc_output/
+coverage.json
+coverage.lcov
+
+# Node / Next.js / pnpm
+node_modules/
+.next/
+.turbo/
+.vercel/
+dist/
+build/
+.cache/
+.pnpm-store/
+.yarn/cache/
+.yarn/install-state.gz
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Bicep / Azure
+*.bicepparam.local
+.azure/
+azure.yaml.local
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Misc
+*.tmp
+*.bak
+*.orig
+*.rej
