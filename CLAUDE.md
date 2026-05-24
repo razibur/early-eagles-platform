@@ -2,21 +2,44 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Repository status — documentation-only
+## Repository status — Phase 0 in progress (web app scaffolded)
 
-There is **no code in this repository yet**. The repo currently contains only planning and architecture documents. Phase 0 (the first implementation phase) has not started. There is no `package.json`, no `.sln`, no Bicep, no Dockerfile — nothing to build, run, lint, or test until Phase 0 begins.
+Phase 0 has started. The web app is scaffolded under [`apps/web`](./apps/web) (Next.js 16.2 + React 19.2 + Tailwind v4 + TypeScript) with shadcn/ui (Base UI variant) and Recharts wired up. A sample dashboard with three charts (bar / line / area using fake club data) is on `/`.
 
-When code does land, this file must be updated with:
-- Build / run / test commands (likely `dotnet build`, `dotnet test`, `pnpm dev`, `bicep build`, etc.)
-- A more concrete description of the running architecture
-- Anything else future-Claude needs to be productive
+**Not yet started:** `apps/api` (ASP.NET Core 9), `infra/` (Bicep), Clerk auth, next-intl i18n, next-pwa, Sentry, GitHub Actions, the tenant-isolation test gate (P0-034). Treat the chart work as one Phase 0 task ("scaffold web + pick chart library"), not a sign that the full phase is done.
+
+### Package manager
+
+**npm 11** with workspaces, defined at the repo root. pnpm was the preferred pick but `corepack enable` requires admin rights on Windows (Node is in `Program Files`). To switch to pnpm later: run `corepack enable pnpm` from an elevated terminal, add `"packageManager": "pnpm@<version>"` to root `package.json`, and convert the workspace scripts.
+
+### Commands
+
+Run from the repo root:
+
+```pwsh
+npm install                    # install all workspace deps
+npm run dev                    # start Next dev server (apps/web on :3000)
+npm run build                  # production build for apps/web
+npm run lint                   # eslint via next lint
+```
+
+Direct workspace targeting also works: `npm --workspace web run <script>`.
+
+### Important Next.js 16 caveat
+
+[`apps/web/AGENTS.md`](./apps/web/AGENTS.md) warns that Next.js 16 has breaking changes from older versions. Before writing or modifying Next-specific code (routing, caching, server components, middleware, etc.), consult Context7 (`/vercel/next.js`) or `apps/web/node_modules/next/dist/docs/` for current syntax. Default to fresh docs, not training-data muscle memory.
+
+### Charting
+
+shadcn/ui Charts (Recharts under the hood) is the chosen library. Chart primitives live in [`apps/web/components/ui/chart.tsx`](./apps/web/components/ui/chart.tsx); sample feature charts are in [`apps/web/components/charts/`](./apps/web/components/charts/). Chart colors use the CSS variables `--chart-1` through `--chart-5` defined in [`apps/web/app/globals.css`](./apps/web/app/globals.css). New chart components must be Client Components (Recharts requires it) and should be composed into Server Component pages.
 
 ## Where to start (read these in order)
 
-1. **[`project-scope.md`](./project-scope.md)** — what the platform is (B2B multi-tenant SaaS for badminton clubs) and what features each phase delivers.
-2. **[`docs/adr/0002-enterprise-saas-reframe.md`](./docs/adr/0002-enterprise-saas-reframe.md)** — **the operative architecture decision.** Defines stack picks and why. Supersedes most of ADR-0001.
-3. **[`Plan.md`](./Plan.md)** — current architecture + stack table + 9-phase roadmap + cost model.
-4. **[`Implementation-Plan.md`](./Implementation-Plan.md)** — ~250 numbered tasks across 9 phases, with dependencies and acceptance criteria. Phases 0–2 are detailed; 3–9 are sketched and will be re-planned.
+1. **[`PROGRESS.md`](./PROGRESS.md)** — live status dashboard. Scan in 30 seconds to see what's done, in-flight, deferred, and next. Each task carries a one-line `verify:` step. **Update this every time you finish or block on a task.**
+2. **[`project-scope.md`](./project-scope.md)** — what the platform is (B2B multi-tenant SaaS for badminton clubs) and what features each phase delivers.
+3. **[`docs/adr/0002-enterprise-saas-reframe.md`](./docs/adr/0002-enterprise-saas-reframe.md)** — **the operative architecture decision.** Defines stack picks and why. Supersedes most of ADR-0001.
+4. **[`Plan.md`](./Plan.md)** — current architecture + stack table + 9-phase roadmap + cost model.
+5. **[`Implementation-Plan.md`](./Implementation-Plan.md)** — ~250 numbered tasks across 9 phases, with dependencies and acceptance criteria. Phases 0–2 are detailed; 3–9 are sketched and will be re-planned.
 
 ADR-0001, the pre-BrainStorm Supabase alternative, and the chat log under `docs/` are historical context — read them only if you need to understand why a particular path was rejected.
 
@@ -25,7 +48,7 @@ ADR-0001, the pre-BrainStorm Supabase alternative, and the chat log under `docs/
 - **Enterprise B2B SaaS**, intended to be sold to other clubs. Quality and sellability over speed. No fixed deadline.
 - **Tenant 0** is the Early Eagles club (~35 middle-aged Bangladeshi men, weekly Sunday play, $15 Zelle dues). They are the first real user; not a hypothetical.
 - **Multi-tenant from day one** — pool model, single Postgres, `tenant_id` on every domain table, EF Core global query filters, tenant-resolution middleware, automated isolation tests in CI.
-- **Languages: English + Bangla** from day one at every layer (backend errors, emails, push, UI).
+- **Language: English only for now.** Bangla / `next-intl` / `IStringLocalizer` are **deferred** per [ADR-0003](./docs/adr/0003-defer-i18n.md) until a Bangla-first tenant is near production or the platform is being marketed to non-English clubs.
 - **Member dues** (Zelle, e-Transfer, cash) are *tracked, not collected*. Stripe is used **only** for tenant subscription billing.
 
 ## Operative stack (per ADR-0002)
@@ -66,8 +89,8 @@ Every new domain entity has `TenantId`. Every query is filtered by EF Core globa
 ### Audit logging is non-negotiable
 Every state-changing operation produces an append-only `AuditEvent` row, scoped to its tenant. The `AuditBehavior` MediatR pipeline behavior handles this — don't bypass it.
 
-### i18n at every layer
-Add Bangla strings alongside English from the first commit. Do not "add translations later" — the architecture (`next-intl` + `IStringLocalizer`) makes both equally easy.
+### i18n is deferred (per ADR-0003)
+English only for now. Do **not** wire `next-intl`, `IStringLocalizer`, locale routing, Bangla font, or per-string translation passes. Mitigation for the eventual retrofit: keep user-visible strings out of business logic so a future extraction pass stays mechanical.
 
 ### Feature flags before features
 Every new user-facing capability ships behind a Flagsmith flag, off by default in prod. Tenants opt in.
@@ -80,17 +103,13 @@ Every new user-facing capability ships behind a Flagsmith flag, off by default i
 - Replacing WhatsApp casual chat in Phase 1 — Phase 3 introduces in-app chat.
 - Microsoft 365 Teams Agent and Unity XR are deliberately **deferred to Phase 8 / Phase 9**, not Phase 0.
 
-## When code starts (Phase 0)
-
-The expected layout (per `Implementation-Plan.md` task P0-019) is a monorepo:
+## Repo layout (Phase 0 target, per `Implementation-Plan.md` P0-019)
 
 ```
 apps/
-  api/                  ASP.NET Core 9 (Clean Architecture)
-  web/                  Next.js 16
-infra/                  Bicep modules + per-environment main.bicep
+  api/                  ASP.NET Core 9 (Clean Architecture)  — not yet created
+  web/                  Next.js 16                            — scaffolded
+infra/                  Bicep modules + per-environment main.bicep — not yet created
 docs/                   ADRs, alternatives, chat-log, runbooks
-.github/workflows/      CI/CD
+.github/workflows/      CI/CD — not yet created
 ```
-
-When the first code lands, update this CLAUDE.md with the actual package manager (`pnpm` vs `npm`), the actual `dotnet` solution path, and any per-environment commands. Until then, there is nothing to run.

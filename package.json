@@ -1,0 +1,16 @@
+{
+  "name": "early-eagles",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm --workspace web run dev",
+    "build": "npm --workspace web run build",
+    "lint": "npm --workspace web run lint"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

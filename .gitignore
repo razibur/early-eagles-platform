@@ -10,6 +10,7 @@ secrets.json
 appsettings.*.local.json
 appsettings.Development.json
 local.settings.json
+.sentryclirc
 
 # .NET / ASP.NET Core
 bin/
@@ -43,6 +44,10 @@ TestResults/
 .nyc_output/
 coverage.json
 coverage.lcov
+playwright-report/
+test-results/
+playwright/.cache/
+playwright/screenshots/
 
 # Node / Next.js / pnpm
 node_modules/
@@ -55,6 +60,8 @@ build/
 .pnpm-store/
 .yarn/cache/
 .yarn/install-state.gz
+*.tsbuildinfo
+next-env.d.ts
 
 # Logs
 *.log
@@ -82,12 +89,23 @@ azure.yaml.local
 .claude/settings.local.json
 .claude/.cache/
 .claude/logs/
+.claude/skills/
+
+# Agent skills installed via `npx skills add` (per-user, not project source)
+.agents/
+skills-lock.json
 
 # OS
 .DS_Store
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Local development data (Docker volumes, dev databases)
+pgdata/
+data/postgres/
+data/redis/
+.docker-data/
 
 # Misc
 *.tmp
