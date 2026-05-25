@@ -20,231 +20,296 @@ Last updated: 2026-05-24
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▱▱▱▱▱▱▱▱  ~12% (10 / ~80 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~5% (10 / ~190 tasks)
 
-The non-negotiable platform foundation. **P0-034 (tenant-isolation integration
-test) is the gate** — must stay green before any feature beyond Phase 0 ships.
+The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
+
+Re-granulated 2026-05-25 per the [small-task rule](file:///c:/Users/skyli/.claude/projects/d--Projects-EarlyEagles/memory/feedback_small_tasks.md): each task 1–3 hours, single concept, individually verifiable. Sub-IDs (`.1`, `.2`, …) decompose bundles in the previous coarser plan.
 
 ### Pre-work — accounts, domain, secrets
 
-External account / billing tasks. Mostly off the laptop; I can't verify these,
-you confirm by logging into each console.
+External account / billing tasks. Mostly off the laptop; you confirm by logging into each console.
 
-- `[ ]` **P0-001** Create Azure subscription + landing-zone resource groups (dev / staging / prod)
-  ↳ verify: 3 RGs visible in Azure Portal
-- `[ ]` **P0-002** Buy `earlyeagles.club` (or final domain) + configure DNS at provider
-  ↳ verify: `nslookup earlyeagles.club` returns NS records
-- `[ ]` **P0-003** Set up Azure Cost Management budget + alerts ($50/mo dev cap)
-  ↳ verify: budget alert email arrives on test trigger
-- `[ ]` **P0-004** Create GitHub org + repo `earlyeagles/early-eagles` (or rename current)
-  ↳ verify: repo URL resolves with you as owner
-- `[ ]` **P0-005** Create Stripe account (test mode) + verify business
-  ↳ verify: Stripe dashboard accessible, test mode enabled
-- `[ ]` **P0-006** Create Clerk account + first application
-  ↳ verify: Clerk dashboard shows an app with publishable + secret keys
-- `[ ]` **P0-007** Provision Cloudflare account + R2 bucket (test)
-  ↳ verify: bucket lists in `wrangler r2 bucket list`
-- `[ ]` **P0-008** Create Sentry account + project
-  ↳ verify: Sentry DSN available
+- `[ ]` **P0-001** Register `earlyeagles.club` via Cloudflare Registrar
+  ↳ verify: `whois earlyeagles.club` shows ownership; auto-renew on
+- `[ ]` **P0-002** Create Cloudflare account + add domain DNS zone
+  ↳ verify: Cloudflare manages the zone; NS records resolve
+- `[ ]` **P0-003** Create Azure subscription + $50/mo dev billing alert
+  ↳ verify: test alert email arrives when threshold simulated
+- `[ ]` **P0-004** Create GitHub org + private repo `early-eagles-platform`
+  ↳ verify: repo URL resolves; you're owner
+- `[ ]` **P0-005** Set up password-manager vault for project secrets
+  ↳ verify: vault entry exists, can be unlocked
+- `[ ]` **P0-006** Create Clerk account + production application
+  ↳ verify: dashboard shows publishable + secret keys
+- `[ ]` **P0-007** Create Stripe account (test mode) + verify business
+  ↳ verify: dashboard accessible, test mode enabled
+- `[ ]` **P0-008** Create Sentry account + two projects (backend + frontend)
+  ↳ verify: two DSNs in vault
 - `[ ]` **P0-009** Create Better Stack account + status page placeholder
   ↳ verify: status page URL resolves
 - `[ ]` **P0-010** Create PostHog account + project
-  ↳ verify: PostHog dashboard accessible
+  ↳ verify: API key in vault
 - `[ ]` **P0-011** Create Resend account + verify sending domain
-  ↳ verify: send a test email from Resend dashboard
-- `[ ]` **P0-012** Create Flagsmith account + environment
-  ↳ verify: dashboard shows dev environment
-- `[ ]` **P0-013** Set up password manager vault for shared secrets
-  ↳ verify: vault entry created, can be unlocked
+  ↳ verify: DKIM/SPF passing; test email arrives
+- `[ ]` **P0-012** Create Flagsmith account + project + dev environment
+  ↳ verify: dev environment shows in dashboard
+- `[ ]` **P0-013** Create Cloudflare R2 bucket `ee-storage-dev`
+  ↳ verify: `wrangler r2 bucket list` shows bucket
 
 ### Repository scaffolding
 
-- `[x]` **P0-014** Repo skeleton — README, LICENSE, .gitignore, .editorconfig, CODE_OF_CONDUCT.md, CONTRIBUTING.md
-  ↳ verify: `ls README.md LICENSE .gitignore .editorconfig` — all present. Still missing: CODE_OF_CONDUCT.md, CONTRIBUTING.md, CODEOWNERS
-- `[ ]` **P0-015** Branch protection on `main`: require PR review, status checks, signed commits
-  ↳ verify: GitHub Settings → Branches shows rule active, direct push to main fails
+- `[x]` **P0-014.1** Create `README.md` with tagline + tech overview + quick start
+  ↳ verify: renders on GitHub repo home
+- `[x]` **P0-014.2** Add `LICENSE` (MIT or Apache-2.0)
+  ↳ verify: visible in GitHub repo header
+- `[x]` **P0-014.3** Add `.gitignore` for .NET / Node / Bicep / OS / secrets
+  ↳ verify: build artifacts don't show in `git status`
+- `[x]` **P0-014.4** Add `.editorconfig` (indentation, line endings, final newline)
+  ↳ verify: VS / Rider / VSCode all respect settings
+- `[ ]` **P0-014.5** Add `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1)
+  ↳ verify: file present, linked from README
+- `[ ]` **P0-014.6** Add `CONTRIBUTING.md` (branch + commit + PR conventions)
+  ↳ verify: file present, linked from README
+- `[ ]` **P0-015** Branch protection on `main` (PR review, status checks, signed commits)
+  ↳ verify: direct push to `main` blocked
 - `[ ]` **P0-016** Add `CODEOWNERS` file
-  ↳ verify: open a test PR; you're auto-requested as reviewer
-- `[ ]` **P0-017** ADR template at `docs/adr/0000-template.md`
-  ↳ verify: file exists, contains the template scaffold
-- `[x]` **P0-018** Move existing docs (Plan.md, project-scope.md, docs/) into repo
-  ↳ verify: all referenced docs resolve under repo root
-- `[x]` **P0-019** Monorepo layout: `apps/web`, `apps/api`, `infra`, `docs`, npm workspaces
-  ↳ verify: `apps/web/` exists with package.json; root `package.json` declares `workspaces: ["apps/*"]`; `npm run dev` from root starts apps/web
+  ↳ verify: test PR auto-requests you as reviewer
+- `[ ]` **P0-017** Add `docs/adr/0000-template.md` ADR template
+  ↳ verify: file exists with template scaffold
+- `[x]` **P0-018** Move existing planning docs into repo
+  ↳ verify: all cross-references resolve
+- `[x]` **P0-019** Monorepo layout (`apps/web`, `apps/api`, `infra`, `docs`) + workspace config
+  ↳ verify: `npm install` from root installs all workspaces
 
 ### Backend — Clean Architecture solution
 
 None started. `apps/api/` does not exist yet.
 
-- `[ ]` **P0-020** `EarlyEagles.sln` with 7 projects: Api, Application, Domain, Infrastructure, Tests.Unit, Tests.Integration, Tests.Acceptance
-  ↳ verify: `dotnet build apps/api/EarlyEagles.sln` → 0 errors; Domain has no reference to Infrastructure
-- `[ ]` **P0-021** Base Domain types: `Entity<TId>`, `ValueObject`, `AggregateRoot`, `IDomainEvent`
-  ↳ verify: `dotnet test apps/api/tests/EarlyEagles.Tests.Unit` passes; base-class tests green
-- `[ ]` **P0-022** StyleCop + Roslyn analyzers + `.editorconfig` rules
-  ↳ verify: `dotnet build` reports analyzer warnings on a deliberate violation
-- `[ ]` **P0-023** MediatR + FluentValidation + AutoMapper wiring
-  ↳ verify: sample command/query handler invokes from a test
-- `[ ]` **P0-024** Pipeline behaviors: Logging, Validation, Transaction, Audit
-  ↳ verify: each behavior unit-tested; logs visible for sample command
-- `[ ]` **P0-025** Centralized exception middleware → RFC 7807 ProblemDetails
-  ↳ verify: `curl /broken` returns `application/problem+json` with `title` + `status`
-- `[ ]` **P0-026** Health endpoints `/health` (live) and `/ready` (DB + Service Bus)
-  ↳ verify: `curl /health` → 200; `curl /ready` → 200 when deps up, 503 when down
-- `[ ]` **P0-027** OpenAPI / Swagger with auth + tenant header documented
-  ↳ verify: `/swagger` lists every endpoint with examples
+- `[ ]` **P0-020.1** Create empty `apps/api/EarlyEagles.sln`
+- `[ ]` **P0-020.2** Add `EarlyEagles.Domain` class library
+- `[ ]` **P0-020.3** Add `EarlyEagles.Application`, reference Domain
+- `[ ]` **P0-020.4** Add `EarlyEagles.Infrastructure`, reference Application
+- `[ ]` **P0-020.5** Add `EarlyEagles.Api` (ASP.NET Core 9), reference Application + Infrastructure
+- `[ ]` **P0-020.6** Add `EarlyEagles.Tests.Unit` xUnit project
+- `[ ]` **P0-020.7** Add `EarlyEagles.Tests.Integration` xUnit project
+- `[ ]` **P0-020.8** Add `EarlyEagles.Tests.Acceptance` xUnit project
+- `[ ]` **P0-020.9** Architecture test (NetArchTest) enforcing Domain ⊥ Infrastructure
+- `[ ]` **P0-020.10** Whole-solution `dotnet build` returns 0 errors + 0 warnings
+- `[ ]` **P0-021.1** `Entity<TId>` base class with Id + equality
+- `[ ]` **P0-021.2** `ValueObject` base class with structural equality
+- `[ ]` **P0-021.3** `AggregateRoot` base class with domain-event collection
+- `[ ]` **P0-021.4** `IDomainEvent` interface + dispatch contract
+- `[ ]` **P0-021.5** Unit tests for Entity / ValueObject / AggregateRoot semantics
+- `[ ]` **P0-022.1** Add StyleCop + Roslyn analyzers via `Directory.Build.props`
+- `[ ]` **P0-022.2** Configure StyleCop ruleset; turn warnings into errors
+- `[ ]` **P0-023.1** Install MediatR; register handlers from Application assembly
+- `[ ]` **P0-023.2** Install FluentValidation; register validators
+- `[ ]` **P0-023.3** Install AutoMapper; register profiles
+- `[ ]` **P0-024.1** `LoggingBehavior` MediatR pipeline (with correlation ID)
+- `[ ]` **P0-024.2** `ValidationBehavior` MediatR pipeline (runs FluentValidation)
+- `[ ]` **P0-024.3** `TransactionBehavior` MediatR pipeline (wraps writes in TX)
+- `[ ]` **P0-024.4** `AuditBehavior` MediatR pipeline (writes AuditEvent — wires to P0-047)
+- `[ ]` **P0-025** Centralised exception middleware → RFC 7807 ProblemDetails
+- `[ ]` **P0-026.1** `/health` endpoint returns 200 + version + uptime
+- `[ ]` **P0-026.2** `/ready` endpoint returns 200 when DB + Service Bus reachable
+- `[ ]` **P0-027.1** Swashbuckle wired; `/swagger` lists endpoints
+- `[ ]` **P0-027.2** Auth scheme documented in OpenAPI (Clerk JWT bearer)
+- `[ ]` **P0-027.3** Tenant resolution header documented in OpenAPI spec
 
 ### Multi-tenancy core
 
-- `[ ]` **P0-028** `Tenant` aggregate (Id, Slug, DisplayName, Locale, Branding, Plan, Status)
-  ↳ verify: unit tests for invariants pass
-- `[ ]` **P0-029** `TenantMember` join entity
-  ↳ verify: unit test for membership rules passes
-- `[ ]` **P0-030** `ITenantContext` interface + scoped service
-  ↳ verify: integration test confirms per-request tenant resolution
-- `[ ]` **P0-031** Tenant-resolution middleware (subdomain → `TenantContext`)
-  ↳ verify: hit `<slug>.localhost:5000/whoami`; response shows correct tenant
-- `[ ]` **P0-032** EF Core `DbContext` with global query filter on every tenant-scoped entity
-  ↳ verify: integration test issuing a query without tenant context returns empty set
-- `[ ]` **P0-033** First EF Core migration: `tenants`, `tenant_members`, `audit_events`
-  ↳ verify: `dotnet ef database update`; psql shows 3 tables with expected columns
-- `[ ]` **P0-034** ★ **Tenant isolation integration test** — Tenant A cannot read Tenant B data via any endpoint
-  ↳ verify: `dotnet test --filter Category=TenantIsolation` passes; CI fails if filter bypassed
+- `[ ]` **P0-028.1** `Tenant` aggregate skeleton (Id, Slug, DisplayName)
+- `[ ]` **P0-028.2** Add `Branding` value object to Tenant
+- `[ ]` **P0-028.3** Add `Plan` + `Status` enums + transition guards
+- `[ ]` **P0-028.4** Unit tests for Tenant invariants
+- `[ ]` **P0-029.1** `TenantMember` entity (TenantId, ClerkUserId, Role)
+- `[ ]` **P0-029.2** Unit tests for role-change invariants
+- `[ ]` **P0-030.1** `ITenantContext` interface + scoped implementation
+- `[ ]` **P0-030.2** Integration test confirms per-request scope
+- `[ ]` **P0-031.1** Subdomain extractor utility (parse `<slug>.earlyeagles.club`)
+- `[ ]` **P0-031.2** Tenant-resolution middleware (extract → lookup → populate)
+- `[ ]` **P0-031.3** Unknown-tenant 404 + missing-subdomain 400 in production
+- `[ ]` **P0-031.4** E2E test: `<slug>.earlyeagles.club/whoami` returns the right tenant
+- `[ ]` **P0-032.1** `ITenantScoped` marker interface; apply to all tenant entities
+- `[ ]` **P0-032.2** `DbContext` with global query filter on `ITenantScoped` types
+- `[ ]` **P0-032.3** Integration test: query without `ITenantContext` returns empty
+- `[ ]` **P0-033.1** EF migration: create `tenants` table
+- `[ ]` **P0-033.2** EF migration: create `tenant_members` table with FK to tenants
+- `[ ]` **P0-033.3** EF migration: create `audit_events` table (append-only)
+- `[ ]` **P0-033.4** Apply migrations against local Postgres; verify with psql
+- `[ ]` **P0-034.1** ★ Testcontainers Postgres setup in `Tests.Integration`
+- `[ ]` **P0-034.2** ★ Seed fixture: two tenants (Alpha, Beta) with sample data
+- `[ ]` **P0-034.3** ★ Test: query as Tenant Alpha, assert Beta's rows not visible
+- `[ ]` **P0-034.4** ★ Test: insert as Tenant Alpha, TenantId auto-populates
+- `[ ]` **P0-034.5** ★ Test: bypass tenant context, assert empty result
+- `[ ]` **P0-034.6** ★ Test: cross-tenant API endpoint access returns 404
+- `[ ]` **P0-034.7** ★ Wire isolation tests into CI as required check
+- `[ ]` **P0-034.8** ★ Document the test pattern in `docs/runbooks/tenant-isolation-tests.md`
 
 ### Identity — Clerk integration
 
-- `[ ]` **P0-035** Clerk JWT validation middleware in Api
-  ↳ verify: unauthenticated request to a protected route → 401; authenticated → 200
-- `[ ]` **P0-036** Clerk webhook receiver (organization.created, organizationMembership.created, user.created, user.updated)
-  ↳ verify: create org in Clerk dashboard → row appears in `tenants` table
-- `[ ]` **P0-037** Svix webhook signature verification
-  ↳ verify: webhook with bad signature → 400; good signature → 200
-- `[ ]` **P0-038** Map Clerk org roles ↔ tenant-admin / member
-  ↳ verify: admin endpoint requires `tenant-admin` role; regular user gets 403
-- `[ ]` **P0-039** Frontend Clerk SDK setup in Next.js
-  ↳ verify: `/sign-in` page loads; complete sign-in returns to app authenticated
-- `[ ]` **P0-040** Sign-in methods: Google + email magic link + phone OTP + optional MFA
-  ↳ verify: each method completes a sign-in in dev
+- `[ ]` **P0-035.1** Install `Clerk.Net.SDK`; configure secret key from vault
+- `[ ]` **P0-035.2** JWT validation middleware (signature, expiry, audience, issuer)
+- `[ ]` **P0-035.3** Integration test: unauth → 401; valid → claims populated
+- `[ ]` **P0-036.1** Endpoint `POST /api/webhooks/clerk` accepting raw body
+- `[ ]` **P0-036.2** Handle `organization.created` → upsert `tenants` row
+- `[ ]` **P0-036.3** Handle `organizationMembership.created` → upsert `tenant_members`
+- `[ ]` **P0-036.4** Handle `user.created` → seed basic profile
+- `[ ]` **P0-036.5** Handle `user.updated` → patch profile
+- `[ ]` **P0-037** Svix signature verification on webhook endpoint
+- `[ ]` **P0-038** Map Clerk org roles ↔ `tenant-admin` / `member` claims
+- `[ ]` **P0-039.1** Install `@clerk/nextjs`; configure publishable key
+- `[ ]` **P0-039.2** Wrap root layout in `<ClerkProvider>`
+- `[ ]` **P0-039.3** Add `/sign-in` and `/sign-up` routes using Clerk hosted UI
+- `[ ]` **P0-039.4** Next.js middleware redirects unauth users to `/sign-in`
+- `[ ]` **P0-040** Sign-in methods: Google + email magic link + phone OTP
 
 ### Billing — Stripe integration (scaffolding only)
 
-- `[ ]` **P0-041** Stripe SDK setup (.NET + JS)
-  ↳ verify: SDK initialised, can list products
-- `[ ]` **P0-042** Stripe products + prices in dashboard (Free / Pro / Enterprise, test mode)
-  ↳ verify: 3 products visible in Stripe dashboard with price IDs
-- `[ ]` **P0-043** Stripe webhook receiver (checkout, subscription, invoice events)
-  ↳ verify: trigger test webhook via Stripe CLI; handler logs the event
+- `[ ]` **P0-041.1** Install `Stripe.net` + `@stripe/stripe-js`; configure keys
+- `[ ]` **P0-041.2** Stripe CLI installed locally for webhook testing
+- `[ ]` **P0-042.1** Stripe dashboard: Free product + $0/mo price (test mode)
+- `[ ]` **P0-042.2** Stripe dashboard: Pro product + $25/mo price (test mode)
+- `[ ]` **P0-042.3** Stripe dashboard: Enterprise product + placeholder price
+- `[ ]` **P0-043.1** Endpoint `POST /api/webhooks/stripe` accepting raw body
+- `[ ]` **P0-043.2** Handle `checkout.session.completed` → `SubscriptionStarted` event
+- `[ ]` **P0-043.3** Handle `customer.subscription.*` family → state-change events
+- `[ ]` **P0-043.4** Handle `invoice.payment_failed` → `PaymentFailed` event
 - `[ ]` **P0-044** Stripe webhook signature verification
-  ↳ verify: webhook with bad signature → 400
-- `[ ]` **P0-045** Map Stripe customer ↔ Tenant; subscription ↔ Plan
-  ↳ verify: complete test checkout; `tenants.plan` updates
+- `[ ]` **P0-045.1** Migration: add `stripe_customer_id`, `stripe_subscription_id` to `tenants`
+- `[ ]` **P0-045.2** Subscription event → look up tenant → update Plan
+- `[ ]` **P0-045.3** Integration test: simulated webhook updates tenant plan
 
 ### Audit logging
 
-- `[ ]` **P0-046** `AuditEvent` entity (append-only)
-  ↳ verify: table exists; attempting UPDATE/DELETE in tests throws
-- `[ ]` **P0-047** `IAuditService` + AuditBehavior MediatR pipeline
-  ↳ verify: every state-changing command produces an audit row
-- `[ ]` **P0-048** Audit query endpoint (tenant-admin scope)
-  ↳ verify: tenant-admin can list own audit; regular user gets 403
+- `[ ]` **P0-046.1** `AuditEvent` entity
+- `[ ]` **P0-046.2** Postgres trigger / check prevents UPDATE/DELETE on `audit_events`
+- `[ ]` **P0-047.1** `IAuditService.Log(action, resourceType, resourceId, metadata)`
+- `[ ]` **P0-047.2** `AuditBehavior` wires service to MediatR pipeline
+- `[ ]` **P0-048** Audit query endpoint (tenant-admin scope) with pagination
 
 ### Domain events + Service Bus
 
-- `[ ]` **P0-049** `IDomainEventDispatcher` + outbox in DbContext.SaveChangesAsync
-  ↳ verify: integration test confirms event captured in same TX as state change
-- `[ ]` **P0-050** Outbox processor background service publishing to Service Bus
-  ↳ verify: event row in outbox table appears on Service Bus topic
-- `[ ]` **P0-051** Service Bus topic + subscriptions in Bicep (depends on P0-058)
-  ↳ verify: `az servicebus topic show` returns the topic
-- `[ ]` **P0-052** First handler: `PaymentConfirmed` → log only
-  ↳ verify: publish test event; handler log line appears
+- `[ ]` **P0-049.1** Migration: create `outbox` table
+- `[ ]` **P0-049.2** `IDomainEventDispatcher` writes events to outbox in same TX as state
+- `[ ]` **P0-049.3** Integration test: failed transaction discards outbox row
+- `[ ]` **P0-050.1** Background `IHostedService` polls outbox for unprocessed rows
+- `[ ]` **P0-050.2** Publish outbox row to Service Bus topic; mark row processed
+- `[ ]` **P0-050.3** Integration test: outbox row → Service Bus message received
+- `[ ]` **P0-051** Service Bus topic + subscriptions provisioned (P0-058.4)
+- `[ ]` **P0-052.1** `PaymentConfirmedHandler` subscribes to topic
+- `[ ]` **P0-052.2** Handler logs the event; integration test verifies firing
 
 ### Email + notifications scaffolding
 
-- `[ ]` **P0-053** `IEmailSender` abstraction → Resend implementation
-  ↳ verify: integration test sends to a test inbox via Resend
-- `[-]` **P0-054** Email template rendering with i18n
-  ↳ deferred per [ADR-0003](docs/adr/0003-defer-i18n.md). English-only templates only.
+- `[ ]` **P0-053.1** `IEmailSender` interface + `ResendEmailSender` implementation
+- `[ ]` **P0-053.2** Integration test: send via Resend; mock verifies request shape
+- `[-]` **P0-054** Email template rendering with i18n — deferred per [ADR-0003](docs/adr/0003-defer-i18n.md). English-only templates.
 - `[ ]` **P0-055** Smoke-test email from dev → owner inbox
-  ↳ verify: email arrives in your real inbox
 
 ### Infrastructure as Code (Bicep)
 
-- `[ ]` **P0-056** Naming convention + tagging strategy doc (`docs/infra-conventions.md`)
-  ↳ verify: doc exists; PR review enforces against it
-- `[ ]` **P0-057** Bicep modules: resourceGroup, keyVault, logAnalytics, appInsights
-  ↳ verify: `bicep build infra/modules/keyVault.bicep` succeeds
-- `[ ]` **P0-058** Bicep modules: postgres-flexible, containerAppsEnv, containerApp, serviceBus, redis
-  ↳ verify: each module deploys to a throwaway RG
-- `[ ]` **P0-059** `infra/main.dev.bicep` orchestrating dev environment
-  ↳ verify: `az deployment sub create` provisions full dev env in ≤10 min
+- `[ ]` **P0-056** Naming convention + tagging doc (`docs/infra-conventions.md`)
+- `[ ]` **P0-057.1** Bicep module: `resourceGroup.bicep`
+- `[ ]` **P0-057.2** Bicep module: `keyVault.bicep`
+- `[ ]` **P0-057.3** Bicep module: `logAnalytics.bicep`
+- `[ ]` **P0-057.4** Bicep module: `appInsights.bicep`
+- `[ ]` **P0-058.1** Bicep module: `postgres-flexible.bicep`
+- `[ ]` **P0-058.2** Bicep module: `containerAppsEnv.bicep`
+- `[ ]` **P0-058.3** Bicep module: `containerApp.bicep`
+- `[ ]` **P0-058.4** Bicep module: `serviceBus.bicep`
+- `[ ]` **P0-058.5** Bicep module: `redis.bicep`
+- `[ ]` **P0-059.1** `infra/main.dev.bicep` orchestrating all modules
+- `[ ]` **P0-059.2** `infra/main.dev.bicepparam` with dev values
+- `[ ]` **P0-059.3** Deploy `main.dev.bicep` to throwaway RG; verify healthy
 - `[ ]` **P0-060** `infra/main.staging.bicep`
-  ↳ verify: staging env deployed
-- `[ ]` **P0-061** `infra/main.prod.bicep`
-  ↳ verify: prod env deployed (empty, no traffic)
-- `[ ]` **P0-062** Managed identity for Container App → Postgres + Key Vault + Service Bus
-  ↳ verify: API in dev connects to Postgres without a password in config
-- `[ ]` **P0-063** Deploy runbook at `docs/runbooks/deploy-infra.md`
-  ↳ verify: doc exists with step-by-step commands
+- `[ ]` **P0-061** `infra/main.prod.bicep` (empty, no traffic)
+- `[ ]` **P0-062.1** Assign managed identity to Container App
+- `[ ]` **P0-062.2** Grant identity access to Postgres (Azure AD auth)
+- `[ ]` **P0-062.3** Grant identity access to Key Vault + Service Bus
+- `[ ]` **P0-063** `docs/runbooks/deploy-infra.md`
 
 ### Frontend foundations
 
-- `[x]` **P0-064** `apps/web` Next.js 16 + TypeScript + ESLint + Prettier
-  ↳ verify: `npm run dev` from repo root boots the app; page renders 200
-- `[x]` **P0-065** Tailwind v4 + shadcn/ui (Base UI variant) + base components
-  ↳ verify: `apps/web/components.json` exists; `apps/web/components/ui/{button,card,chart}.tsx` present
-- `[-]` **P0-066** `next-intl` with locale routing; en + bn message files
-  ↳ deferred per [ADR-0003](docs/adr/0003-defer-i18n.md)
-- `[ ]` **P0-067** `next-pwa` + manifest + icons
-  ↳ verify: Chrome DevTools → Application → Manifest shows valid manifest; install icon appears
-- `[ ]` **P0-068** Web Push subscription scaffolding (VAPID keys, subscribe endpoint stub)
-  ↳ verify: subscribing in browser writes a row to the DB
-- `[-]` **P0-069** Bangla font (Noto Sans Bengali)
-  ↳ deferred per [ADR-0003](docs/adr/0003-defer-i18n.md)
-- `[~]` **P0-070** Layout shell + nav + theme switcher (locale switcher deferred per ADR-0003)
-  ↳ partial: athletic-modern dashboard at `/` (placeholder); no nav, no theme switcher yet
-  ↳ verify: nav links between pages; theme switcher toggles light/dark
-  ↳ scope note: per [ADR-0004](docs/adr/0004-role-based-landing-and-routing.md) the eventual nav splits into member surfaces (`/`, `/roster`, `/events`, `/chat`, `/settings`) and admin-only routes (`/admin`, `/insights`). Implemented in Phase 1.
-- `[ ]` **P0-071** TanStack Query + auth-aware fetch client
-  ↳ verify: sample authenticated API call from a page works
+- `[x]` **P0-064** `apps/web` Next.js 16 + TypeScript + ESLint scaffold
+  ↳ verify: `npm run dev` from repo root boots; page renders 200
+- `[x]` **P0-065** Tailwind v4 + shadcn/ui (Base UI) + base components
+  ↳ verify: `components.json` + `components/ui/{button,card,chart}.tsx` present
+- `[-]` **P0-066** `next-intl` + locale routing + bn messages — deferred per [ADR-0003](docs/adr/0003-defer-i18n.md)
+- `[ ]` **P0-067.1** Install `next-pwa`; configure in `next.config.ts`
+- `[ ]` **P0-067.2** `public/manifest.webmanifest` with icon set + theme color
+- `[ ]` **P0-067.3** Verify install on Chrome DevTools + Android home screen
+- `[ ]` **P0-068.1** Generate VAPID keys; store public in env, private in vault
+- `[ ]` **P0-068.2** Service worker registers push subscription
+- `[ ]` **P0-068.3** API endpoint `POST /api/push/subscribe` stores subscription per user
+- `[ ]` **P0-068.4** Integration test: subscribe → endpoint → DB row exists
+- `[-]` **P0-069** Bangla font — deferred per [ADR-0003](docs/adr/0003-defer-i18n.md)
+- `[ ]` **P0-070.1** Top-bar component (masthead with logo slot + user dropdown)
+- `[ ]` **P0-070.2** Bottom-nav for mobile (Home / Wall / Roster / Events / Chat / Settings)
+- `[ ]` **P0-070.3** Theme switcher (light / dark / system) wired to `.light` class
+- `[ ]` **P0-070.4** Responsive layout tests at phone / tablet / desktop breakpoints
+  ↳ scope note: per [ADR-0004](docs/adr/0004-role-based-landing-and-routing.md) the eventual nav splits into member (`/`, `/roster`, `/events`, `/chat`, `/settings`) and admin (`/admin`, `/insights`). Real implementation in Phase 1.
+- `[ ]` **P0-071.1** Install `@tanstack/react-query`; set up `QueryClientProvider`
+- `[ ]` **P0-071.2** Auth-aware fetch wrapper injects Clerk JWT
+- `[ ]` **P0-071.3** Sample authenticated query renders data from `/api/whoami`
 - `[ ]` **P0-072** Zustand store for client-only state
-  ↳ verify: sample slice round-trips state on a page
-- `[ ]` **P0-073** Sentry frontend integration
-  ↳ verify: throw a test error; appears in Sentry within ~1 min
-- `[ ]` **P0-074** PostHog SDK
-  ↳ verify: page view captured in PostHog within ~1 min
+- `[ ]` **P0-073.1** Install `@sentry/nextjs`; configure DSN from env
+- `[ ]` **P0-073.2** Test error in dev appears in Sentry within 1 min
+- `[ ]` **P0-074** PostHog SDK installed + page-view tracking
+- `[ ]` **P0-075** Flagsmith SDK installed + sample flag toggle
+- `[ ]` **P0-076.1** Cookie consent banner + cookie state persistence
+- `[ ]` **P0-076.2** `docs/cookie-policy.md` stub
+- `[ ]` **P0-077.1** Next.js middleware extracts subdomain from host
+- `[ ]` **P0-077.2** Pass tenant context to pages via React Context
+- `[ ]` **P0-077.3** Dev hosts file note in README; `<slug>.localhost:3000` resolves
 
 ### CI/CD
 
-- `[ ]` **P0-075** GitHub Actions: PR lint + build + test (web + api)
-  ↳ verify: open PR; checks run and pass on a clean branch
-- `[ ]` **P0-076** GitHub Actions: deploy to dev on merge to `main`
-  ↳ verify: merge a no-op PR; dev URL serves new commit hash
-- `[ ]` **P0-077** GitHub Actions: deploy to staging (manual trigger)
-  ↳ verify: workflow_dispatch produces a staging deploy
-- `[ ]` **P0-078** GitHub Actions: deploy to prod (manual approval)
-  ↳ verify: prod deploy requires environment approval
-- `[ ]` **P0-079** SBOM generation + dependency scanning + secret scanning in CI
-  ↳ verify: PR with a planted secret fails the check
+- `[ ]` **P0-078.1** GH Actions: `dotnet build` + unit tests on PR
+- `[ ]` **P0-078.2** GH Actions: `npm run lint` + `npm run build` on PR
+- `[ ]` **P0-079** GH Actions: integration tests against ephemeral Postgres
+- `[ ]` **P0-080** Dependabot config for NuGet + npm
+- `[ ]` **P0-081** GitHub secret scanning + push protection enabled
+- `[ ]` **P0-082** CodeQL workflow for C# + TypeScript
+- `[ ]` **P0-083** SBOM (CycloneDX) generated on release
+- `[ ]` **P0-084** GH Actions: deploy backend to dev on `main` merge
+- `[ ]` **P0-085** GH Actions: deploy frontend to Vercel preview on PR
+- `[ ]` **P0-086** GH Actions: deploy to staging on tag (`v*-staging`)
+- `[ ]` **P0-087** GH Actions: deploy to prod on manual approval
+- `[ ]` **P0-088** Migrations runner job (separate from app deploy)
 
 ### Observability + ops
 
-- `[ ]` **P0-080** App Insights wired in API; traces tagged with `tenant_id`
-  ↳ verify: a sample request shows up in App Insights with the tenant tag
-- `[ ]` **P0-081** OpenTelemetry exporters (traces / metrics / logs)
-  ↳ verify: traces visible across web → api in App Insights
-- `[ ]` **P0-082** Sentry backend integration
-  ↳ verify: unhandled exception appears in Sentry
-- `[ ]` **P0-083** Better Stack uptime monitor on `/health`
-  ↳ verify: monitor shows green; turn off API → alert fires
-- `[ ]` **P0-084** Grafana dashboard placeholder (per-tenant request count)
-  ↳ verify: dashboard URL resolves with one panel
+- `[ ]` **P0-089.1** Install OpenTelemetry; configure exporter to Azure Monitor
+- `[ ]` **P0-089.2** Enrich spans with `tenant_id` + `user_id`
+- `[ ]` **P0-090** Serilog structured logging with `tenant_id` enricher
+- `[ ]` **P0-091** App Insights dashboard (RPS, p95, errors, DB calls)
+- `[ ]` **P0-092** Better Stack uptime checks → `/health` on dev/staging/prod
+- `[ ]` **P0-093** Better Stack public status page at `status.earlyeagles.club`
+- `[ ]` **P0-094** Error-budget + alerting thresholds doc
 
 ### Documentation
 
-- `[x]` **P0-D01** [CLAUDE.md](./CLAUDE.md) for AI agent context
-- `[ ]` **P0-D02** `docs/runbooks/incident-response.md`
-- `[ ]` **P0-D03** `docs/onboarding-new-tenant.md`
-- `[x]` **P0-D04** Editorial design system + reveal primitives ([apps/web/components/editorial/](apps/web/components/editorial/)) — bonus polish, not on the original plan
+- `[ ]` **P0-095** README quick start (local dev)
+- `[ ]` **P0-096** Architecture diagram (mermaid) in README
+- `[ ]` **P0-097.1** Runbook: `docs/runbooks/deploy.md`
+- `[ ]` **P0-097.2** Runbook: `docs/runbooks/rollback.md`
+- `[ ]` **P0-097.3** Runbook: `docs/runbooks/db-migrate.md`
+- `[ ]` **P0-097.4** Runbook: `docs/runbooks/incident-response.md`
+- `[ ]` **P0-098** Contribution guide + commit format + PR template
+- `[ ]` **P0-099** Glossary `docs/glossary.md`
+
+### Bonus / out-of-plan work done so far
+
+- `[x]` **CLAUDE.md** for AI agent context (was P0-D01)
+- `[x]` Athletic-modern dashboard at `/` (placeholder until P0-070.1..4 + Phase 1 build the real surfaces)
+- `[x]` Editorial primitives + Motion reveal in `apps/web/components/editorial/`
+- `[x]` Chart components for attendance / dues / member growth (sample data)
+- `[x]` PROGRESS.md (this file)
+- `[x]` ADR-0003 (defer i18n), ADR-0004 (role-based landing), ADR-0005 (light social layer)
+- `[x]` `docs/design/member-landing.md` (wireframe for Phase 1 implementer)
+- `[x]` `.claude/skills/deploy/SKILL.md` (deploy workflow)
 
 ### Phase 0 acceptance gate
 

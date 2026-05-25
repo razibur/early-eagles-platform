@@ -77,11 +77,14 @@ When working on a task, prefer the picks above. If a different choice seems bett
 ADRs live under [`docs/adr/`](./docs/adr/). When a decision changes, write a **new** ADR (`0003-...`, `0004-...`) that supersedes the old one. Never edit an accepted ADR. Mark superseded ADRs in their status line.
 
 ### Task IDs from the Implementation Plan
-Tasks are referenced by stable IDs like `P0-034`, `P1-014`. When implementing a task, reference its ID in commits and PR titles:
+Tasks are referenced by stable IDs like `P0-034`, `P1-014`. Bundled tasks are decomposed with dotted sub-IDs (`P0-020.1`, `P0-020.2`, …) so each piece is independently verifiable. When implementing a task, reference its ID in commits and PR titles:
 ```
-P0-034: tenant isolation integration test
+P0-034.3: tenant isolation test for cross-tenant query
 ```
 If a task gets split or estimates change significantly, append to `Implementation-Plan.md` rather than rewriting.
+
+### Tasks must be small features
+Every task — new or refined — is 1–3 hours of work, single concept, independently verifiable, committable alone. Reject "build X system" framing on sight and decompose into the 6–10 sub-tasks it really is. Each task carries a one-line `verify:` step in PROGRESS.md.
 
 ### Multi-tenancy is non-negotiable
 Every new domain entity has `TenantId`. Every query is filtered by EF Core global query filter. Every command/query handler runs under `ITenantContext`. **Phase 0 task `P0-034` (tenant isolation integration test) is the gate for adding any feature** — it must stay green.
