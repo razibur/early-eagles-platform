@@ -201,8 +201,9 @@ None started. `apps/api/` does not exist yet.
 - `[-]` **P0-069** Bangla font (Noto Sans Bengali)
   ↳ deferred per [ADR-0003](docs/adr/0003-defer-i18n.md)
 - `[~]` **P0-070** Layout shell + nav + theme switcher (locale switcher deferred per ADR-0003)
-  ↳ partial: editorial layout exists at `/`; no nav, no theme switcher yet
+  ↳ partial: athletic-modern dashboard at `/` (placeholder); no nav, no theme switcher yet
   ↳ verify: nav links between pages; theme switcher toggles light/dark
+  ↳ scope note: per [ADR-0004](docs/adr/0004-role-based-landing-and-routing.md) the eventual nav splits into member surfaces (`/`, `/roster`, `/events`, `/chat`, `/settings`) and admin-only routes (`/admin`, `/insights`). Implemented in Phase 1.
 - `[ ]` **P0-071** TanStack Query + auth-aware fetch client
   ↳ verify: sample authenticated API call from a page works
 - `[ ]` **P0-072** Zustand store for client-only state
@@ -266,17 +267,24 @@ All of these must be true before declaring Phase 0 done:
 
 Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phase-1--attendance-core-tenant-0-only) — will expand into PROGRESS.md when Phase 0 acceptance is met.
 
+**This is also when the role-based landing pages land** per [ADR-0004](docs/adr/0004-role-based-landing-and-routing.md):
+
+- Build the *real* member `/` (RSVP-first hero, dues status, attendance, latest announcement)
+- Build admin `/admin` (full RSVP grid, unpaid-dues list, announcement composer)
+- Move the current chart dashboard from `/` to `/insights` (admin-only)
+- Clerk middleware redirects tenant-admins to `/admin` on login
+
 ## Phase 2 — SaaS commercialization  ▱▱▱▱▱▱▱▱▱▱  0%
 
 Public-facing surface (landing page, pricing, terms / privacy), tenant onboarding wizard, white-label settings, admin consoles, go-live quality bar. ~25 tasks.
 
 ## Phase 3 — Real-time chat  ▱▱▱▱▱▱▱▱▱▱  0%
 
-In-app chat via SignalR. Per-tenant rooms, message history, basic moderation. ~20 tasks.
+In-app chat via SignalR. Per-tenant rooms, DMs, message history, basic moderation, plus the **reactions implementation** that ADR-0005 added. ~19 tasks. Detail: [Implementation-Plan §Phase 3](./Implementation-Plan.md#phase-3--real-time-chat). Related: [ADR-0005](./docs/adr/0005-light-social-layer.md).
 
-## Phase 4 — Events + guests  ▱▱▱▱▱▱▱▱▱▱  0%
+## Phase 4 — Events + guests + Club photo wall  ▱▱▱▱▱▱▱▱▱▱  0%
 
-Picnic / fishing / tournament event types, family RSVP (kids/spouse), guest signup, photo gallery. ~25 tasks.
+Picnic / fishing / tournament events, family RSVP, guest signup, event photo gallery, plus the **club-wide photo wall**, **reactions on photos**, and **announcement comments** added by ADR-0005. Also the place where the role-based landing pages from [ADR-0004](./docs/adr/0004-role-based-landing-and-routing.md) get their `/wall` route. ~32 tasks. Detail: [Implementation-Plan §Phase 4](./Implementation-Plan.md#phase-4--events--guests).
 
 ## Phase 5 — AI Coach  ▱▱▱▱▱▱▱▱▱▱  0%
 

@@ -37,7 +37,7 @@ shadcn/ui Charts (Recharts under the hood) is the chosen library. Chart primitiv
 
 1. **[`PROGRESS.md`](./PROGRESS.md)** — live status dashboard. Scan in 30 seconds to see what's done, in-flight, deferred, and next. Each task carries a one-line `verify:` step. **Update this every time you finish or block on a task.**
 2. **[`project-scope.md`](./project-scope.md)** — what the platform is (B2B multi-tenant SaaS for badminton clubs) and what features each phase delivers.
-3. **[`docs/adr/0002-enterprise-saas-reframe.md`](./docs/adr/0002-enterprise-saas-reframe.md)** — **the operative architecture decision.** Defines stack picks and why. Supersedes most of ADR-0001.
+3. **[`docs/adr/0002-enterprise-saas-reframe.md`](./docs/adr/0002-enterprise-saas-reframe.md)** — **the operative architecture decision.** Defines stack picks and why. Supersedes most of ADR-0001. Subsequent ADRs ([0003](./docs/adr/0003-defer-i18n.md) defer i18n · [0004](./docs/adr/0004-role-based-landing-and-routing.md) role-based landing · [0005](./docs/adr/0005-light-social-layer.md) light social layer) refine specific decisions on top of it.
 4. **[`Plan.md`](./Plan.md)** — current architecture + stack table + 9-phase roadmap + cost model.
 5. **[`Implementation-Plan.md`](./Implementation-Plan.md)** — ~250 numbered tasks across 9 phases, with dependencies and acceptance criteria. Phases 0–2 are detailed; 3–9 are sketched and will be re-planned.
 

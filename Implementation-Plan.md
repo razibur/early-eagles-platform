@@ -366,7 +366,7 @@ Phase 0 is **done** when:
 
 **Goal:** Replace tenant reliance on WhatsApp for in-app communication.
 
-**Estimated effort:** ~15 tasks.
+**Estimated effort:** ~19 tasks (15 original + 4 reactions implementation per [ADR-0005](./docs/adr/0005-light-social-layer.md)).
 
 | ID | Task | Effort | Acceptance |
 |---|---|---|---|
@@ -383,16 +383,20 @@ Phase 0 is **done** when:
 | P3-011 | Search within channel (Postgres FTS) | M | Search works |
 | P3-012 | Moderation: admin can delete messages | S | Audit log entry created |
 | P3-013 | Mobile-friendly chat UI | M | Usable on phone |
-| P3-014 | Bangla translations | S | Strings translated |
+| P3-014 | Bangla translations *(deferred per [ADR-0003](./docs/adr/0003-defer-i18n.md))* | S | Strings translated |
 | P3-015 | E2E + load tests for chat | L | Tests green |
+| P3-016 | Reactions API endpoints (add / remove / list per message) | S | POST/DELETE/GET `/api/messages/{id}/reactions` work; idempotent per (user, emoji) |
+| P3-017 | Reactions UI on chat messages — picker + inline aggregate display | M | Tap message → emoji picker; reactions render with counts below the message |
+| P3-018 | Reaction aggregate denormalisation — counts cached on `Message` to avoid N+1 | S | Message list response includes aggregate counts in one query |
+| P3-019 | Reaction component extracted as shared primitive for re-use in Phase 4 (photos + announcement comments) | S | One `<Reactions targetType targetId />` component used across surfaces |
 
 ---
 
 ## Phase 4 — Events + guests
 
-**Goal:** Picnic, fishing, and tournament events; non-member guests can RSVP via email signup.
+**Goal:** Picnic, fishing, and tournament events; non-member guests can RSVP via email signup. Plus the **club photo wall** and **announcement comments** added per [ADR-0005](./docs/adr/0005-light-social-layer.md).
 
-**Estimated effort:** ~20 tasks.
+**Estimated effort:** ~32 tasks (20 original + 12 social-layer additions per ADR-0005).
 
 | ID | Task | Acceptance |
 |---|---|---|
@@ -414,8 +418,27 @@ Phase 0 is **done** when:
 | P4-016 | Event categories per tenant (configurable) | Categories editable |
 | P4-017 | Per-tenant event archetype templates | Quick-create works |
 | P4-018 | Permissions: who can create which event type | RBAC enforced |
-| P4-019 | Bangla translations | Strings translated |
+| P4-019 | Bangla translations | Strings translated *(deferred per [ADR-0003](./docs/adr/0003-defer-i18n.md))* |
 | P4-020 | E2E tests | Tests green |
+
+### Light social layer (per [ADR-0005](./docs/adr/0005-light-social-layer.md))
+
+Club photo wall, reactions on photos / announcements, and announcement comments. Land after the event domain ships so the underlying `Photo` entity and notification plumbing are shared.
+
+| ID | Task | Acceptance |
+|---|---|---|
+| P4-021 | Generalise `Photo` entity: nullable `event_id`, plus `tenant_id`, `uploader_id`, optional `caption` | Schema migration; photo with NULL event_id appears only in wall, photo with event_id appears in both wall and event gallery |
+| P4-022 | Photo wall feed API — paginated, chronological, club-scoped, optional event filter | `GET /api/photos?cursor=…&event=…` returns 20 most-recent first; cursor-based pagination |
+| P4-023 | Photo wall feed UI — responsive grid, infinite scroll, thumbnail-first loading | Member sees grid on `/wall`; scrolls to load older; lazy-loads images |
+| P4-024 | Photo upload UX from any surface (home card, event page, chat attach) — single `<PhotoUploader>` component | Drop or pick photo; presigned R2 upload; result appears in feed without page reload |
+| P4-025 | Photo detail view — modal/page with full image, uploader, caption, reactions, delete affordance | Tap thumb → detail; admin sees delete button; uploader sees delete button on own photos |
+| P4-026 | Reactions on photos (uses P3-019 shared primitive) | Same emoji set as chat; counts aggregate; tap to react |
+| P4-027 | `AnnouncementComment` entity — single flat thread per announcement, no nesting | Schema migration; one parent (announcement_id) per comment |
+| P4-028 | Announcement comment API endpoints — list, create, delete (admin or author) | `GET/POST/DELETE /api/announcements/{id}/comments` work with auth gates |
+| P4-029 | Announcement comment UI on announcement detail — list + composer + count badge in feed | Member sees comments; can post; admin / author can delete |
+| P4-030 | Notifications: new photo posted (opt-in), new announcement (opt-out), new comment on announcement you commented on (opt-out) | Web Push fires per rule; settings UI exposes opt-in/opt-out toggles |
+| P4-031 | Admin moderation — delete photo / comment / reaction; audit-logged | Admin action writes `audit_events` row with reason; soft delete with reversible window |
+| P4-032 | Photo wall E2E test + image-upload load test | Tests green; can sustain 20 concurrent uploads without R2 errors |
 
 ---
 
