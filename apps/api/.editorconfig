@@ -1,0 +1,34 @@
+# Backend analyzer severities for apps/api/.
+# Inherits from the repo-root .editorconfig (indentation, charset, line endings).
+# This file tunes StyleCop + Roslyn analyzers so the rules we keep are useful
+# and the dogmatic / boilerplate ones don't fire.
+
+[*.cs]
+
+# --- StyleCop documentation rules: off for an internal product codebase ---
+# We don't write XML doc comments on every method; PR review handles intent.
+dotnet_diagnostic.SA0001.severity = none  # XML comment analysis disabled (we don't emit doc XML)
+dotnet_diagnostic.SA1600.severity = none  # Elements should be documented
+dotnet_diagnostic.SA1601.severity = none  # Partial elements should be documented
+dotnet_diagnostic.SA1602.severity = none  # Enumeration items should be documented
+dotnet_diagnostic.SA1623.severity = none  # Property documentation summary wording
+dotnet_diagnostic.SA1633.severity = none  # File must have header
+dotnet_diagnostic.SA1652.severity = none  # Enable XML documentation output
+
+# --- StyleCop style preferences we don't enforce ---
+dotnet_diagnostic.SA1101.severity = none  # Prefix local calls with this
+dotnet_diagnostic.SA1309.severity = none  # Field names must not begin with underscore (_camelCase is fine)
+dotnet_diagnostic.SA1413.severity = suggestion  # Trailing comma in multi-line initializers
+dotnet_diagnostic.SA1124.severity = none  # Do not use regions
+
+# --- .NET Roslyn analyzer rules: relax noisy ones ---
+dotnet_diagnostic.CA1014.severity = none  # Mark assemblies with CLSCompliant
+dotnet_diagnostic.CA1062.severity = none  # Validate arguments of public methods (nullability covers this)
+dotnet_diagnostic.CA1848.severity = none  # Use LoggerMessage delegates (overkill for now)
+dotnet_diagnostic.CA2007.severity = none  # ConfigureAwait — not needed in ASP.NET Core
+
+# Test projects: looser rules around naming + structure.
+[tests/**.cs]
+dotnet_diagnostic.SA1502.severity = none  # Element should not be on a single line
+dotnet_diagnostic.CA1707.severity = none  # Identifiers should not contain underscores (test names use underscores)
+dotnet_diagnostic.SA1118.severity = none  # Parameter should not span multiple lines

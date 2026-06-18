@@ -1,3 +1,5 @@
 namespace EarlyEagles.Application;
 
-public sealed class AssemblyMarker;
+public sealed class AssemblyMarker
+{
+}

@@ -20,7 +20,7 @@ Last updated: 2026-06-18
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~10% (20 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~12% (22 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -103,8 +103,10 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-021.3** `AggregateRoot` base class with domain-event collection
 - `[ ]` **P0-021.4** `IDomainEvent` interface + dispatch contract
 - `[ ]` **P0-021.5** Unit tests for Entity / ValueObject / AggregateRoot semantics
-- `[ ]` **P0-022.1** Add StyleCop + Roslyn analyzers via `Directory.Build.props`
-- `[ ]` **P0-022.2** Configure StyleCop ruleset; turn warnings into errors
+- `[x]` **P0-022.1** Add StyleCop + Roslyn analyzers via `Directory.Build.props`
+  ↳ verify: [`apps/api/Directory.Build.props`](./apps/api/Directory.Build.props) centralizes TFM/Nullable/AnalysisLevel + StyleCop package; thin per-project csprojs
+- `[x]` **P0-022.2** Configure StyleCop ruleset; turn warnings into errors
+  ↳ verify: [`apps/api/.editorconfig`](./apps/api/.editorconfig) sets severities + `TreatWarningsAsErrors=true`; `dotnet build` clean (0/0)
 - `[ ]` **P0-023.1** Install MediatR; register handlers from Application assembly
 - `[ ]` **P0-023.2** Install FluentValidation; register validators
 - `[ ]` **P0-023.3** Install AutoMapper; register profiles

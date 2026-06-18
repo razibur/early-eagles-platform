@@ -1,0 +1,46 @@
+<Project>
+
+  <!--
+    Shared properties for every project under apps/api/.
+    Per ADR-0006, the backend targets .NET 10 (LTS). Centralizing the TFM
+    and language settings here keeps individual csproj files thin and
+    prevents per-project drift.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Fail the build on any warning, including analyzer warnings. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- .NET SDK ships Microsoft.CodeAnalysis.NetAnalyzers built in; enable the latest set. -->
+    <AnalysisLevel>latest-Recommended</AnalysisLevel>
+
+    <!-- Deterministic builds for reproducible CI artifacts. -->
+    <Deterministic>true</Deterministic>
+
+    <!-- Repo-wide assembly metadata. -->
+    <Company>Early Eagles</Company>
+    <Product>EarlyEagles</Product>
+    <Copyright>Copyright (c) Early Eagles</Copyright>
+  </PropertyGroup>
+
+  <!-- StyleCop analyzers applied to every project; PrivateAssets keeps them off downstream consumers. -->
+  <!-- Microsoft.CodeAnalysis.NetAnalyzers (CA-prefixed rules) ships in the .NET SDK and runs automatically. -->
+  <ItemGroup>
+    <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.556">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <!-- Make stylecop.json visible to the StyleCop analyzer in every project. -->
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" Link="stylecop.json" />
+  </ItemGroup>
+
+</Project>
