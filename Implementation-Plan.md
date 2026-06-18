@@ -82,10 +82,10 @@ External account setup. Each task is a single account or vault entry. None requi
 | ID | Task | Depends on | Verify |
 |---|---|---|---|
 | P0-020.1 | Create `apps/api/EarlyEagles.sln` (empty solution) | P0-019 | `dotnet sln list` shows 0 projects |
-| P0-020.2 | Add `EarlyEagles.Domain` class library (net9.0); register in sln | P0-020.1 | Project compiles empty; appears in sln list |
+| P0-020.2 | Add `EarlyEagles.Domain` class library (net10.0 per [ADR-0006](./docs/adr/0006-target-dotnet-10-lts.md)); register in sln | P0-020.1 | Project compiles empty; appears in sln list |
 | P0-020.3 | Add `EarlyEagles.Application` class library, reference Domain | P0-020.2 | Project compiles; refs Domain only |
 | P0-020.4 | Add `EarlyEagles.Infrastructure` class library, reference Application | P0-020.3 | Project compiles; refs Application only |
-| P0-020.5 | Add `EarlyEagles.Api` ASP.NET Core 9 web project, reference Application + Infrastructure | P0-020.4 | `dotnet run --project apps/api/EarlyEagles.Api` starts |
+| P0-020.5 | Add `EarlyEagles.Api` ASP.NET Core 10 web project, reference Application + Infrastructure | P0-020.4 | `dotnet run --project apps/api/src/EarlyEagles.Api` starts |
 | P0-020.6 | Add `EarlyEagles.Tests.Unit` xUnit project | P0-020.3 | Empty test runs; `dotnet test` green |
 | P0-020.7 | Add `EarlyEagles.Tests.Integration` xUnit project | P0-020.5 | Empty test runs |
 | P0-020.8 | Add `EarlyEagles.Tests.Acceptance` xUnit project | P0-020.5 | Empty test runs |

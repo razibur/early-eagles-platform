@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EarlyEagles.Api/EarlyEagles.Api.csproj" />
+    <Project Path="src/EarlyEagles.Application/EarlyEagles.Application.csproj" />
+    <Project Path="src/EarlyEagles.Domain/EarlyEagles.Domain.csproj" />
+    <Project Path="src/EarlyEagles.Infrastructure/EarlyEagles.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EarlyEagles.Tests.Acceptance/EarlyEagles.Tests.Acceptance.csproj" />
+    <Project Path="tests/EarlyEagles.Tests.Integration/EarlyEagles.Tests.Integration.csproj" />
+    <Project Path="tests/EarlyEagles.Tests.Unit/EarlyEagles.Tests.Unit.csproj" />
+  </Folder>
+</Solution>

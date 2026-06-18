@@ -16,11 +16,11 @@ Each task carries a one-line **verify:** with the exact thing to check / command
 to run. If a verify step requires external accounts (Azure, Stripe, Clerk),
 that's noted — the rest you can verify on your laptop.
 
-Last updated: 2026-05-24
+Last updated: 2026-06-18
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~5% (10 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~10% (20 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -84,18 +84,20 @@ External account / billing tasks. Mostly off the laptop; you confirm by logging 
 
 ### Backend — Clean Architecture solution
 
-None started. `apps/api/` does not exist yet.
+Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), not .NET 9** — .NET 9 STS support ended May 2026; bumping the target framework is the only deviation from the plan, all other picks (Clean Architecture, EF Core, NetArchTest) stand.
 
-- `[ ]` **P0-020.1** Create empty `apps/api/EarlyEagles.sln`
-- `[ ]` **P0-020.2** Add `EarlyEagles.Domain` class library
-- `[ ]` **P0-020.3** Add `EarlyEagles.Application`, reference Domain
-- `[ ]` **P0-020.4** Add `EarlyEagles.Infrastructure`, reference Application
-- `[ ]` **P0-020.5** Add `EarlyEagles.Api` (ASP.NET Core 9), reference Application + Infrastructure
-- `[ ]` **P0-020.6** Add `EarlyEagles.Tests.Unit` xUnit project
-- `[ ]` **P0-020.7** Add `EarlyEagles.Tests.Integration` xUnit project
-- `[ ]` **P0-020.8** Add `EarlyEagles.Tests.Acceptance` xUnit project
-- `[ ]` **P0-020.9** Architecture test (NetArchTest) enforcing Domain ⊥ Infrastructure
-- `[ ]` **P0-020.10** Whole-solution `dotnet build` returns 0 errors + 0 warnings
+- `[x]` **P0-020.1** Create empty `apps/api/EarlyEagles.slnx`
+  ↳ verify: `dotnet sln list` returns the 7 projects
+- `[x]` **P0-020.2** Add `EarlyEagles.Domain` class library
+- `[x]` **P0-020.3** Add `EarlyEagles.Application`, reference Domain
+- `[x]` **P0-020.4** Add `EarlyEagles.Infrastructure`, reference Application
+- `[x]` **P0-020.5** Add `EarlyEagles.Api` (ASP.NET Core 10), reference Application + Infrastructure
+- `[x]` **P0-020.6** Add `EarlyEagles.Tests.Unit` xUnit project
+- `[x]` **P0-020.7** Add `EarlyEagles.Tests.Integration` xUnit project
+- `[x]` **P0-020.8** Add `EarlyEagles.Tests.Acceptance` xUnit project
+- `[x]` **P0-020.9** Architecture test (NetArchTest) enforcing Domain ⊥ Application + Infrastructure, Application ⊥ Infrastructure
+  ↳ verify: `dotnet test tests/EarlyEagles.Tests.Unit` — 3 passed
+- `[x]` **P0-020.10** Whole-solution `dotnet build` returns 0 errors + 0 warnings
 - `[ ]` **P0-021.1** `Entity<TId>` base class with Id + equality
 - `[ ]` **P0-021.2** `ValueObject` base class with structural equality
 - `[ ]` **P0-021.3** `AggregateRoot` base class with domain-event collection

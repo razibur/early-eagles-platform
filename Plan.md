@@ -52,7 +52,7 @@ Companion documents:
                                    |
               Cloudflare (CDN, WAF, DDoS, TLS)
                                    |
-              Azure Container Apps — ASP.NET Core 9 (Clean Arch)
+              Azure Container Apps — ASP.NET Core 10 (Clean Arch)
                                    |
                     Tenant-resolution middleware
                                    |
@@ -85,7 +85,7 @@ Companion documents:
 
 | Layer | Pick |
 |---|---|
-| Backend | ASP.NET Core 9 Web API + Clean Architecture + EF Core 9 + tenant middleware |
+| Backend | ASP.NET Core 10 Web API + Clean Architecture + EF Core 10 + tenant middleware (per [ADR-0006](./docs/adr/0006-target-dotnet-10-lts.md)) |
 | Database | Azure Database for PostgreSQL — Flexible Server (HA, point-in-time recovery, read replicas) |
 | Cache + locks | Azure Cache for Redis |
 | Message bus | Azure Service Bus (domain events) |
