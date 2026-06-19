@@ -20,9 +20,19 @@ var app = builder.Build();
 // instances registered via AddExceptionHandler<T>.
 app.UseExceptionHandler();
 
-if (app.Environment.IsDevelopment())
+// /openapi/v1.json (Microsoft.AspNetCore.OpenApi) and /swagger UI are gated on
+// non-production. Swashbuckle.AspNetCore.SwaggerUI consumes the doc Microsoft
+// generates — we don't pull in Swashbuckle's own generator. Production traffic
+// must never see the API surface listed; tenant docs ship out-of-band.
+if (!app.Environment.IsProduction())
 {
     app.MapOpenApi();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/openapi/v1.json", "EarlyEagles API v1");
+        options.RoutePrefix = "swagger";
+        options.DocumentTitle = "EarlyEagles API — " + app.Environment.EnvironmentName;
+    });
 }
 
 app.UseHttpsRedirection();

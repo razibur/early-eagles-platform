@@ -20,7 +20,7 @@ Last updated: 2026-06-18
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~19% (37 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~20% (38 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -132,7 +132,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`HealthEndpoints.cs`](./apps/api/src/EarlyEagles.Api/Health/HealthEndpoints.cs) maps `GET /health` to `{ status, version, uptimeSeconds }`; integration test via `WebApplicationFactory<Program>` asserts 200 + JSON shape
 - `[~]` **P0-026.2** `/ready` endpoint returns 200 when DB + Service Bus reachable
   ↳ endpoint shape + framework wired: `app.MapHealthChecks("/ready", ...)` with a custom JSON writer producing `{ status, checks[], totalDurationMs }`; returns 200 + empty `checks[]` until concrete `IHealthCheck` implementations land for the DB (P0-032.2) and Service Bus (P0-058.4). Integration test asserts current 200/Healthy/empty-checks shape.
-- `[ ]` **P0-027.1** Swashbuckle wired; `/swagger` lists endpoints
+- `[x]` **P0-027.1** Swashbuckle UI wired; `/swagger` lists endpoints
+  ↳ verify: `Swashbuckle.AspNetCore.SwaggerUI` consumes Microsoft's `/openapi/v1.json` doc; both endpoints gated on non-Production env in [`Program.cs`](./apps/api/src/EarlyEagles.Api/Program.cs); 3 integration tests cover doc parses + UI returns HTML + UI is 404 in Production
 - `[ ]` **P0-027.2** Auth scheme documented in OpenAPI (Clerk JWT bearer)
 - `[ ]` **P0-027.3** Tenant resolution header documented in OpenAPI spec
 
