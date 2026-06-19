@@ -98,13 +98,13 @@ External account setup. Each task is a single account or vault entry. None requi
 | P0-021.5 | Unit tests for Entity / ValueObject / AggregateRoot semantics | P0-021.1..4 | `dotnet test` green for new tests |
 | P0-022.1 | Add `StyleCop.Analyzers` + `Microsoft.CodeAnalysis.NetAnalyzers` via Directory.Build.props | P0-020.10 | Analyzers run during build |
 | P0-022.2 | Configure StyleCop ruleset + `.editorconfig` rules; turn warnings into errors | P0-022.1 | A deliberate violation breaks `dotnet build` |
-| P0-023.1 | Install MediatR; register handlers from Application assembly | P0-020.5 | Sample command handler executes via `IMediator.Send` |
+| P0-023.1 | Install `martinothamar/Mediator` (per [ADR-0007](docs/adr/0007-mediator-mapperly-supersede-mediatr-automapper.md)); `AddMediator` scans Application assembly | P0-020.5 | Sample command handler executes via `IMediator.Send` |
 | P0-023.2 | Install FluentValidation; register validators from Application | P0-020.5 | Sample validator returns errors for bad input |
-| P0-023.3 | Install AutoMapper; register profiles from Application | P0-020.5 | Sample profile maps DTO → entity |
-| P0-024.1 | `LoggingBehavior` MediatR pipeline — logs request + response with correlation ID | P0-023.1 | Sample command produces structured log line |
-| P0-024.2 | `ValidationBehavior` MediatR pipeline — runs FluentValidation, throws on errors | P0-023.2 | Invalid command yields ValidationException |
-| P0-024.3 | `TransactionBehavior` MediatR pipeline — wraps writes in DbContext transaction | P0-023.1, P0-032.2 | Failed handler rolls back changes |
-| P0-024.4 | `AuditBehavior` MediatR pipeline — writes AuditEvent row on commands (wires to P0-047) | P0-023.1 | Sample command produces audit row |
+| P0-023.3 | Install `Riok.Mapperly` (per [ADR-0007](docs/adr/0007-mediator-mapperly-supersede-mediatr-automapper.md)); source-gen mappers as partial classes | P0-020.5 | Sample mapper class produces DTO → entity mapping |
+| P0-024.1 | `LoggingBehavior` Mediator pipeline (per [ADR-0007](docs/adr/0007-mediator-mapperly-supersede-mediatr-automapper.md)) — logs request + response with correlation ID | P0-023.1 | Sample command produces structured log line |
+| P0-024.2 | `ValidationBehavior` Mediator pipeline (per [ADR-0007](docs/adr/0007-mediator-mapperly-supersede-mediatr-automapper.md)) — runs FluentValidation, throws on errors | P0-023.2 | Invalid command yields ValidationException |
+| P0-024.3 | `TransactionBehavior` Mediator pipeline (per [ADR-0007](docs/adr/0007-mediator-mapperly-supersede-mediatr-automapper.md)) — wraps writes in DbContext transaction | P0-023.1, P0-032.2 | Failed handler rolls back changes |
+| P0-024.4 | `AuditBehavior` Mediator pipeline (per [ADR-0007](docs/adr/0007-mediator-mapperly-supersede-mediatr-automapper.md)) — writes AuditEvent row on commands (wires to P0-047) | P0-023.1 | Sample command produces audit row |
 | P0-025 | Centralised exception middleware → RFC 7807 ProblemDetails | P0-020.5 | `curl /broken` returns `application/problem+json` with title + status |
 | P0-026.1 | `/health` endpoint returns 200 + version + uptime | P0-020.5 | `curl /health` returns 200 JSON |
 | P0-026.2 | `/ready` endpoint returns 200 when DB + Service Bus reachable, 503 otherwise | P0-026.1, P0-032.2 | Toggle DB connection → endpoint flips correctly |
@@ -189,7 +189,7 @@ External account setup. Each task is a single account or vault entry. None requi
 | P0-046.1 | `AuditEvent` entity (TenantId, ActorId, Action, ResourceType, ResourceId, Metadata, Timestamp) | P0-021.1 | Entity compiles; tenant-scoped |
 | P0-046.2 | Postgres trigger / check constraint prevents UPDATE/DELETE on `audit_events` | P0-033.3 | Attempting UPDATE/DELETE throws |
 | P0-047.1 | `IAuditService.Log(action, resourceType, resourceId, metadata)` implementation | P0-046.1 | Service writes row when called directly |
-| P0-047.2 | `AuditBehavior` wires `IAuditService` to MediatR command pipeline (extends P0-024.4) | P0-047.1, P0-024.4 | Every command produces an audit row |
+| P0-047.2 | `AuditBehavior` wires `IAuditService` to Mediator command pipeline (extends P0-024.4) | P0-047.1, P0-024.4 | Every command produces an audit row |
 | P0-048 | Audit query endpoint (tenant-admin scope only) with pagination | P0-046.1, P0-038 | Tenant-admin can list own audit; non-admin → 403 |
 
 ### Domain events + Service Bus

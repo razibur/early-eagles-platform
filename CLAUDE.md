@@ -37,7 +37,7 @@ shadcn/ui Charts (Recharts under the hood) is the chosen library. Chart primitiv
 
 1. **[`PROGRESS.md`](./PROGRESS.md)** — live status dashboard. Scan in 30 seconds to see what's done, in-flight, deferred, and next. Each task carries a one-line `verify:` step. **Update this every time you finish or block on a task.**
 2. **[`project-scope.md`](./project-scope.md)** — what the platform is (B2B multi-tenant SaaS for badminton clubs) and what features each phase delivers.
-3. **[`docs/adr/0002-enterprise-saas-reframe.md`](./docs/adr/0002-enterprise-saas-reframe.md)** — **the operative architecture decision.** Defines stack picks and why. Supersedes most of ADR-0001. Subsequent ADRs ([0003](./docs/adr/0003-defer-i18n.md) defer i18n · [0004](./docs/adr/0004-role-based-landing-and-routing.md) role-based landing · [0005](./docs/adr/0005-light-social-layer.md) light social layer · [0006](./docs/adr/0006-target-dotnet-10-lts.md) .NET 10 LTS instead of .NET 9) refine specific decisions on top of it.
+3. **[`docs/adr/0002-enterprise-saas-reframe.md`](./docs/adr/0002-enterprise-saas-reframe.md)** — **the operative architecture decision.** Defines stack picks and why. Supersedes most of ADR-0001. Subsequent ADRs ([0003](./docs/adr/0003-defer-i18n.md) defer i18n · [0004](./docs/adr/0004-role-based-landing-and-routing.md) role-based landing · [0005](./docs/adr/0005-light-social-layer.md) light social layer · [0006](./docs/adr/0006-target-dotnet-10-lts.md) .NET 10 LTS instead of .NET 9 · [0007](./docs/adr/0007-mediator-mapperly-supersede-mediatr-automapper.md) martinothamar/Mediator + Mapperly instead of MediatR + AutoMapper) refine specific decisions on top of it.
 4. **[`Plan.md`](./Plan.md)** — current architecture + stack table + 9-phase roadmap + cost model.
 5. **[`Implementation-Plan.md`](./Implementation-Plan.md)** — ~250 numbered tasks across 9 phases, with dependencies and acceptance criteria. Phases 0–2 are detailed; 3–9 are sketched and will be re-planned.
 
@@ -90,7 +90,7 @@ Every task — new or refined — is 1–3 hours of work, single concept, indepe
 Every new domain entity has `TenantId`. Every query is filtered by EF Core global query filter. Every command/query handler runs under `ITenantContext`. **Phase 0 task `P0-034` (tenant isolation integration test) is the gate for adding any feature** — it must stay green.
 
 ### Audit logging is non-negotiable
-Every state-changing operation produces an append-only `AuditEvent` row, scoped to its tenant. The `AuditBehavior` MediatR pipeline behavior handles this — don't bypass it.
+Every state-changing operation produces an append-only `AuditEvent` row, scoped to its tenant. The `AuditBehavior` Mediator pipeline behavior handles this — don't bypass it. (Mediator = `martinothamar/Mediator` per [ADR-0007](./docs/adr/0007-mediator-mapperly-supersede-mediatr-automapper.md), not MediatR.)
 
 ### i18n is deferred (per ADR-0003)
 English only for now. Do **not** wire `next-intl`, `IStringLocalizer`, locale routing, Bangla font, or per-string translation passes. Mitigation for the eventual retrofit: keep user-visible strings out of business logic so a future extraction pass stays mechanical.

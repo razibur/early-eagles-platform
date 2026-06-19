@@ -20,7 +20,7 @@ Last updated: 2026-06-18
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~14% (27 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~16% (30 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -112,13 +112,16 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`apps/api/Directory.Build.props`](./apps/api/Directory.Build.props) centralizes TFM/Nullable/AnalysisLevel + StyleCop package; thin per-project csprojs
 - `[x]` **P0-022.2** Configure StyleCop ruleset; turn warnings into errors
   ↳ verify: [`apps/api/.editorconfig`](./apps/api/.editorconfig) sets severities + `TreatWarningsAsErrors=true`; `dotnet build` clean (0/0)
-- `[ ]` **P0-023.1** Install MediatR; register handlers from Application assembly
-- `[ ]` **P0-023.2** Install FluentValidation; register validators
-- `[ ]` **P0-023.3** Install AutoMapper; register profiles
-- `[ ]` **P0-024.1** `LoggingBehavior` MediatR pipeline (with correlation ID)
-- `[ ]` **P0-024.2** `ValidationBehavior` MediatR pipeline (runs FluentValidation)
-- `[ ]` **P0-024.3** `TransactionBehavior` MediatR pipeline (wraps writes in TX)
-- `[ ]` **P0-024.4** `AuditBehavior` MediatR pipeline (writes AuditEvent — wires to P0-047)
+- `[x]` **P0-023.1** Install `martinothamar/Mediator` (per [ADR-0007](docs/adr/0007-mediator-mapperly-supersede-mediatr-automapper.md), replaces MediatR); `AddMediator` scans Application assembly
+  ↳ verify: [`DependencyInjection.cs`](./apps/api/src/EarlyEagles.Application/DependencyInjection.cs) wires `AddApplication`; `dotnet build` clean
+- `[x]` **P0-023.2** Install FluentValidation; register validators from Application assembly
+  ↳ verify: `AddValidatorsFromAssembly(applicationAssembly, ServiceLifetime.Scoped)` in `DependencyInjection.cs`
+- `[x]` **P0-023.3** Install `Riok.Mapperly` (per [ADR-0007](docs/adr/0007-mediator-mapperly-supersede-mediatr-automapper.md), replaces AutoMapper); no profile registration needed — source-generated mappers register themselves when added
+  ↳ verify: `Riok.Mapperly` package referenced as PrivateAssets in [`EarlyEagles.Application.csproj`](./apps/api/src/EarlyEagles.Application/EarlyEagles.Application.csproj)
+- `[ ]` **P0-024.1** `LoggingBehavior` Mediator pipeline (with correlation ID)
+- `[ ]` **P0-024.2** `ValidationBehavior` Mediator pipeline (runs FluentValidation)
+- `[ ]` **P0-024.3** `TransactionBehavior` Mediator pipeline (wraps writes in TX)
+- `[ ]` **P0-024.4** `AuditBehavior` Mediator pipeline (writes AuditEvent — wires to P0-047)
 - `[ ]` **P0-025** Centralised exception middleware → RFC 7807 ProblemDetails
 - `[ ]` **P0-026.1** `/health` endpoint returns 200 + version + uptime
 - `[ ]` **P0-026.2** `/ready` endpoint returns 200 when DB + Service Bus reachable
@@ -195,7 +198,7 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-046.1** `AuditEvent` entity
 - `[ ]` **P0-046.2** Postgres trigger / check prevents UPDATE/DELETE on `audit_events`
 - `[ ]` **P0-047.1** `IAuditService.Log(action, resourceType, resourceId, metadata)`
-- `[ ]` **P0-047.2** `AuditBehavior` wires service to MediatR pipeline
+- `[ ]` **P0-047.2** `AuditBehavior` wires service to Mediator pipeline
 - `[ ]` **P0-048** Audit query endpoint (tenant-admin scope) with pagination
 
 ### Domain events + Service Bus
