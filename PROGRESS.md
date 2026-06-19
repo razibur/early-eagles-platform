@@ -20,7 +20,7 @@ Last updated: 2026-06-18
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~12% (22 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~14% (27 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -98,11 +98,16 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[x]` **P0-020.9** Architecture test (NetArchTest) enforcing Domain ⊥ Application + Infrastructure, Application ⊥ Infrastructure
   ↳ verify: `dotnet test tests/EarlyEagles.Tests.Unit` — 3 passed
 - `[x]` **P0-020.10** Whole-solution `dotnet build` returns 0 errors + 0 warnings
-- `[ ]` **P0-021.1** `Entity<TId>` base class with Id + equality
-- `[ ]` **P0-021.2** `ValueObject` base class with structural equality
-- `[ ]` **P0-021.3** `AggregateRoot` base class with domain-event collection
-- `[ ]` **P0-021.4** `IDomainEvent` interface + dispatch contract
-- `[ ]` **P0-021.5** Unit tests for Entity / ValueObject / AggregateRoot semantics
+- `[x]` **P0-021.1** `Entity<TId>` base class with Id + equality
+  ↳ verify: [`Entity.cs`](./apps/api/src/EarlyEagles.Domain/Primitives/Entity.cs) — type+Id equality; 5 EntityTests pass
+- `[x]` **P0-021.2** `ValueObject` base class with structural equality
+  ↳ verify: [`ValueObject.cs`](./apps/api/src/EarlyEagles.Domain/Primitives/ValueObject.cs) — `GetEqualityComponents()` SequenceEqual; 5 ValueObjectTests pass
+- `[x]` **P0-021.3** `AggregateRoot` base class with domain-event collection
+  ↳ verify: [`AggregateRoot.cs`](./apps/api/src/EarlyEagles.Domain/Primitives/AggregateRoot.cs) — Raise / Clear / read-only `DomainEvents`; 4 AggregateRootTests pass
+- `[x]` **P0-021.4** `IDomainEvent` interface (dispatch contract lands in P0-049)
+  ↳ verify: [`IDomainEvent.cs`](./apps/api/src/EarlyEagles.Domain/Primitives/IDomainEvent.cs) — `Id` + `OccurredAt`; no MediatR dep
+- `[x]` **P0-021.5** Unit tests for Entity / ValueObject / AggregateRoot semantics
+  ↳ verify: `dotnet test tests/EarlyEagles.Tests.Unit` — 17 passed (3 arch + 14 primitives)
 - `[x]` **P0-022.1** Add StyleCop + Roslyn analyzers via `Directory.Build.props`
   ↳ verify: [`apps/api/Directory.Build.props`](./apps/api/Directory.Build.props) centralizes TFM/Nullable/AnalysisLevel + StyleCop package; thin per-project csprojs
 - `[x]` **P0-022.2** Configure StyleCop ruleset; turn warnings into errors
