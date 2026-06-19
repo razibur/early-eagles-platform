@@ -1,4 +1,5 @@
 using EarlyEagles.Api.ExceptionHandling;
+using EarlyEagles.Api.Health;
 using EarlyEagles.Application;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +21,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.MapHealthEndpoints();
 
 app.Run();
 
