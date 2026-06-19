@@ -26,7 +26,9 @@ public static class DependencyInjection
         //                            before the handler if any rule fails
         // TransactionBehavior (P0-024.3) and AuditBehavior (P0-024.4) are written and
         // unit-tested but NOT registered here yet — they depend on IUnitOfWork (P0-032.2)
-        // and IAuditService (P0-047.1) respectively. They join this array in those commits.
+        // and IAuditService (P0-047.1) respectively. When fully wired, the pipeline order
+        // becomes [Logging, Audit, Validation, Transaction] — Audit sits OUTSIDE the
+        // transaction so failed commands still leave an audit trail.
         services.AddMediator(options =>
         {
             options.Assemblies = [applicationAssembly];
