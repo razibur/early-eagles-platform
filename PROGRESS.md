@@ -20,7 +20,7 @@ Last updated: 2026-06-18
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~17% (32 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~17% (33 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -122,7 +122,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`LoggingBehavior.cs`](./apps/api/src/EarlyEagles.Application/Behaviors/LoggingBehavior.cs) — enter / exit / duration logs via `LoggerMessage` source-gen; `Activity.Current?.TraceId` as correlation ID in `BeginScope`; 3 LoggingBehaviorTests pass
 - `[x]` **P0-024.2** `ValidationBehavior` Mediator pipeline (runs FluentValidation)
   ↳ verify: [`ValidationBehavior.cs`](./apps/api/src/EarlyEagles.Application/Behaviors/ValidationBehavior.cs) — runs all `IValidator<TMessage>` in parallel, throws `ValidationException` on any failure; 5 ValidationBehaviorTests pass
-- `[ ]` **P0-024.3** `TransactionBehavior` Mediator pipeline (wraps writes in TX)
+- `[~]` **P0-024.3** `TransactionBehavior` Mediator pipeline (wraps writes in TX)
+  ↳ behavior + `IUnitOfWork` / `IUnitOfWorkTransaction` abstractions written + 4 unit tests pass (Begin→Commit on success, Begin→Dispose-without-Commit on exception, cancellation token propagation, null-next). **Pipeline registration deferred to P0-032.2** when the EF Core concrete implementation lands. Reopen this checkbox when wired into `AddApplication.PipelineBehaviors`.
 - `[ ]` **P0-024.4** `AuditBehavior` Mediator pipeline (writes AuditEvent — wires to P0-047)
 - `[ ]` **P0-025** Centralised exception middleware → RFC 7807 ProblemDetails
 - `[ ]` **P0-026.1** `/health` endpoint returns 200 + version + uptime

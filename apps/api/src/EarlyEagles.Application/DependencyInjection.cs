@@ -24,7 +24,9 @@ public static class DependencyInjection
         //   1. LoggingBehavior     — always logs enter / exit / failure
         //   2. ValidationBehavior  — runs FluentValidation; throws ValidationException
         //                            before the handler if any rule fails
-        // Later behaviors (Transaction, Audit — P0-024.3 / P0-024.4) append after.
+        // TransactionBehavior (P0-024.3) and AuditBehavior (P0-024.4) are written and
+        // unit-tested but NOT registered here yet — they depend on IUnitOfWork (P0-032.2)
+        // and IAuditService (P0-047.1) respectively. They join this array in those commits.
         services.AddMediator(options =>
         {
             options.Assemblies = [applicationAssembly];
