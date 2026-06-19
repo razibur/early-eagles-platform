@@ -8,6 +8,11 @@ builder.Services.AddOpenApi();
 builder.Services.AddApplication();
 builder.Services.AddExceptionHandling();
 
+// HealthChecks pipeline for the /ready endpoint. Concrete checks land later:
+//   .AddDbContextCheck<ApplicationDbContext>("database")  // P0-032.2
+//   .AddAzureServiceBusQueue(...)                         // P0-058.4
+builder.Services.AddHealthChecks();
+
 var app = builder.Build();
 
 // UseExceptionHandler is registered first so it can catch exceptions from any

@@ -1,11 +1,21 @@
+using System.Net.Mime;
 using System.Reflection;
+using System.Text.Json;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace EarlyEagles.Api.Health;
 
 /// <summary>
-/// Maps diagnostic endpoints (<c>/health</c> for liveness, <c>/ready</c> for
-/// readiness in P0-026.2). These are deliberately *not* under <c>/api</c> and
-/// are anonymous — uptime monitoring needs them reachable without auth.
+/// Maps the API's diagnostic endpoints:
+/// <list type="bullet">
+///   <item><c>/health</c> — liveness. 200 as long as the host is up. Custom
+///   payload with assembly version + process uptime. No auth.</item>
+///   <item><c>/ready</c> — readiness. Runs every registered
+///   <see cref="IHealthCheck"/> and reports the aggregate + per-check details.
+///   503 if any check is Unhealthy. No checks are registered yet — DbContext
+///   (P0-032.2) and Service Bus (P0-058.4) plug in here as they land. No auth.</item>
+/// </list>
 /// </summary>
 public static class HealthEndpoints
 {
@@ -15,6 +25,8 @@ public static class HealthEndpoints
     private static readonly DateTimeOffset ApplicationStarted = DateTimeOffset.UtcNow;
 
     private static readonly string ApplicationVersion = ResolveVersion();
+
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder routes)
     {
@@ -30,7 +42,33 @@ public static class HealthEndpoints
             .WithName("Health")
             .WithTags("Diagnostics");
 
+        routes
+            .MapHealthChecks(
+                "/ready",
+                new HealthCheckOptions { ResponseWriter = WriteReadyResponseAsync })
+            .WithName("Ready")
+            .WithTags("Diagnostics");
+
         return routes;
+    }
+
+    private static Task WriteReadyResponseAsync(HttpContext context, HealthReport report)
+    {
+        var response = new ReadyResponse(
+            Status: report.Status.ToString(),
+            Checks: report.Entries
+                .Select(e => new ReadyCheck(
+                    Name: e.Key,
+                    Status: e.Value.Status.ToString(),
+                    Description: e.Value.Description,
+                    DurationMs: (long)e.Value.Duration.TotalMilliseconds))
+                .ToArray(),
+            TotalDurationMs: (long)report.TotalDuration.TotalMilliseconds);
+
+        context.Response.ContentType = MediaTypeNames.Application.Json;
+        return context.Response.WriteAsync(
+            JsonSerializer.Serialize(response, JsonOptions),
+            context.RequestAborted);
     }
 
     private static string ResolveVersion()
