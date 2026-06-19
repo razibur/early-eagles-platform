@@ -20,7 +20,7 @@ Last updated: 2026-06-18
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~18% (34 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~18% (35 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -126,7 +126,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ behavior + `IUnitOfWork` / `IUnitOfWorkTransaction` abstractions written + 4 unit tests pass (Begin→Commit on success, Begin→Dispose-without-Commit on exception, cancellation token propagation, null-next). **Pipeline registration deferred to P0-032.2** when the EF Core concrete implementation lands. Reopen this checkbox when wired into `AddApplication.PipelineBehaviors`.
 - `[~]` **P0-024.4** `AuditBehavior` Mediator pipeline (writes AuditEvent — wires to P0-047)
   ↳ behavior + `IAuditService` / `AuditEntry` abstractions written; gates on `Mediator.ICommand` / `ICommand<TResponse>` so queries pass through; 5 unit tests pass. **Pipeline registration deferred to P0-047.1** when the audit-service implementation lands. Reopen when wired into `AddApplication.PipelineBehaviors`.
-- `[ ]` **P0-025** Centralised exception middleware → RFC 7807 ProblemDetails
+- `[x]` **P0-025** Centralised exception middleware → RFC 7807 ProblemDetails
+  ↳ verify: [`ValidationExceptionHandler.cs`](./apps/api/src/EarlyEagles.Api/ExceptionHandling/ValidationExceptionHandler.cs) maps FluentValidation → 400 `ValidationProblemDetails` with grouped `errors`; [`GlobalExceptionHandler.cs`](./apps/api/src/EarlyEagles.Api/ExceptionHandling/GlobalExceptionHandler.cs) maps everything else → 500 ProblemDetails without leaking message/stack; both wired in [`Program.cs`](./apps/api/src/EarlyEagles.Api/Program.cs) via `AddExceptionHandling()` + `UseExceptionHandler()`; 4 integration tests pass
 - `[ ]` **P0-026.1** `/health` endpoint returns 200 + version + uptime
 - `[ ]` **P0-026.2** `/ready` endpoint returns 200 when DB + Service Bus reachable
 - `[ ]` **P0-027.1** Swashbuckle wired; `/swagger` lists endpoints
