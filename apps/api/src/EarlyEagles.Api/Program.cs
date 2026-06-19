@@ -1,10 +1,14 @@
 using EarlyEagles.Api.ExceptionHandling;
 using EarlyEagles.Api.Health;
+using EarlyEagles.Api.OpenApi;
 using EarlyEagles.Application;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+});
 builder.Services.AddApplication();
 builder.Services.AddExceptionHandling();
 

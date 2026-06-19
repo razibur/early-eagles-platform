@@ -54,6 +54,31 @@ public class SwaggerEndpointTests : IClassFixture<WebApplicationFactory<Program>
     }
 
     [Fact]
+    public async Task OpenApi_Document_Declares_Bearer_Security_Scheme()
+    {
+        using var client = factory
+            .WithWebHostBuilder(b => b.UseEnvironment("Development"))
+            .CreateClient();
+
+        var response = await client.GetAsync(new Uri("/openapi/v1.json", UriKind.Relative));
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var root = document.RootElement;
+
+        Assert.True(root.TryGetProperty("components", out var components), "components present");
+        Assert.True(
+            components.TryGetProperty("securitySchemes", out var schemes),
+            "components.securitySchemes present");
+        Assert.True(schemes.TryGetProperty("Bearer", out var bearer), "Bearer scheme present");
+
+        Assert.Equal("http", bearer.GetProperty("type").GetString());
+        Assert.Equal("bearer", bearer.GetProperty("scheme").GetString());
+        Assert.Equal("JWT", bearer.GetProperty("bearerFormat").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(bearer.GetProperty("description").GetString()));
+    }
+
+    [Fact]
     public async Task Swagger_Ui_Is_Not_Mapped_In_Production()
     {
         using var client = factory
