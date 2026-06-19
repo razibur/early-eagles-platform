@@ -20,7 +20,7 @@ Last updated: 2026-06-18
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~16% (30 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~16% (31 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -118,7 +118,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: `AddValidatorsFromAssembly(applicationAssembly, ServiceLifetime.Scoped)` in `DependencyInjection.cs`
 - `[x]` **P0-023.3** Install `Riok.Mapperly` (per [ADR-0007](docs/adr/0007-mediator-mapperly-supersede-mediatr-automapper.md), replaces AutoMapper); no profile registration needed — source-generated mappers register themselves when added
   ↳ verify: `Riok.Mapperly` package referenced as PrivateAssets in [`EarlyEagles.Application.csproj`](./apps/api/src/EarlyEagles.Application/EarlyEagles.Application.csproj)
-- `[ ]` **P0-024.1** `LoggingBehavior` Mediator pipeline (with correlation ID)
+- `[x]` **P0-024.1** `LoggingBehavior` Mediator pipeline (with correlation ID)
+  ↳ verify: [`LoggingBehavior.cs`](./apps/api/src/EarlyEagles.Application/Behaviors/LoggingBehavior.cs) — enter / exit / duration logs via `LoggerMessage` source-gen; `Activity.Current?.TraceId` as correlation ID in `BeginScope`; 3 LoggingBehaviorTests pass
 - `[ ]` **P0-024.2** `ValidationBehavior` Mediator pipeline (runs FluentValidation)
 - `[ ]` **P0-024.3** `TransactionBehavior` Mediator pipeline (wraps writes in TX)
 - `[ ]` **P0-024.4** `AuditBehavior` Mediator pipeline (writes AuditEvent — wires to P0-047)

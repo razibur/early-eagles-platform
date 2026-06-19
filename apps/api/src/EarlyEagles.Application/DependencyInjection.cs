@@ -1,3 +1,4 @@
+using EarlyEagles.Application.Behaviors;
 using FluentValidation;
 using Mediator;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,7 +7,7 @@ namespace EarlyEagles.Application;
 
 /// <summary>
 /// Registers Application-layer services. Called from EarlyEagles.Api during host
-/// composition so the API project never has to know about MediatR / FluentValidation
+/// composition so the API project never has to know about Mediator / FluentValidation
 /// / Mapperly directly — that's an Application-layer concern.
 /// </summary>
 public static class DependencyInjection
@@ -19,10 +20,13 @@ public static class DependencyInjection
 
         // martinothamar/Mediator — source-generated mediator. Scans the Application
         // assembly for IRequestHandler<,> / INotificationHandler<> at compile time.
+        // Pipeline behaviors run in declared order, outermost first — LoggingBehavior
+        // wraps every later behavior so request entry / exit are always logged.
         services.AddMediator(options =>
         {
             options.Assemblies = [applicationAssembly];
             options.ServiceLifetime = ServiceLifetime.Scoped;
+            options.PipelineBehaviors = [typeof(LoggingBehavior<,>)];
         });
 
         // FluentValidation — discover IValidator<T> implementations in the Application
