@@ -20,13 +20,16 @@ public static class DependencyInjection
 
         // martinothamar/Mediator — source-generated mediator. Scans the Application
         // assembly for IRequestHandler<,> / INotificationHandler<> at compile time.
-        // Pipeline behaviors run in declared order, outermost first — LoggingBehavior
-        // wraps every later behavior so request entry / exit are always logged.
+        // Pipeline behaviors run in declared order, outermost first:
+        //   1. LoggingBehavior     — always logs enter / exit / failure
+        //   2. ValidationBehavior  — runs FluentValidation; throws ValidationException
+        //                            before the handler if any rule fails
+        // Later behaviors (Transaction, Audit — P0-024.3 / P0-024.4) append after.
         services.AddMediator(options =>
         {
             options.Assemblies = [applicationAssembly];
             options.ServiceLifetime = ServiceLifetime.Scoped;
-            options.PipelineBehaviors = [typeof(LoggingBehavior<,>)];
+            options.PipelineBehaviors = [typeof(LoggingBehavior<,>), typeof(ValidationBehavior<,>)];
         });
 
         // FluentValidation — discover IValidator<T> implementations in the Application
