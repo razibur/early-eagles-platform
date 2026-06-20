@@ -8,6 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+    options.AddDocumentTransformer<TenantResolutionTransformer>();
+    options.AddOperationTransformer<TenantHeaderOperationTransformer>();
 });
 builder.Services.AddApplication();
 builder.Services.AddExceptionHandling();

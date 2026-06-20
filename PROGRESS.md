@@ -20,7 +20,7 @@ Last updated: 2026-06-18
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~21% (39 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~21% (40 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -136,7 +136,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: `Swashbuckle.AspNetCore.SwaggerUI` consumes Microsoft's `/openapi/v1.json` doc; both endpoints gated on non-Production env in [`Program.cs`](./apps/api/src/EarlyEagles.Api/Program.cs); 3 integration tests cover doc parses + UI returns HTML + UI is 404 in Production
 - `[x]` **P0-027.2** Auth scheme documented in OpenAPI (Clerk JWT bearer)
   ↳ verify: [`BearerSecuritySchemeTransformer.cs`](./apps/api/src/EarlyEagles.Api/OpenApi/BearerSecuritySchemeTransformer.cs) adds `components.securitySchemes.Bearer` (type=http, scheme=bearer, bearerFormat=JWT); registered via `AddOpenApi(o => o.AddDocumentTransformer<...>())`; integration test asserts the shape on the live `/openapi/v1.json`
-- `[ ]` **P0-027.3** Tenant resolution header documented in OpenAPI spec
+- `[x]` **P0-027.3** Tenant resolution documented in OpenAPI spec (subdomain primary + `X-Tenant-Slug` fallback)
+  ↳ verify: [`TenantResolutionTransformer.cs`](./apps/api/src/EarlyEagles.Api/OpenApi/TenantResolutionTransformer.cs) adds `Info.Description` explaining the dual mechanism + a `{tenant}.earlyeagles.club` server template; [`TenantHeaderOperationTransformer.cs`](./apps/api/src/EarlyEagles.Api/OpenApi/TenantHeaderOperationTransformer.cs) adds the optional `X-Tenant-Slug` header to every operation; 3 integration tests cover description text, server template, and per-operation parameter shape
 
 ### Multi-tenancy core
 
