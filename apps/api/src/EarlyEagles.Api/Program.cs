@@ -49,9 +49,9 @@ app.UseHttpsRedirection();
 
 // Tenant resolution runs before any handler so downstream code (EF query
 // filter in P0-032.2, Mediator behaviors, feature endpoints) can rely on
-// ITenantContext having been populated for subdomain-bearing requests.
-// Misses (no subdomain, unknown slug) leave the context unresolved here —
-// P0-031.3 layers on the 404 / 400 responses.
+// ITenantContext having been populated for subdomain-bearing requests. In
+// Production a missing subdomain -> 400 and an unknown slug -> 404 (P0-031.3);
+// outside Production misses pass through unresolved for dev-host convenience.
 app.UseMiddleware<TenantResolutionMiddleware>();
 
 app.MapHealthEndpoints();
