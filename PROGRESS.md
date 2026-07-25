@@ -16,7 +16,7 @@ Each task carries a one-line **verify:** with the exact thing to check / command
 to run. If a verify step requires external accounts (Azure, Stripe, Clerk),
 that's noted — the rest you can verify on your laptop.
 
-Last updated: 2026-06-18
+Last updated: 2026-06-20
 
 ---
 
@@ -141,16 +141,26 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 
 ### Multi-tenancy core
 
-- `[ ]` **P0-028.1** `Tenant` aggregate skeleton (Id, Slug, DisplayName)
-- `[ ]` **P0-028.2** Add `Branding` value object to Tenant
-- `[ ]` **P0-028.3** Add `Plan` + `Status` enums + transition guards
-- `[ ]` **P0-028.4** Unit tests for Tenant invariants
-- `[ ]` **P0-029.1** `TenantMember` entity (TenantId, ClerkUserId, Role)
-- `[ ]` **P0-029.2** Unit tests for role-change invariants
-- `[ ]` **P0-030.1** `ITenantContext` interface + scoped implementation
-- `[ ]` **P0-030.2** Integration test confirms per-request scope
-- `[ ]` **P0-031.1** Subdomain extractor utility (parse `<slug>.earlyeagles.club`)
-- `[ ]` **P0-031.2** Tenant-resolution middleware (extract → lookup → populate)
+- `[x]` **P0-028.1** `Tenant` aggregate skeleton (Id, Slug, DisplayName)
+  ↳ verify: [`Tenant.cs`](./apps/api/src/EarlyEagles.Domain/Tenants/Tenant.cs) — sealed `AggregateRoot<Guid>`; private ctor + `Create(id, slug, displayName)` factory enforces RFC 1035 slug rules (2–63 ASCII chars, lowercase letter or digit, hyphens allowed mid-string only) + trimmed non-empty display name ≤200 chars; 16 TenantTests pass (50 total unit tests)
+- `[x]` **P0-028.2** Add `Branding` value object to Tenant
+  ↳ verify: [`Branding.cs`](./apps/api/src/EarlyEagles.Domain/Tenants/Branding.cs) — immutable `ValueObject` with `LogoUrl` (absolute http/https URI ≤2048 chars) + `PrimaryColor` + `AccentColor` (`#RGB` / `#RRGGBB` / `#RRGGBBAA` hex, normalised to lowercase for case-insensitive structural equality); `Tenant.Branding` nullable + `Tenant.SetBranding(branding)` replaces wholesale; 23 BrandingTests + 3 SetBranding tests pass (76 total unit tests)
+- `[x]` **P0-028.3** Add `Plan` + `Status` enums + transition guards
+  ↳ verify: [`TenantPlan.cs`](./apps/api/src/EarlyEagles.Domain/Tenants/TenantPlan.cs) (`Free | Pro | Enterprise`) + [`TenantStatus.cs`](./apps/api/src/EarlyEagles.Domain/Tenants/TenantStatus.cs) (`Active | PastDue | Suspended | Deactivated`); `Tenant.Create` defaults to `Plan=Free, Status=Active`; `ChangePlan` / `MarkPastDue` / `Suspend` / `Reactivate` / `Deactivate` guard against the legal origin states and throw `InvalidOperationException` on bad transitions, no-op on self-transitions so replayed Stripe webhooks are idempotent; 22 TenantTransitionTests pass (98 total unit tests)
+- `[x]` **P0-028.4** Unit tests for Tenant invariants
+  ↳ verify: [`TenantInvariantsTests.cs`](./apps/api/tests/EarlyEagles.Tests.Unit/Tenants/TenantInvariantsTests.cs) — pins slug uniqueness as a persistence-layer contract (not a domain invariant), exercises a full subscribe→upgrade→fail→recover→suspend→deactivate lifecycle, asserts Plan / Status / Branding are independent fields, and locks in the new `SetBranding`-on-Deactivated guard added for symmetry with `ChangePlan`; 7 invariant tests pass (105 total unit tests)
+- `[x]` **P0-029.1** `TenantMember` entity (TenantId, ClerkUserId, Role)
+  ↳ verify: [`TenantMember.cs`](./apps/api/src/EarlyEagles.Domain/Tenants/TenantMember.cs) — `Entity<TenantMemberId>` with composite identity `(TenantId, ClerkUserId)` via the [`TenantMemberId`](./apps/api/src/EarlyEagles.Domain/Tenants/TenantMemberId.cs) record struct, so the base `Entity<TId>` equality semantics give `(tenantA, userX) == (tenantA, userX)` and `(tenantA, userX) != (tenantB, userX)` for free; `Role` of type [`TenantMemberRole`](./apps/api/src/EarlyEagles.Domain/Tenants/TenantMemberRole.cs) (`Member | TenantAdmin`); `Create` + `ChangeRole` enforce non-empty TenantId / ClerkUserId (≤256 chars) + defined enum; 13 TenantMemberTests pass (118 total unit tests)
+- `[x]` **P0-029.2** Unit tests for role-change invariants
+  ↳ verify: [`TenantMemberRoleChangeTests.cs`](./apps/api/tests/EarlyEagles.Tests.Unit/Tenants/TenantMemberRoleChangeTests.cs) — pins "last TenantAdmin cannot be demoted" as an application-service contract (the aggregate has no view of siblings), confirms role changes preserve the `(TenantId, ClerkUserId)` composite identity, alternating promotions/demotions resolve to the latest assignment, and the same Clerk user's role in tenant A is independent of their role in tenant B; 5 invariant tests pass (123 total unit tests)
+- `[x]` **P0-030.1** `ITenantContext` interface + scoped implementation
+  ↳ verify: reader [`ITenantContext`](./apps/api/src/EarlyEagles.Application/Abstractions/Tenancy/ITenantContext.cs) + setter [`ITenantContextInitializer`](./apps/api/src/EarlyEagles.Application/Abstractions/Tenancy/ITenantContextInitializer.cs) split so feature code can't mutate the ambient tenant mid-request; [`TenantContext`](./apps/api/src/EarlyEagles.Infrastructure/Tenancy/TenantContext.cs) implements both — throws `InvalidOperationException` on read-before-init and on double-init, validates non-empty tenantId / slug; [`AddInfrastructure()`](./apps/api/src/EarlyEagles.Infrastructure/DependencyInjection.cs) (new infra DI entry, wired in `Program.cs` after `AddApplication()`) registers the concrete `TenantContext` scoped, with both interfaces resolving to the same instance via factory; 11 TenantContextTests cover the impl contract + DI shape (same-instance-per-scope, fresh-instance-per-scope-boundary); 134 total unit tests + 13 integration tests pass
+- `[x]` **P0-030.2** Integration test confirms per-request scope
+  ↳ verify: [`TenantContextPerRequestScopeTests.cs`](./apps/api/tests/EarlyEagles.Tests.Integration/Tenancy/TenantContextPerRequestScopeTests.cs) — `WebApplicationFactory<Program>` boots the real pipeline; an `IStartupFilter` prepends a test middleware that calls `Initialize` from request services and pushes the resolved `(reader, setter)` pair into a singleton `CapturedScopes`; two `GET /health` calls produce two reference-distinct `ITenantContext` instances, and within a single request the reader and setter resolve to the same backing object; 2 integration tests pass (15 total)
+- `[x]` **P0-031.1** Subdomain extractor utility (parse `<slug>.earlyeagles.club`)
+  ↳ verify: [`SubdomainExtractor.cs`](./apps/api/src/EarlyEagles.Infrastructure/Tenancy/SubdomainExtractor.cs) — static `TryExtract(host, out slug)` parser; matches `<slug>.earlyeagles.club` and `<slug>.localhost`, strips `:port` suffixes, lowercases the slug for deterministic DB lookups, IPv6-safe (bracketed form short-circuits without crashing); rejects null/whitespace, bare base domains, foreign hosts, nested subdomains, empty prefixes, IPv4/IPv6 literals; format validation is deliberately deferred to the middleware's DB lookup; 29 SubdomainExtractorTests cover happy + 11 edge classes (163 total unit tests)
+- `[x]` **P0-031.2** Tenant-resolution middleware (extract → lookup → populate)
+  ↳ verify: [`TenantResolutionMiddleware.cs`](./apps/api/src/EarlyEagles.Api/Tenancy/TenantResolutionMiddleware.cs) — `IMiddleware` that pipes `SubdomainExtractor` → [`ITenantLookup.FindBySlugAsync`](./apps/api/src/EarlyEagles.Application/Abstractions/Tenancy/ITenantLookup.cs) → `ITenantContextInitializer.Initialize`; misses (no subdomain / unknown slug) pass through without erroring (404 / 400 layered on in P0-031.3); stub [`NullTenantLookup`](./apps/api/src/EarlyEagles.Infrastructure/Tenancy/NullTenantLookup.cs) keeps the pipeline wireable until the EF-backed implementation lands with P0-032.2; middleware registered as transient + wired into `Program.cs` after `UseHttpsRedirection`; [`TenantResolutionMiddlewareTests.cs`](./apps/api/tests/EarlyEagles.Tests.Integration/Tenancy/TenantResolutionMiddlewareTests.cs) drives the real `WebApplicationFactory<Program>` pipeline with a `FakeTenantLookup` and an `IStartupFilter` capture that runs *after* `next()` so it observes post-resolution state; 3 integration tests cover known slug (resolved), missing subdomain (unresolved), unknown slug (unresolved without erroring); 163 unit + 18 integration tests pass
 - `[ ]` **P0-031.3** Unknown-tenant 404 + missing-subdomain 400 in production
 - `[ ]` **P0-031.4** E2E test: `<slug>.earlyeagles.club/whoami` returns the right tenant
 - `[ ]` **P0-032.1** `ITenantScoped` marker interface; apply to all tenant entities
@@ -332,6 +342,7 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[x]` ADR-0003 (defer i18n), ADR-0004 (role-based landing), ADR-0005 (light social layer)
 - `[x]` `docs/design/member-landing.md` (wireframe for Phase 1 implementer)
 - `[x]` `.claude/skills/deploy/SKILL.md` (deploy workflow)
+- `[x]` Security: pinned `Microsoft.OpenApi` → 2.7.5 to override the vulnerable 2.0.0 pulled transitively by `Microsoft.AspNetCore.OpenApi` (CVE-2026-49451 / GHSA-v5pm-xwqc-g5wc). Revisit when the framework's transitive pin moves past 2.7.5.
 
 ### Phase 0 acceptance gate
 
