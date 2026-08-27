@@ -13,7 +13,7 @@ namespace EarlyEagles.Domain.Tenants;
 /// P0-028.1 skeleton + P0-028.2 branding + P0-028.3 plan / status state machine.
 /// Comprehensive invariant tests land in P0-028.4.
 /// </remarks>
-public sealed class Tenant : AggregateRoot<Guid>
+public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
 {
     public const int SlugMinLength = 2;
     public const int SlugMaxLength = 63;
@@ -34,6 +34,16 @@ public sealed class Tenant : AggregateRoot<Guid>
         Slug = string.Empty;
         DisplayName = string.Empty;
     }
+
+    /// <summary>
+    /// Satisfies <see cref="ITenantScoped"/>. A tenant is scoped to itself, so its
+    /// tenant id is its own <see cref="Entity{TId}.Id"/> — this lets the global
+    /// query filter treat <see cref="Tenant"/> uniformly with every other
+    /// tenant-scoped entity (a tenant sees only its own row). The pre-auth
+    /// resolution lookup, which runs before any tenant context exists, bypasses
+    /// the filter via <c>IgnoreQueryFilters</c> (P0-032.2).
+    /// </summary>
+    public Guid TenantId => Id;
 
     public string Slug { get; private set; }
 

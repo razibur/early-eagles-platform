@@ -8,28 +8,38 @@ namespace EarlyEagles.Domain.Tenants;
 /// <see cref="TenantMember"/> in each tenant they belong to.
 /// </summary>
 /// <remarks>
-/// P0-029.1 skeleton. Cross-aggregate invariants (e.g. "the last
-/// TenantAdmin cannot be demoted") are application-layer concerns and are
-/// pinned as documentation tests in P0-029.2.
+/// P0-029.1 skeleton. Persistence (P0-032.2) maps <see cref="TenantId"/> and
+/// <see cref="ClerkUserId"/> as the two-column composite key, so they are the
+/// stored source of truth; <see cref="Entity{TId}.Id"/> is the value-object view
+/// over them. EF Core binds the private constructor on materialisation (its
+/// parameters match the mapped columns), which keeps <c>Id</c> correct for loaded
+/// rows too. Cross-aggregate invariants (e.g. "the last TenantAdmin cannot be
+/// demoted") are application-layer concerns and are pinned as documentation tests
+/// in P0-029.2.
 /// </remarks>
-public sealed class TenantMember : Entity<TenantMemberId>
+public sealed class TenantMember : Entity<TenantMemberId>, ITenantScoped
 {
     public const int ClerkUserIdMaxLength = 256;
 
-    private TenantMember(TenantMemberId id, TenantMemberRole role)
-        : base(id)
+    // EF Core binds this constructor on materialisation: the parameter names
+    // match the mapped columns (tenant_id, clerk_user_id, role). Domain callers
+    // reach it through Create, which validates first.
+    private TenantMember(Guid tenantId, string clerkUserId, TenantMemberRole role)
+        : base(new TenantMemberId(tenantId, clerkUserId))
     {
+        TenantId = tenantId;
+        ClerkUserId = clerkUserId;
         Role = role;
     }
 
-    // Parameterless ctor for EF Core materialisation.
-    private TenantMember()
-    {
-    }
+    /// <summary>
+    /// Owning tenant and first half of the composite key. Satisfies
+    /// <see cref="ITenantScoped"/> — the EF Core global query filter scopes members
+    /// by this column.
+    /// </summary>
+    public Guid TenantId { get; }
 
-    public Guid TenantId => Id.TenantId;
-
-    public string ClerkUserId => Id.ClerkUserId;
+    public string ClerkUserId { get; }
 
     public TenantMemberRole Role { get; private set; }
 
@@ -47,7 +57,7 @@ public sealed class TenantMember : Entity<TenantMemberId>
             throw new ArgumentException($"Unknown role value: {role}.", nameof(role));
         }
 
-        return new TenantMember(new TenantMemberId(tenantId, clerkUserId), role);
+        return new TenantMember(tenantId, clerkUserId, role);
     }
 
     public void ChangeRole(TenantMemberRole role)

@@ -1,6 +1,7 @@
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Infrastructure;
 using EarlyEagles.Infrastructure.Tenancy;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EarlyEagles.Tests.Unit.Tenancy;
@@ -94,7 +95,7 @@ public class TenantContextTests
     public void AddInfrastructure_Registers_Both_Interfaces_As_Same_Scoped_Instance()
     {
         var services = new ServiceCollection();
-        services.AddInfrastructure();
+        services.AddInfrastructure(new ConfigurationBuilder().Build());
         using var provider = services.BuildServiceProvider();
 
         using var scope = provider.CreateScope();
@@ -114,7 +115,7 @@ public class TenantContextTests
     public void AddInfrastructure_Yields_A_Fresh_Instance_Per_Scope()
     {
         var services = new ServiceCollection();
-        services.AddInfrastructure();
+        services.AddInfrastructure(new ConfigurationBuilder().Build());
         using var provider = services.BuildServiceProvider();
 
         ITenantContext first;

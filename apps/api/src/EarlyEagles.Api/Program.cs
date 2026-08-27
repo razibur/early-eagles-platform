@@ -14,7 +14,7 @@ builder.Services.AddOpenApi(options =>
     options.AddOperationTransformer<TenantHeaderOperationTransformer>();
 });
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure();
+builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddExceptionHandling();
 builder.Services.AddTransient<TenantResolutionMiddleware>();
 
@@ -55,6 +55,7 @@ app.UseHttpsRedirection();
 app.UseMiddleware<TenantResolutionMiddleware>();
 
 app.MapHealthEndpoints();
+app.MapTenancyEndpoints();
 
 app.Run();
 

@@ -57,9 +57,9 @@ public class TenantEnforcementTests
 
         var response = await client.GetAsync(new Uri("/whoami", UriKind.Relative));
 
-        // No /whoami endpoint exists yet (P0-031.4), so routing returns a plain
-        // 404 — but crucially NOT the middleware's "Tenant not found" problem,
-        // and the context resolved, proving the request passed the gate.
+        // The request passed the gate resolved (not the middleware's "Tenant not
+        // found" problem); the resolved-tenant response body is asserted in the
+        // P0-031.4 E2E test, so here we only check the context reached the handler.
         var snapshot = Assert.Single(capture.Snapshot());
         Assert.True(snapshot.IsResolved);
         Assert.Equal(KnownTenantId, snapshot.TenantId);
@@ -83,15 +83,19 @@ public class TenantEnforcementTests
     public async Task NonProduction_Missing_Subdomain_On_Tenant_Path_Is_Lenient()
     {
         // Development host tolerates missing tenants (dev via localhost / IP):
-        // the middleware passes through and routing — not the gate — 404s.
+        // the middleware passes the request through to the handler instead of
+        // short-circuiting. The /whoami endpoint then reports its own unresolved
+        // state ("Tenant not resolved") — crucially NOT the middleware's gate
+        // ("Tenant not specified"), proving the middleware stayed lenient.
         using var factory = new DevelopmentFactory();
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Host = "localhost";
 
         var response = await client.GetAsync(new Uri("/whoami", UriKind.Relative));
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.DoesNotContain("Tenant not specified", await response.Content.ReadAsStringAsync());
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Tenant not specified", body);
+        Assert.Contains("Tenant not resolved", body);
     }
 
     private static void ConfigureFakeLookupAndCapture(IServiceCollection services)
