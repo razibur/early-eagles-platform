@@ -20,7 +20,7 @@ Last updated: 2026-07-25
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~23% (43 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~24% (45 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -170,9 +170,11 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[x]` **P0-032.2** `DbContext` with global query filter on `ITenantScoped` types
   ↳ verify: [`ApplicationDbContext.cs`](./apps/api/src/EarlyEagles.Infrastructure/Persistence/ApplicationDbContext.cs) — first EF Core 10.0.11 + Npgsql 10.0.3 integration. `OnModelCreating` loops every `ITenantScoped` entity and applies a global query filter `EF.Property<Guid>(e, col) == CurrentTenantId` (col = `TenantId` column, or the PK for the self-scoped `Tenant`). `CurrentTenantId` is snapshotted from `ITenantContext` per request — `Guid.Empty` when unresolved, so a context with no tenant reads nothing. Mappings in [`Persistence/Configurations`](./apps/api/src/EarlyEagles.Infrastructure/Persistence/Configurations) (enums→strings, optional owned `Branding`, unique `slug`, `tenant_members` composite PK + FK). **TenantMember was restructured** (per user decision) to a scalar `TenantId`+`ClerkUserId` composite key so the filter emits a real `tenant_id =` predicate and P0-033.2's FK has columns; it stays `Entity<TenantMemberId>` with `Id` derived, and EF binds its constructor on materialisation so `Id` is correct for loaded rows. [`TenantQueryFilterTests.cs`](./apps/api/tests/EarlyEagles.Tests.Integration/Persistence/TenantQueryFilterTests.cs) asserts the SQL via `ToQueryString()` (no live DB needed): members filter on `tenant_id`, tenants on `id`, unresolved→`Guid.Empty`, and a cross-instance test proving the filter re-evaluates per context (no cached-model staleness). 166 unit + 28 integration pass. **Deferred:** the EF-backed `ITenantLookup` (still `NullTenantLookup`) and real connection-string config (placeholder for now) wait for a live DB in P0-033/P0-034.
 - `[ ]` **P0-032.3** Integration test: query without `ITenantContext` returns empty
-- `[ ]` **P0-033.1** EF migration: create `tenants` table
-- `[ ]` **P0-033.2** EF migration: create `tenant_members` table with FK to tenants
-- `[ ]` **P0-033.3** EF migration: create `audit_events` table (append-only)
+- `[x]` **P0-033.1** EF migration: create `tenants` table
+  ↳ verify: [`20260827010529_InitialCreate`](./apps/api/src/EarlyEagles.Infrastructure/Persistence/Migrations/20260827010529_InitialCreate.cs) — EF Core migration tooling stood up: `dotnet-ef` as a local tool ([`apps/api/.config/dotnet-tools.json`](./apps/api/.config/dotnet-tools.json)), `Microsoft.EntityFrameworkCore.Design` on Infrastructure, and a design-time [`ApplicationDbContextFactory`](./apps/api/src/EarlyEagles.Infrastructure/Persistence/ApplicationDbContextFactory.cs) (supplies an unresolved tenant context so the CLI needn't boot the web host; connection from `ConnectionStrings__Postgres` env var, else the placeholder). Applied against a throwaway `postgres:17` container: `\d tenants` shows `id uuid PK`, `slug varchar(63)` UNIQUE, `display_name`, nullable `branding_*`, `plan`/`status varchar(32)`.
+- `[x]` **P0-033.2** EF migration: create `tenant_members` table with FK to tenants
+  ↳ verify: same `InitialCreate` migration (both entities were already modelled, so EF's first migration covers both tables — one migration, not two). `\d tenant_members`: composite PK `(tenant_id, clerk_user_id)`, `role varchar(32)`, and FK `FK_tenant_members_tenants_tenant_id (tenant_id) → tenants(id) ON DELETE CASCADE`, confirmed applied in Postgres. 166 unit + 28 integration still green with the migration in the build.
+- `[ ]` **P0-033.3** EF migration: create `audit_events` table (append-only) — **blocked on P0-046.1** (the `AuditEvent` entity doesn't exist yet); revisit when it lands
 - `[ ]` **P0-033.4** Apply migrations against local Postgres; verify with psql
 - `[ ]` **P0-034.1** ★ Testcontainers Postgres setup in `Tests.Integration`
 - `[ ]` **P0-034.2** ★ Seed fixture: two tenants (Alpha, Beta) with sample data

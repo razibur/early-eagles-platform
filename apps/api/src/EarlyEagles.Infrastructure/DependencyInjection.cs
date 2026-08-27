@@ -17,7 +17,8 @@ public static class DependencyInjection
     // Placeholder connection until real per-environment configuration lands in
     // P0-033.4. AddDbContext / UseNpgsql never open a connection at registration,
     // so this keeps the host bootable (and the model buildable) without a live DB.
-    private const string DefaultConnectionString =
+    // Also used by the design-time factory when no override env var is set.
+    internal const string DefaultConnectionString =
         "Host=localhost;Port=5432;Database=earlyeagles;Username=postgres;Password=postgres";
 
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
