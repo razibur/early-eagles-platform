@@ -20,7 +20,7 @@ Last updated: 2026-07-25
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~24% (45 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~24% (46 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -176,7 +176,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: same `InitialCreate` migration (both entities were already modelled, so EF's first migration covers both tables — one migration, not two). `\d tenant_members`: composite PK `(tenant_id, clerk_user_id)`, `role varchar(32)`, and FK `FK_tenant_members_tenants_tenant_id (tenant_id) → tenants(id) ON DELETE CASCADE`, confirmed applied in Postgres. 166 unit + 28 integration still green with the migration in the build.
 - `[ ]` **P0-033.3** EF migration: create `audit_events` table (append-only) — **blocked on P0-046.1** (the `AuditEvent` entity doesn't exist yet); revisit when it lands
 - `[ ]` **P0-033.4** Apply migrations against local Postgres; verify with psql
-- `[ ]` **P0-034.1** ★ Testcontainers Postgres setup in `Tests.Integration`
+- `[x]` **P0-034.1** ★ Testcontainers Postgres setup in `Tests.Integration`
+  ↳ verify: [`PostgresFixture.cs`](./apps/api/tests/EarlyEagles.Tests.Integration/Persistence/PostgresFixture.cs) — `IAsyncLifetime` fixture starts an ephemeral `postgres:17` via Testcontainers 4.14, applies the real `InitialCreate` migration (`Database.MigrateAsync()`), and exposes `CreateContext(ITenantContext)` so isolation tests (P0-034.2..4) get an `ApplicationDbContext` bound to it. Shared once per collection via [`PostgresCollectionDefinition`](./apps/api/tests/EarlyEagles.Tests.Integration/Persistence/PostgresCollectionDefinition.cs). [`PostgresFixtureSmokeTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Persistence/PostgresFixtureSmokeTests.cs) proves the container is reachable and `InitialCreate` is applied. Also pinned EF Core Relational 10.0.11 in Infrastructure to clear an MSB3277 skew (Npgsql 10.0.3 references 10.0.4). Needs Docker (CI too). 166 unit + 29 integration pass.
 - `[ ]` **P0-034.2** ★ Seed fixture: two tenants (Alpha, Beta) with sample data
 - `[ ]` **P0-034.3** ★ Test: query as Tenant Alpha, assert Beta's rows not visible
 - `[ ]` **P0-034.4** ★ Test: insert as Tenant Alpha, TenantId auto-populates
