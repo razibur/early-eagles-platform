@@ -6,8 +6,8 @@
 > (Phase 0, multi-tenancy core complete). Every version and path here is taken from the
 > actual repo — when in doubt, the committed files are the source of truth.
 >
-> **Scope of this document.** It covers everything built through **P0-034.1** (the
-> tenant-isolation test gate infrastructure). Later phases (Clerk auth, Stripe, SignalR,
+> **Scope of this document.** It covers everything built through **P0-034.4** (the
+> tenant-isolation gate, read and write sides). Later phases (Clerk auth, Stripe, SignalR,
 > Azure/Bicep, CI/CD) are **not built yet**; where they belong is flagged in
 > [§12 Not-yet-built](#12-not-yet-built-and-where-it-goes) so you know what comes next.
 >
@@ -421,7 +421,77 @@ asserts two contexts with different tenants produce different SQL.
 
 ▶ [`TenantQueryFilterTests.cs`](../apps/api/tests/EarlyEagles.Tests.Integration/Persistence/TenantQueryFilterTests.cs)
 
-### 9.3 Migration tooling
+### 9.3 The write-side guard — `TenantStampingInterceptor`
+
+The query filter only protects **reads**. On insert, nothing yet stopped a handler from
+writing a row with the wrong `TenantId` — or none at all. A `SaveChangesInterceptor` closes
+that half:
+
+```csharp
+public sealed class TenantStampingInterceptor : SaveChangesInterceptor
+{
+    public override InterceptionResult<int> SavingChanges(
+        DbContextEventData eventData, InterceptionResult<int> result)
+    {
+        Enforce(eventData.Context);
+        return base.SavingChanges(eventData, result);
+    }
+    // SavingChangesAsync does the same — override both.
+}
+```
+
+`Enforce` walks `ChangeTracker.Entries()`, keeps the `ITenantScoped` ones in
+Added/Modified/Deleted state, and resolves the tenant discriminator **the same way the query
+filter does** (a `TenantId` property where there is one, the PK for the self-scoped `Tenant`).
+Then:
+
+| Situation | Outcome |
+|---|---|
+| Insert, no tenant id, tenant resolved | **stamped** with the ambient tenant |
+| Insert, no tenant id, no tenant resolved | rejected — nothing to stamp from |
+| Insert/update/delete naming a different tenant | rejected |
+| Update that changes `TenantId` | rejected — rows never move between tenants |
+| Any write with an explicit tenant id and no resolved tenant | allowed |
+
+That last row is the write-side twin of `IgnoreQueryFilters()`: migrations, seeding, tenant
+provisioning and background jobs run outside a request, so they must name the tenant
+themselves. Rejections throw `CrossTenantWriteException` — a bug signal, not a user error,
+so it is left unhandled and surfaces as a 500.
+
+The `Tenant` aggregate is exempt on **insert** only: creating a tenant necessarily happens
+before that tenant can be ambient. Updates and deletes to it are still constrained.
+
+Register it from `OnConfiguring`, as a **static singleton**:
+
+```csharp
+private static readonly TenantStampingInterceptor TenantStamping = new();
+
+protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+{
+    optionsBuilder.AddInterceptors(TenantStamping);
+    base.OnConfiguring(optionsBuilder);
+}
+```
+
+EF calls `OnConfiguring` however the context was built — DI, the design-time factory, or a
+test `new`-ing it — so no caller can construct a context without the guard.
+
+▶ [`TenantStampingInterceptor.cs`](../apps/api/src/EarlyEagles.Infrastructure/Persistence/Interceptors/TenantStampingInterceptor.cs) ·
+[`CrossTenantWriteException.cs`](../apps/api/src/EarlyEagles.Infrastructure/Persistence/Interceptors/CrossTenantWriteException.cs)
+
+⚠ **Gotchas in this area:**
+- Keep the interceptor **stateless** and read the tenant off the context being saved. A
+  per-tenant instance would make each `DbContextOptions` distinct and bloat EF's internal
+  service-provider cache (EF warns after ~20 providers).
+- `ExecuteUpdate` / `ExecuteDelete` never reach `SaveChanges`, so the interceptor cannot see
+  them. They *do* honour the global query filter, so they stay inside the ambient tenant
+  unless the caller adds `IgnoreQueryFilters()`.
+- Changing a **key** property (like `TenantMember.TenantId`) is only legal while the entry is
+  `Added`; EF throws the moment you assign it on a tracked, already-persisted entity. That is
+  why the "row moves tenants" rule can't be exercised against `TenantMember` today — it will
+  matter for the first entity whose `TenantId` isn't part of the key.
+
+### 9.4 Migration tooling
 
 Install `dotnet-ef` as a **local tool** (reproducible in CI):
 
@@ -493,9 +563,18 @@ returns only Alpha's rows, a direct PK lookup of Beta's row as Alpha returns nul
 is not key-bypassable), `Tenant` is self-scoped, and an `IgnoreQueryFilters()` backstop shows
 Beta's data really is in the DB — the filter is what hides it.
 
+The write-side proof (`TenantWriteStampingTests`, 9 tests) is the mirror image: an insert with
+no tenant id is stamped with the ambient one and lands where Alpha — and only Alpha — can
+read it; inserts, updates and deletes naming another tenant are refused with
+`CrossTenantWriteException`; and the deliberate out-of-band paths (explicit tenant id with no
+resolved tenant, provisioning a brand-new tenant) still work. Disabling the interceptor
+registration fails 6 of the 9 — the three "is allowed" cases stay green, which is how you
+know they are not just asserting the guard.
+
 ▶ [`PostgresFixture.cs`](../apps/api/tests/EarlyEagles.Tests.Integration/Persistence/PostgresFixture.cs) ·
 [`PostgresCollectionDefinition.cs`](../apps/api/tests/EarlyEagles.Tests.Integration/Persistence/PostgresCollectionDefinition.cs) ·
-[`TenantIsolationTests.cs`](../apps/api/tests/EarlyEagles.Tests.Integration/Persistence/TenantIsolationTests.cs)
+[`TenantIsolationTests.cs`](../apps/api/tests/EarlyEagles.Tests.Integration/Persistence/TenantIsolationTests.cs) ·
+[`TenantWriteStampingTests.cs`](../apps/api/tests/EarlyEagles.Tests.Integration/Persistence/TenantWriteStampingTests.cs)
 
 ⚠ **Gotchas in this area:**
 - xUnit **v2** (`2.9.3`) `IAsyncLifetime` returns `Task`, not `ValueTask` (that's v3).
@@ -543,7 +622,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 
 | Area | Status | Where it plugs in |
 |---|---|---|
-| **Tenant-isolation tests** (P0-034.2–.4) | next up | seed Alpha/Beta, assert cross-tenant reads blocked, `TenantId` auto-stamp on insert |
+| **Tenant-isolation tests** (P0-034.5–.8) | next up | bypass-context test, cross-tenant endpoint 404, wire into CI, runbook |
 | **EF-backed `ITenantLookup`** | deferred | replaces `NullTenantLookup` once a seeded DB exists |
 | **`AuditEvent` + audit pipeline** | deferred (P0-046) | unblocks the `audit_events` migration (P0-033.3) and `AuditBehavior` |
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |

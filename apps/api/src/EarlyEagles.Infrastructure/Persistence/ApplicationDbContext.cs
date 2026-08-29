@@ -2,6 +2,7 @@ using System.Reflection;
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Domain.Primitives;
 using EarlyEagles.Domain.Tenants;
+using EarlyEagles.Infrastructure.Persistence.Interceptors;
 using Microsoft.EntityFrameworkCore;
 
 namespace EarlyEagles.Infrastructure.Persistence;
@@ -15,14 +16,27 @@ namespace EarlyEagles.Infrastructure.Persistence;
 /// constructed.
 /// </summary>
 /// <remarks>
+/// <para>
 /// When no tenant is resolved, <see cref="CurrentTenantId"/> is
 /// <see cref="Guid.Empty"/>, so tenant-scoped queries match nothing rather than
 /// leak data. Infrastructure that legitimately needs cross-tenant reads (e.g. the
 /// pre-auth tenant-resolution lookup) must opt out explicitly with
 /// <c>IgnoreQueryFilters()</c>.
+/// </para>
+/// <para>
+/// The read side is only half of isolation: <see cref="TenantStampingInterceptor"/>,
+/// registered in <see cref="OnConfiguring"/>, stamps and validates
+/// <see cref="ITenantScoped.TenantId"/> on the way in so a write cannot land in
+/// another tenant either.
+/// </para>
 /// </remarks>
 public sealed class ApplicationDbContext : DbContext
 {
+    // Stateless, so one shared instance serves every context and every tenant —
+    // the ambient tenant is read from the context being saved. Registering a new
+    // instance per context would also bloat EF's internal service-provider cache.
+    private static readonly TenantStampingInterceptor TenantStamping = new();
+
     private static readonly MethodInfo ApplyTenantFilterMethod = typeof(ApplicationDbContext)
         .GetMethod(nameof(ApplyTenantFilter), BindingFlags.Instance | BindingFlags.NonPublic)!;
 
@@ -43,6 +57,21 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
     public DbSet<TenantMember> TenantMembers => Set<TenantMember>();
+
+    /// <summary>
+    /// Attaches the write-side tenant guard. Done here rather than at each
+    /// registration site because EF calls <c>OnConfiguring</c> however the context
+    /// was built — DI, the design-time factory, or a test <c>new</c>-ing it — so
+    /// no caller can construct a context without the guard.
+    /// </summary>
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(optionsBuilder);
+
+        optionsBuilder.AddInterceptors(TenantStamping);
+
+        base.OnConfiguring(optionsBuilder);
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
