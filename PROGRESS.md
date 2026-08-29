@@ -20,7 +20,7 @@ Last updated: 2026-07-25
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~24% (46 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~25% (48 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -178,9 +178,11 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-033.4** Apply migrations against local Postgres; verify with psql
 - `[x]` **P0-034.1** ★ Testcontainers Postgres setup in `Tests.Integration`
   ↳ verify: [`PostgresFixture.cs`](./apps/api/tests/EarlyEagles.Tests.Integration/Persistence/PostgresFixture.cs) — `IAsyncLifetime` fixture starts an ephemeral `postgres:17` via Testcontainers 4.14, applies the real `InitialCreate` migration (`Database.MigrateAsync()`), and exposes `CreateContext(ITenantContext)` so isolation tests (P0-034.2..4) get an `ApplicationDbContext` bound to it. Shared once per collection via [`PostgresCollectionDefinition`](./apps/api/tests/EarlyEagles.Tests.Integration/Persistence/PostgresCollectionDefinition.cs). [`PostgresFixtureSmokeTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Persistence/PostgresFixtureSmokeTests.cs) proves the container is reachable and `InitialCreate` is applied. Also pinned EF Core Relational 10.0.11 in Infrastructure to clear an MSB3277 skew (Npgsql 10.0.3 references 10.0.4). Needs Docker (CI too). 166 unit + 29 integration pass.
-- `[ ]` **P0-034.2** ★ Seed fixture: two tenants (Alpha, Beta) with sample data
-- `[ ]` **P0-034.3** ★ Test: query as Tenant Alpha, assert Beta's rows not visible
-- `[ ]` **P0-034.4** ★ Test: insert as Tenant Alpha, TenantId auto-populates
+- `[x]` **P0-034.2** ★ Seed fixture: two tenants (Alpha, Beta) with sample data
+  ↳ verify: [`PostgresFixture.cs`](./apps/api/tests/EarlyEagles.Tests.Integration/Persistence/PostgresFixture.cs) — after migrating, the fixture seeds tenants **Alpha** (2 members: admin + member) and **Beta** (1 admin) with fixed ids/slugs exposed as constants; inserts aren't touched by the query filter so the unresolved migration context seeds both in one `SaveChanges`. Added a `CreateContext(Guid tenantId, string slug)` overload that resolves the ambient tenant so tests can "operate as" a tenant.
+- `[x]` **P0-034.3** ★ Test: query as Tenant Alpha, assert Beta's rows not visible
+  ↳ verify: [`TenantIsolationTests.cs`](./apps/api/tests/EarlyEagles.Tests.Integration/Persistence/TenantIsolationTests.cs) — **the headline gate**, 5 tests against real Postgres: reading as Alpha returns only Alpha's 2 members; as Beta only Beta's 1; a direct PK lookup of Beta's member as Alpha returns null (filter isn't key-bypassable); `Tenant` is self-scoped (Alpha sees only its own row); and an `IgnoreQueryFilters()` backstop proves Beta's data IS in the DB — the filter is what hides it. 166 unit + 34 integration pass.
+- `[ ]` **P0-034.4** ★ Test: insert as Tenant Alpha, TenantId auto-populates — needs a `SaveChanges` interceptor to auto-stamp `TenantId` on added `ITenantScoped` entities (a small feature, not just a test); currently `TenantId` is set explicitly via `Create(tenantId, …)`
 - `[ ]` **P0-034.5** ★ Test: bypass tenant context, assert empty result
 - `[ ]` **P0-034.6** ★ Test: cross-tenant API endpoint access returns 404
 - `[ ]` **P0-034.7** ★ Wire isolation tests into CI as required check

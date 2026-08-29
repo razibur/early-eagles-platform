@@ -53,7 +53,7 @@ Read [`project-scope.md`](../project-scope.md) and [ADR-0002](./adr/0002-enterpr
 
 **Final layout you are working toward:**
 
-```
+```text
 early-eagles/                     # monorepo root (npm workspaces)
 ├── package.json                  # workspaces + dev/build/lint scripts
 ├── apps/
@@ -483,12 +483,19 @@ Three test projects, all xUnit:
 - **`Tests.Acceptance`** — scaffold only, no tests yet.
 
 **The Testcontainers fixture** starts an ephemeral `postgres:17`, applies the real
-`InitialCreate` migration, and hands tests an `ApplicationDbContext` bound to it — shared once
-per collection. This is the foundation of the tenant-**isolation gate** (P0-034), which
-CLAUDE.md calls *the gate* that must stay green before any feature ships.
+`InitialCreate` migration, **seeds two tenants (Alpha + Beta) with members each**, and hands
+tests an `ApplicationDbContext` bound to it — shared once per collection. `CreateContext(tenantId, slug)`
+gives a context that "operates as" a tenant. This is the tenant-**isolation gate** (P0-034),
+which CLAUDE.md calls *the gate* that must stay green before any feature ships.
+
+The gate proof (`TenantIsolationTests`) asserts, against real Postgres, that reading as Alpha
+returns only Alpha's rows, a direct PK lookup of Beta's row as Alpha returns null (the filter
+is not key-bypassable), `Tenant` is self-scoped, and an `IgnoreQueryFilters()` backstop shows
+Beta's data really is in the DB — the filter is what hides it.
 
 ▶ [`PostgresFixture.cs`](../apps/api/tests/EarlyEagles.Tests.Integration/Persistence/PostgresFixture.cs) ·
-[`PostgresCollectionDefinition.cs`](../apps/api/tests/EarlyEagles.Tests.Integration/Persistence/PostgresCollectionDefinition.cs)
+[`PostgresCollectionDefinition.cs`](../apps/api/tests/EarlyEagles.Tests.Integration/Persistence/PostgresCollectionDefinition.cs) ·
+[`TenantIsolationTests.cs`](../apps/api/tests/EarlyEagles.Tests.Integration/Persistence/TenantIsolationTests.cs)
 
 ⚠ **Gotchas in this area:**
 - xUnit **v2** (`2.9.3`) `IAsyncLifetime` returns `Task`, not `ValueTask` (that's v3).
