@@ -20,7 +20,7 @@ Last updated: 2026-09-17
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~26% (50 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~27% (51 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -189,7 +189,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`UnresolvedTenantContextTests.cs`](./apps/api/tests/EarlyEagles.Tests.Integration/Persistence/UnresolvedTenantContextTests.cs) — the read-side **default deny** against real Postgres, 4 tests: a context built with `new TenantContext()` (never `Initialize`d, so `IsResolved=false`) snapshots `Guid.Empty` in `ApplicationDbContext.CurrentTenantId`, and the global query filter compares each row's discriminator against it. Reading `TenantMembers` returns empty; reading `Tenants` returns empty (the self-scoped aggregate still keys off `Guid.Empty`); direct PK lookup for a known Alpha member returns null (the filter isn't bypassable by key); `IgnoreQueryFilters()` reveals both Alpha's and Beta's rows — proving the emptiness comes from the filter, not from missing seed data. Closes the "middleware misfires or is bypassed" gap: queries fail closed, not open. 166 unit + 47 integration pass.
 - `[ ]` **P0-034.6** ★ Test: cross-tenant API endpoint access returns 404
 - `[ ]` **P0-034.7** ★ Wire isolation tests into CI as required check
-- `[ ]` **P0-034.8** ★ Document the test pattern in `docs/runbooks/tenant-isolation-tests.md`
+- `[x]` **P0-034.8** ★ Document the test pattern in `docs/runbooks/tenant-isolation-tests.md`
+  ↳ verify: [`docs/runbooks/tenant-isolation-tests.md`](./docs/runbooks/tenant-isolation-tests.md) — the operator + developer manual for the gate. Explains the three isolation layers (marker → read-side filter → write-side interceptor), lists every test file under `Persistence/` with the invariant it pins, gives the copy-paste `[Collection(...)]` pattern for adding new isolation tests, walks through adding a new tenant-scoped entity without breaking the gate (the unit-test reflection guard fires first if you forget `ITenantScoped`), documents the two legitimate opt-outs (`IgnoreQueryFilters()` for reads, explicit `TenantId` on writes when no tenant is resolved), the accepted `ExecuteUpdate`/`ExecuteDelete` gap, a one-line summary of every assertion, and a triage checklist for when the gate fails. Flags P0-034.7 as the next step: the CI wiring that makes this file's contract enforceable on `main`.
 
 ### Identity — Clerk integration
 
