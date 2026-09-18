@@ -1,5 +1,6 @@
 using System.Reflection;
 using EarlyEagles.Application.Abstractions.Tenancy;
+using EarlyEagles.Domain.Auditing;
 using EarlyEagles.Domain.Primitives;
 using EarlyEagles.Domain.Tenants;
 using EarlyEagles.Infrastructure.Persistence.Interceptors;
@@ -57,6 +58,8 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
     public DbSet<TenantMember> TenantMembers => Set<TenantMember>();
+
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     /// <summary>
     /// Attaches the write-side tenant guard. Done here rather than at each

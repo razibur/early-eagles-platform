@@ -22,6 +22,48 @@ namespace EarlyEagles.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("EarlyEagles.Domain.Auditing.AuditEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("action");
+
+                    b.Property<string>("ActorClerkUserId")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("actor_clerk_user_id");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("failure_reason");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("boolean")
+                        .HasColumnName("success");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "OccurredAt")
+                        .IsDescending(false, true);
+
+                    b.ToTable("audit_events", (string)null);
+                });
+
             modelBuilder.Entity("EarlyEagles.Domain.Tenants.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -80,6 +122,15 @@ namespace EarlyEagles.Infrastructure.Persistence.Migrations
                     b.HasKey("TenantId", "ClerkUserId");
 
                     b.ToTable("tenant_members", (string)null);
+                });
+
+            modelBuilder.Entity("EarlyEagles.Domain.Auditing.AuditEvent", b =>
+                {
+                    b.HasOne("EarlyEagles.Domain.Tenants.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("EarlyEagles.Domain.Tenants.Tenant", b =>
