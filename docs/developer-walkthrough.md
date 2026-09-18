@@ -297,8 +297,9 @@ cross-cutting concerns in `Program.cs`. Build these in this order:
    implementations (`AddExceptionHandling()` / `UseExceptionHandler()`).
    ▶ [`ExceptionHandling/`](../apps/api/src/EarlyEagles.Api/ExceptionHandling/)
 4. **Application + Infrastructure DI** — `AddApplication()` registers the source-generated
-   Mediator (scoped) with a pipeline of `[LoggingBehavior, ValidationBehavior]` and
-   FluentValidation validators; `AddInfrastructure(configuration)` registers tenancy + EF.
+   Mediator (scoped) with a pipeline of `[Logging, Audit, Validation, Transaction]` and
+   FluentValidation validators; `AddInfrastructure(configuration)` registers tenancy, EF,
+   `IAuditService`, and `IUnitOfWork`.
    ▶ [`Application/DependencyInjection.cs`](../apps/api/src/EarlyEagles.Application/DependencyInjection.cs)
 
 `Program.cs` ends with `public partial class Program { }` so the integration test project can
@@ -306,10 +307,13 @@ reference it via `WebApplicationFactory<Program>`.
 
 ▶ Reference: [`Program.cs`](../apps/api/src/EarlyEagles.Api/Program.cs)
 
-> **Written but not yet registered:** `TransactionBehavior` and `AuditBehavior` exist and are
-> unit-tested but are commented out of the pipeline until `IUnitOfWork` and `IAuditService`
-> land. When wired, order becomes `[Logging, Audit, Validation, Transaction]` — Audit sits
-> *outside* the transaction so failed commands still leave an audit trail.
+> **Pipeline order is load-bearing.** `Logging → Audit → Validation → Transaction → handler`.
+> Audit sits *outside* the transaction — and `AuditService` writes on its own connection —
+> so a command that fails or rolls back still leaves a trail of what was attempted and why.
+> Transaction is innermost, so a validation failure throws before a transaction is ever
+> opened. Audit and Transaction both apply only to `ICommand`s; queries pass straight through.
+> ▶ [`Behaviors/`](../apps/api/src/EarlyEagles.Application/Behaviors/),
+> [`EfUnitOfWork.cs`](../apps/api/src/EarlyEagles.Infrastructure/Persistence/EfUnitOfWork.cs)
 
 ---
 

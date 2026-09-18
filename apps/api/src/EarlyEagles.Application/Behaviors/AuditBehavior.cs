@@ -18,7 +18,7 @@ namespace EarlyEagles.Application.Behaviors;
 /// reason. That separation is the entire point of the audit log.
 ///
 /// Pipeline order:
-///   Logging → Audit → Validation → (Transaction, once wired) → handler
+///   Logging → Audit → Validation → Transaction → handler
 ///
 /// Registered in <c>AddApplication</c> (P0-047.2) against the concrete
 /// <c>AuditService</c> from Infrastructure (P0-047.1).

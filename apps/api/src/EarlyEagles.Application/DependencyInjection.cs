@@ -30,10 +30,12 @@ public static class DependencyInjection
         //   3. ValidationBehavior  — runs FluentValidation; throws ValidationException
         //                            before the handler if any rule fails. Audit
         //                            records the resulting failure.
-        // TransactionBehavior (P0-024.3) is written and unit-tested but NOT registered
-        // here yet — it depends on IUnitOfWork, which lands with the first real
-        // command. When fully wired the pipeline becomes
-        // [Logging, Audit, Validation, Transaction].
+        //   4. TransactionBehavior — opens a DB transaction around every ICommand,
+        //                            commits on success, rolls back on throw. Sits
+        //                            INSIDE Validation so a rejected command never
+        //                            opens a transaction, and INSIDE Audit so a
+        //                            rolled-back command still leaves a trail.
+        //                            Queries pass through.
         services.AddMediator(options =>
         {
             options.Assemblies = [applicationAssembly];
@@ -43,6 +45,7 @@ public static class DependencyInjection
                 typeof(LoggingBehavior<,>),
                 typeof(AuditBehavior<,>),
                 typeof(ValidationBehavior<,>),
+                typeof(TransactionBehavior<,>),
             ];
         });
 

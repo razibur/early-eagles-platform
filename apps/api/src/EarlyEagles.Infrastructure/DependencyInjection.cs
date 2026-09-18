@@ -1,4 +1,5 @@
 using EarlyEagles.Application.Abstractions.Auditing;
+using EarlyEagles.Application.Abstractions.Persistence;
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Infrastructure.Auditing;
 using EarlyEagles.Infrastructure.Persistence;
@@ -51,6 +52,11 @@ public static class DependencyInjection
         // ITenantContext. It opens its own DbContext per call so audit writes
         // survive request-transaction rollbacks — see AuditService for why.
         services.AddScoped<IAuditService, AuditService>();
+
+        // Unit of work (P0-024.3) backing TransactionBehavior. Scoped so it
+        // shares the request's ApplicationDbContext — the transaction it opens
+        // covers everything that context saves.
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
 
         return services;
     }
