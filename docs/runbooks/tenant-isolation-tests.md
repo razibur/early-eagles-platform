@@ -273,8 +273,25 @@ Use this as a checklist when reviewing a change to persistence or tenancy.
 
 ## 11. Wiring into CI
 
-Not yet wired — CI itself hasn't landed (P0-078.\* onwards). When
-`.github/workflows/backend.yml` is authored (task **P0-034.7**), it must run
-the integration suite as a **required check** on `main`, on Docker-enabled
-runners (all Ubuntu GitHub-hosted runners qualify). The suite is
-self-contained: no secrets, no external DB, no cache to warm.
+The suite runs in [`.github/workflows/backend.yml`](../../.github/workflows/backend.yml)
+as its own job: **`integration tests (tenant-isolation gate)`**. It sits
+alongside a `build + unit tests` job that catches compile / analyzer /
+warnings-as-error regressions in the fast lane.
+
+Both jobs run on every PR to `main` and every push to `main`. GitHub-hosted
+`ubuntu-latest` runners include Docker with the daemon running, so
+Testcontainers spins up `postgres:17` without extra service definitions. The
+suite is self-contained — no secrets, no external DB, no cache to warm.
+
+**Required check (branch protection).** The workflow file gets you the failing
+status; making it *block merges* is a one-time repo-settings action:
+
+1. Repo → Settings → Branches → add a branch-protection rule for `main`.
+2. Enable **Require status checks to pass before merging**.
+3. Add `integration tests (tenant-isolation gate)` to the required set. Add
+   `build + unit tests` too — a merge with a broken build is never right.
+4. Enable **Require branches to be up to date before merging** so the check
+   ran against the actual merged state, not a stale ancestor.
+
+There is no path filter on the workflow, so a required check always reports
+on every PR (see the comment in the workflow file for the rationale).

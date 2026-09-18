@@ -1,0 +1,117 @@
+# Backend CI — .NET 10 solution under apps/api/.
+#
+# Two jobs run in parallel so failures are attributable and either can be marked
+# a required check independently in branch protection:
+#
+#   * build-and-unit-tests — the fast lane. Compiles the whole solution and runs
+#     the Unit test project. Catches compile errors, analyzer / warnings-as-error
+#     regressions, and pure-logic breakage in a couple of minutes.
+#
+#   * integration-tests — the tenant-isolation gate (P0-034.*). Runs the
+#     Integration test project, which spins up an ephemeral postgres:17 via
+#     Testcontainers. GitHub-hosted ubuntu-latest runners have Docker pre-installed
+#     and the daemon running, so no extra service definition is needed. This job
+#     MUST be a required check in branch protection — it's the load-bearing
+#     multi-tenancy guarantee.
+#
+# Both jobs restore + build independently. That's a small duplication of work in
+# exchange for parallel execution and independent failure signals.
+#
+# Frontend (apps/web) has its own workflow (P0-078.2). This file is scoped to
+# the backend so a Next.js change doesn't wait on a .NET build and vice versa.
+
+name: backend
+
+on:
+  # Deliberately no `paths:` filter. A path-filtered required check never
+  # reports on PRs that miss the filter, which blocks merges forever. Every PR
+  # runs this workflow; if CI cost becomes a problem, switch to a two-tier
+  # setup (required "always-report" shim + optional path-scoped worker) rather
+  # than adding a filter here.
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same ref so a rapid push train doesn't fan out.
+# Never cancels main-branch runs (they use refs/heads/main as the group).
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Minimum-privilege token — this workflow only reads the repo. Deployment
+# workflows will opt into wider scopes explicitly when they land.
+permissions:
+  contents: read
+
+jobs:
+  build-and-unit-tests:
+    name: build + unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          # Tracks the latest 10.0.x patch. TFM is pinned to net10.0 in
+          # apps/api/Directory.Build.props per ADR-0006.
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore EarlyEagles.slnx
+
+      - name: Build (Release, warnings-as-errors)
+        # Directory.Build.props sets TreatWarningsAsErrors=true, so any analyzer
+        # or StyleCop violation fails this step.
+        run: dotnet build EarlyEagles.slnx --configuration Release --no-restore
+
+      - name: Unit tests
+        run: >-
+          dotnet test tests/EarlyEagles.Tests.Unit/EarlyEagles.Tests.Unit.csproj
+          --configuration Release
+          --no-build
+          --logger "console;verbosity=normal"
+
+  integration-tests:
+    # ★ The tenant-isolation gate lives here. Any change touching persistence
+    # or tenancy without this job green is not safe to merge.
+    name: integration tests (tenant-isolation gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore EarlyEagles.slnx
+
+      - name: Build (Release, warnings-as-errors)
+        run: dotnet build EarlyEagles.slnx --configuration Release --no-restore
+
+      - name: Verify Docker is available (for Testcontainers)
+        run: docker version
+
+      - name: Integration tests
+        # Includes the P0-034.* suite: TenantIsolationTests,
+        # TenantWriteStampingTests, UnresolvedTenantContextTests,
+        # CrossTenantEndpointTests. Runbook:
+        # docs/runbooks/tenant-isolation-tests.md
+        run: >-
+          dotnet test tests/EarlyEagles.Tests.Integration/EarlyEagles.Tests.Integration.csproj
+          --configuration Release
+          --no-build
+          --logger "console;verbosity=normal"
