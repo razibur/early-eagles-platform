@@ -20,7 +20,7 @@ Last updated: 2026-09-17
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~28% (54 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▱▱▱▱▱▱▱▱▱  ~29% (55 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -230,7 +230,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 
 ### Audit logging
 
-- `[ ]` **P0-046.1** `AuditEvent` entity
+- `[x]` **P0-046.1** `AuditEvent` entity
+  ↳ verify: [`AuditEvent.cs`](./apps/api/src/EarlyEagles.Domain/Auditing/AuditEvent.cs) — sealed `AggregateRoot<Guid>` implementing `ITenantScoped`. Captures `Action` (the command's type name, e.g. `RecordAttendanceCommand`), `Success`, optional `FailureReason` (present ⇔ `!Success`), optional `ActorClerkUserId` (null for system-originated actions — webhooks, background jobs, migrations), `OccurredAt` (must be UTC — the log is one chronology). No `Update` / `Delete` methods on the type; the append-only nature is a domain contract, with the Postgres trigger in P0-046.2 as the storage-layer backstop. Ambient enrichment (tenant, actor, clock) is the audit-service's job (P0-047), so `Create` requires the values and validates them — the aggregate stays testable without `ITenantContext` / `IClock`. [`AuditEventTests.cs`](./apps/api/tests/EarlyEagles.Tests.Unit/Auditing/AuditEventTests.cs) — 20 tests covering happy path (success + failure shapes), null-actor round-trip, and every rejection branch: empty id / empty tenantId / null / empty / whitespace / overlong `Action`, success-with-failure-reason, failure-without-failure-reason, empty / overlong failure reason, empty / overlong actor, non-UTC timestamp. Reflection guard `TenantScopedMarkerTests` (from P0-032.1) also automatically catches the new entity's marker contract — no change needed there. 186 unit + 52 integration pass.
 - `[ ]` **P0-046.2** Postgres trigger / check prevents UPDATE/DELETE on `audit_events`
 - `[ ]` **P0-047.1** `IAuditService.Log(action, resourceType, resourceId, metadata)`
 - `[ ]` **P0-047.2** `AuditBehavior` wires service to Mediator pipeline
