@@ -17,11 +17,11 @@ namespace EarlyEagles.Application.Behaviors;
 /// back command still leaves an audit trail showing the attempt + failure
 /// reason. That separation is the entire point of the audit log.
 ///
-/// Pipeline order (when fully wired):
-///   Logging → Audit → Validation → Transaction → handler
+/// Pipeline order:
+///   Logging → Audit → Validation → (Transaction, once wired) → handler
 ///
-/// NOTE: this behavior is NOT registered in <c>AddApplication</c> yet — the
-/// concrete <see cref="IAuditService"/> implementation lands with P0-047.1.
+/// Registered in <c>AddApplication</c> (P0-047.2) against the concrete
+/// <c>AuditService</c> from Infrastructure (P0-047.1).
 /// </summary>
 public sealed class AuditBehavior<TMessage, TResponse> : IPipelineBehavior<TMessage, TResponse>
     where TMessage : notnull, IMessage

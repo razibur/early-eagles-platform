@@ -1,4 +1,6 @@
+using EarlyEagles.Application.Abstractions.Auditing;
 using EarlyEagles.Application.Abstractions.Tenancy;
+using EarlyEagles.Infrastructure.Auditing;
 using EarlyEagles.Infrastructure.Persistence;
 using EarlyEagles.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -44,6 +46,11 @@ public static class DependencyInjection
         // (P0-032.2). Scoped so it snapshots ITenantContext per request.
         var connectionString = configuration.GetConnectionString("Postgres") ?? DefaultConnectionString;
         services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
+
+        // Audit service (P0-047.1). Scoped because it depends on the scoped
+        // ITenantContext. It opens its own DbContext per call so audit writes
+        // survive request-transaction rollbacks — see AuditService for why.
+        services.AddScoped<IAuditService, AuditService>();
 
         return services;
     }

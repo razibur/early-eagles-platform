@@ -22,18 +22,28 @@ public static class DependencyInjection
         // assembly for IRequestHandler<,> / INotificationHandler<> at compile time.
         // Pipeline behaviors run in declared order, outermost first:
         //   1. LoggingBehavior     — always logs enter / exit / failure
-        //   2. ValidationBehavior  — runs FluentValidation; throws ValidationException
-        //                            before the handler if any rule fails
-        // TransactionBehavior (P0-024.3) and AuditBehavior (P0-024.4) are written and
-        // unit-tested but NOT registered here yet — they depend on IUnitOfWork (P0-032.2)
-        // and IAuditService (P0-047.1) respectively. When fully wired, the pipeline order
-        // becomes [Logging, Audit, Validation, Transaction] — Audit sits OUTSIDE the
-        // transaction so failed commands still leave an audit trail.
+        //   2. AuditBehavior       — records every ICommand dispatch (success or
+        //                            failure) via IAuditService. Sits OUTSIDE the
+        //                            transaction on purpose (see AuditBehavior doc)
+        //                            so a rolled-back command still leaves an audit
+        //                            trail. Queries pass through.
+        //   3. ValidationBehavior  — runs FluentValidation; throws ValidationException
+        //                            before the handler if any rule fails. Audit
+        //                            records the resulting failure.
+        // TransactionBehavior (P0-024.3) is written and unit-tested but NOT registered
+        // here yet — it depends on IUnitOfWork, which lands with the first real
+        // command. When fully wired the pipeline becomes
+        // [Logging, Audit, Validation, Transaction].
         services.AddMediator(options =>
         {
             options.Assemblies = [applicationAssembly];
             options.ServiceLifetime = ServiceLifetime.Scoped;
-            options.PipelineBehaviors = [typeof(LoggingBehavior<,>), typeof(ValidationBehavior<,>)];
+            options.PipelineBehaviors =
+            [
+                typeof(LoggingBehavior<,>),
+                typeof(AuditBehavior<,>),
+                typeof(ValidationBehavior<,>),
+            ];
         });
 
         // FluentValidation — discover IValidator<T> implementations in the Application
