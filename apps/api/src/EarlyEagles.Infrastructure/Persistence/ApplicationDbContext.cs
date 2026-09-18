@@ -3,6 +3,7 @@ using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Domain.Auditing;
 using EarlyEagles.Domain.Primitives;
 using EarlyEagles.Domain.Tenants;
+using EarlyEagles.Infrastructure.Outbox;
 using EarlyEagles.Infrastructure.Persistence.Interceptors;
 using Microsoft.EntityFrameworkCore;
 
@@ -60,6 +61,8 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<TenantMember> TenantMembers => Set<TenantMember>();
 
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     /// <summary>
     /// Attaches the write-side tenant guard. Done here rather than at each

@@ -20,7 +20,7 @@ Last updated: 2026-09-18
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▱▱▱▱▱▱▱▱  ~31% (60 / ~190 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▱▱▱▱▱▱▱▱  ~32% (61 / ~190 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -243,7 +243,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 
 ### Domain events + Service Bus
 
-- `[ ]` **P0-049.1** Migration: create `outbox` table
+- `[x]` **P0-049.1** Migration: create `outbox` table
+  ↳ verify: [`OutboxMessage.cs`](./apps/api/src/EarlyEagles.Infrastructure/Outbox/OutboxMessage.cs) — persistence machinery so lives in Infrastructure (not Domain), but implements `ITenantScoped` so the read-side global query filter (P0-032.2) and the write-side stamping interceptor (P0-034.4) both cover it without per-caller code. Fields: `Id`, `TenantId`, `EventType` (CLR full name, no assembly info — version-tolerant routing to the bus subscriber), `Payload` (JSON as `text`, no length cap), `OccurredAt` (UTC-only), `ProcessedAt` (nullable — null = pending), `AttemptCount` (default 0), `LastError` (nullable). Static `Create` factory validates each field like the other aggregates. [`OutboxMessageConfiguration.cs`](./apps/api/src/EarlyEagles.Infrastructure/Persistence/Configurations/OutboxMessageConfiguration.cs) maps to `outbox_messages` with a **partial index** `IX_outbox_messages_pending ON (occurred_at) WHERE processed_at IS NULL` — the poller's working set stays tiny regardless of history size (processed rows dominate over time). [`20260918160757_AddOutboxMessages`](./apps/api/src/EarlyEagles.Infrastructure/Persistence/Migrations/20260918160757_AddOutboxMessages.cs) applied cleanly against Testcontainers Postgres. [`OutboxMessageIsolationTests.cs`](./apps/api/tests/EarlyEagles.Tests.Integration/Outbox/OutboxMessageIsolationTests.cs) — 3 tests pinning the equivalent of the domain reflection guard: insert-as-Alpha visible only to Alpha; insert with no tenant + no ambient → `CrossTenantWriteException` (write-side interceptor); `IgnoreQueryFilters()` reveals both tenants' rows (the platform-work opt-out the P0-050 hosted-service publisher will use). 186 unit + 64 integration pass.
 - `[ ]` **P0-049.2** `IDomainEventDispatcher` writes events to outbox in same TX as state
 - `[ ]` **P0-049.3** Integration test: failed transaction discards outbox row
 - `[ ]` **P0-050.1** Background `IHostedService` polls outbox for unprocessed rows
