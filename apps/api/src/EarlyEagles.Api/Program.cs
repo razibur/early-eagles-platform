@@ -56,6 +56,7 @@ app.UseMiddleware<TenantResolutionMiddleware>();
 
 app.MapHealthEndpoints();
 app.MapTenancyEndpoints();
+app.MapTenantMembersEndpoints();
 
 app.Run();
 

@@ -58,6 +58,7 @@ All under
 | `TenantIsolationTests.cs` | **P0-034.3** | **The headline gate.** Reading as Alpha never surfaces Beta's rows, even by primary-key lookup. |
 | `TenantWriteStampingTests.cs` | **P0-034.4** | The write-side twin: the interceptor stamps missing tenant ids and rejects cross-tenant writes. |
 | `UnresolvedTenantContextTests.cs` | **P0-034.5** | Default deny: a context with no resolved tenant sees zero rows. Covers the "middleware misfires or is bypassed" path. |
+| `CrossTenantEndpointTests.cs` | **P0-034.6** | HTTP-layer proof: an Alpha-scoped request that addresses a Beta member by id gets 404 from a naive `FirstOrDefaultAsync` — the filter, not a hand-rolled check, is what enforces isolation. |
 
 ---
 
@@ -226,6 +227,14 @@ Use this as a checklist when reviewing a change to persistence or tenancy.
 - Unresolved context → `Tenants` empty (self-scoped still keys off `Guid.Empty`).
 - Unresolved context, PK lookup → `null`.
 - `IgnoreQueryFilters()` reveals seeded rows — backstop again.
+
+**HTTP surface — `CrossTenantEndpointTests`:**
+- `alpha.earlyeagles.club` requesting own admin → 200 with the member body.
+- `alpha.earlyeagles.club` requesting a Beta member's id → **404**.
+- `beta.earlyeagles.club` requesting an Alpha member's id → **404**.
+- `beta.earlyeagles.club` requesting own admin → 200.
+- Unknown id and cross-tenant id return identical 404s — the caller cannot
+  distinguish "no such user" from "belongs to another tenant".
 
 **Write side — `TenantWriteStampingTests`:**
 - Insert with no `TenantId` + resolved tenant → stamped with ambient.
