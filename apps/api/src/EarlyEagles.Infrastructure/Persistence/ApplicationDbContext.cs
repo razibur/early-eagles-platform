@@ -39,6 +39,10 @@ public sealed class ApplicationDbContext : DbContext
     // instance per context would also bloat EF's internal service-provider cache.
     private static readonly TenantStampingInterceptor TenantStamping = new();
 
+    // Same reasoning; ordered ahead of the stamping interceptor so the outbox
+    // rows it stages still pass under the write-side tenant guard (P0-049.2).
+    private static readonly DomainEventOutboxInterceptor DomainEventOutbox = new();
+
     private static readonly MethodInfo ApplyTenantFilterMethod = typeof(ApplicationDbContext)
         .GetMethod(nameof(ApplyTenantFilter), BindingFlags.Instance | BindingFlags.NonPublic)!;
 
@@ -65,7 +69,8 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     /// <summary>
-    /// Attaches the write-side tenant guard. Done here rather than at each
+    /// Attaches the save-time interceptors: the domain-event outbox drain
+    /// (P0-049.2) and the write-side tenant guard. Done here rather than at each
     /// registration site because EF calls <c>OnConfiguring</c> however the context
     /// was built — DI, the design-time factory, or a test <c>new</c>-ing it — so
     /// no caller can construct a context without the guard.
@@ -74,7 +79,7 @@ public sealed class ApplicationDbContext : DbContext
     {
         ArgumentNullException.ThrowIfNull(optionsBuilder);
 
-        optionsBuilder.AddInterceptors(TenantStamping);
+        optionsBuilder.AddInterceptors(DomainEventOutbox, TenantStamping);
 
         base.OnConfiguring(optionsBuilder);
     }

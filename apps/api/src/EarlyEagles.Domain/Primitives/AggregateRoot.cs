@@ -6,7 +6,7 @@ namespace EarlyEagles.Domain.Primitives;
 /// transaction is open; the unit of work / outbox dispatcher reads and clears
 /// them after persistence (see P0-049 / P0-050).
 /// </summary>
-public abstract class AggregateRoot<TId> : Entity<TId>
+public abstract class AggregateRoot<TId> : Entity<TId>, IHasDomainEvents
     where TId : notnull
 {
     private readonly List<IDomainEvent> domainEvents = [];

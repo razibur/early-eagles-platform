@@ -469,10 +469,11 @@ Register it from `OnConfiguring`, as a **static singleton**:
 
 ```csharp
 private static readonly TenantStampingInterceptor TenantStamping = new();
+private static readonly DomainEventOutboxInterceptor DomainEventOutbox = new();  // see 9.5
 
 protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 {
-    optionsBuilder.AddInterceptors(TenantStamping);
+    optionsBuilder.AddInterceptors(DomainEventOutbox, TenantStamping);
     base.OnConfiguring(optionsBuilder);
 }
 ```
@@ -541,6 +542,58 @@ You should see `tenants` (`id` PK, unique `slug`, nullable `branding_*`, enum-as
 ⚠ **Gotcha — the connection string is a placeholder.** `AddInfrastructure` falls back to a
 hardcoded local connection string when `ConnectionStrings:Postgres` is unset. Real
 per-environment configuration/secret management is deferred (P0-033.4 / infra).
+
+### 9.5 Domain events → the outbox
+
+An aggregate announces what it did by raising an `IDomainEvent`; something else has to get
+that announcement onto the message bus. Publishing it directly from the handler is the
+classic **dual write**: the bus call and the database commit can't both be atomic, so a crash
+between them either publishes an event for a state change that rolled back, or commits a
+state change nobody hears about. The **outbox** removes the second write — the event is
+stored as a row in the *same* transaction as the state, and a background poller (P0-050)
+delivers it afterwards.
+
+Three pieces:
+
+1. **`IDomainEventDispatcher`** (Application port) — `void Dispatch(Guid tenantId,
+   IReadOnlyCollection<IDomainEvent> events)`. Synchronous and void on purpose: it *stages*,
+   it does not publish. No bus call, no round trip, nothing to await.
+2. **`OutboxDomainEventDispatcher`** (Infrastructure) — maps each event to an `OutboxMessage`
+   and `Add`s it to the `ApplicationDbContext` it was constructed over. It never calls
+   `SaveChanges`; the rows ride along with whatever transaction the caller already has open.
+   The outbox row reuses `IDomainEvent.Id` as its PK, so a message stays traceable to the
+   event and a double dispatch of the same instance fails on the unique key instead of
+   publishing twice.
+3. **`DomainEventOutboxInterceptor`** — on `SavingChanges`, sweeps `ChangeTracker` for
+   `IHasDomainEvents`, dispatches each aggregate's buffer, then clears it. Registered from
+   `OnConfiguring` *ahead of* `TenantStampingInterceptor`, so the rows it stages still pass
+   under the write-side tenant guard.
+
+`IHasDomainEvents` is a non-generic view of the buffer on `AggregateRoot<TId>` — the sweep
+can't name a generic base type, so it matches on that interface instead. Raising stays
+`protected`; only the aggregate decides what it announces.
+
+Tenant attribution, in order: the aggregate's own `ITenantScoped.TenantId`, else the ambient
+tenant (the same fallback the stamping interceptor applies to un-stamped inserts), else throw
+— an outbox row belonging to no tenant is never written.
+
+Note the deliberate contrast with `AuditService`, which opens its **own** context on its own
+connection so a rolled-back command still leaves a trail. The audit log wants to outlive a
+rollback; the outbox must not.
+
+▶ [`IDomainEventDispatcher.cs`](../apps/api/src/EarlyEagles.Application/Abstractions/Messaging/IDomainEventDispatcher.cs) ·
+[`OutboxDomainEventDispatcher.cs`](../apps/api/src/EarlyEagles.Infrastructure/Outbox/OutboxDomainEventDispatcher.cs) ·
+[`DomainEventOutboxInterceptor.cs`](../apps/api/src/EarlyEagles.Infrastructure/Persistence/Interceptors/DomainEventOutboxInterceptor.cs)
+
+⚠ **Gotchas in this area:**
+- Materialise `ChangeTracker.Entries<T>()` before dispatching. Dispatching adds entries to the
+  very change tracker you are enumerating.
+- Snapshot `DomainEvents` before `ClearDomainEvents()` — it is a read-only *view* over the
+  live list, not a copy.
+- Serialise the payload against `domainEvent.GetType()`, not the static `IDomainEvent`, or
+  every property the event actually carries is silently dropped.
+- `OutboxMessage.Create` rejects a non-zero `DateTimeOffset` offset, so the dispatcher
+  normalises with `ToUniversalTime()`.
 
 ---
 
@@ -626,9 +679,9 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 
 | Area | Status | Where it plugs in |
 |---|---|---|
-| **Tenant-isolation tests** (P0-034.5–.8) | next up | bypass-context test, cross-tenant endpoint 404, wire into CI, runbook |
+| **Outbox publisher** (P0-050) | next up | `IHostedService` drains `outbox_messages` → Service Bus, marks rows processed |
 | **EF-backed `ITenantLookup`** | deferred | replaces `NullTenantLookup` once a seeded DB exists |
-| **`AuditEvent` + audit pipeline** | deferred (P0-046) | unblocks the `audit_events` migration (P0-033.3) and `AuditBehavior` |
+| **Audit query endpoint** (P0-048) | not started | tenant-admin-scoped, paginated read over `audit_events` |
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks, messaging |
@@ -687,6 +740,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Generated EF migration breaks the strict build | warnings-as-errors + StyleCop | our migrations happen to be clean; if not, mark them generated |
 | `/whoami` returns 400 even with a subdomain | `NullTenantLookup` resolves nothing yet | expected until the EF-backed lookup + seed land |
 | Package downgrade error after adding EF | test project pinned an older `Microsoft.Extensions.*` | bump the transitive pin to match (10.0.11) |
+| Domain events never reach the outbox | payload serialised as `IDomainEvent`, or the buffer cleared before it was read | serialise the runtime type; snapshot `DomainEvents` first |
 
 ---
 

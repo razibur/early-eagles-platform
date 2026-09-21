@@ -1,7 +1,9 @@
 using EarlyEagles.Application.Abstractions.Auditing;
+using EarlyEagles.Application.Abstractions.Messaging;
 using EarlyEagles.Application.Abstractions.Persistence;
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Infrastructure.Auditing;
+using EarlyEagles.Infrastructure.Outbox;
 using EarlyEagles.Infrastructure.Persistence;
 using EarlyEagles.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -57,6 +59,13 @@ public static class DependencyInjection
         // shares the request's ApplicationDbContext — the transaction it opens
         // covers everything that context saves.
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+
+        // Domain-event dispatcher (P0-049.2). Scoped onto the request's context
+        // so staged outbox rows commit with that request's state change. The
+        // save-time drain of aggregates runs through DomainEventOutboxInterceptor,
+        // which the context registers itself; this registration is for handlers
+        // that raise an event without an aggregate to hang it on.
+        services.AddScoped<IDomainEventDispatcher, OutboxDomainEventDispatcher>();
 
         return services;
     }
