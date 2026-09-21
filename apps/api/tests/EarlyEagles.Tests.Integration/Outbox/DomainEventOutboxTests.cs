@@ -1,3 +1,4 @@
+using EarlyEagles.Application.Behaviors;
 using EarlyEagles.Domain.Primitives;
 using EarlyEagles.Domain.Tenants;
 using EarlyEagles.Infrastructure.Outbox;
@@ -5,6 +6,7 @@ using EarlyEagles.Infrastructure.Persistence;
 using EarlyEagles.Infrastructure.Persistence.Interceptors;
 using EarlyEagles.Infrastructure.Tenancy;
 using EarlyEagles.Tests.Integration.Persistence;
+using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
@@ -73,6 +75,70 @@ public class DomainEventOutboxTests
     }
 
     [Fact]
+    public async Task A_Rolled_Back_Transaction_Discards_The_Outbox_Row()
+    {
+        // P0-049.3 — the other half of the atomicity claim. An announcement of
+        // something that never happened is worse than no announcement: the
+        // publisher would deliver it and every subscriber would act on a state
+        // change Postgres discarded.
+        var tenantId = Guid.NewGuid();
+        var slug = $"rollback-{Guid.NewGuid():N}";
+        var raised = new SampleEvent(slug);
+
+        await using (var context = fixture.CreateContext(new TenantContext()))
+        {
+            var unitOfWork = new EfUnitOfWork(context);
+            await using var transaction = await unitOfWork.BeginTransactionAsync(CancellationToken.None);
+
+            context.Tenants.Add(Tenant.Create(tenantId, slug, "Rollback Club"));
+            new OutboxDomainEventDispatcher(context).Dispatch(tenantId, [raised]);
+
+            await context.SaveChangesAsync();
+
+            // Leave the block without committing — the same path a throwing
+            // handler takes through TransactionBehavior's `await using`.
+        }
+
+        await using var platform = fixture.CreateContext(new TenantContext());
+        Assert.False(await platform.OutboxMessages.IgnoreQueryFilters().AnyAsync(m => m.Id == raised.Id));
+        Assert.False(await platform.Tenants.IgnoreQueryFilters().AnyAsync(t => t.Id == tenantId));
+    }
+
+    [Fact]
+    public async Task A_Handler_That_Throws_After_Dispatching_Leaves_Nothing_Behind()
+    {
+        // End to end through the real behavior: the handler writes state, queues
+        // an event, then fails. Neither may survive.
+        var tenantId = Guid.NewGuid();
+        var slug = $"threw-{Guid.NewGuid():N}";
+        var raised = new SampleEvent(slug);
+        var boom = new InvalidOperationException("handler failed after dispatching");
+
+        await using (var context = fixture.CreateContext(new TenantContext()))
+        {
+            var behavior = new TransactionBehavior<SampleCommand, string>(new EfUnitOfWork(context));
+
+            var thrown = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await behavior.Handle(
+                    new SampleCommand(slug),
+                    async (_, ct) =>
+                    {
+                        context.Tenants.Add(Tenant.Create(tenantId, slug, "Doomed Club"));
+                        new OutboxDomainEventDispatcher(context).Dispatch(tenantId, [raised]);
+                        await context.SaveChangesAsync(ct);
+                        throw boom;
+                    },
+                    CancellationToken.None));
+
+            Assert.Same(boom, thrown);
+        }
+
+        await using var platform = fixture.CreateContext(new TenantContext());
+        Assert.False(await platform.OutboxMessages.IgnoreQueryFilters().AnyAsync(m => m.Id == raised.Id));
+        Assert.False(await platform.Tenants.IgnoreQueryFilters().AnyAsync(t => t.Id == tenantId));
+    }
+
+    [Fact]
     public async Task A_Dispatched_Event_Belongs_To_The_Dispatching_Tenant_Only()
     {
         // Outbox rows are tenant data like any other: Beta must not see Alpha's
@@ -92,6 +158,8 @@ public class DomainEventOutboxTests
         await using var platform = fixture.CreateContext(new TenantContext());
         Assert.True(await platform.OutboxMessages.IgnoreQueryFilters().AnyAsync(m => m.Id == raised.Id));
     }
+
+    private sealed record SampleCommand(string Value) : ICommand<string>;
 
     private sealed record SampleEvent(string Detail) : IDomainEvent
     {
