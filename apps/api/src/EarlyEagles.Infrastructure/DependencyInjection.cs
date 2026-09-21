@@ -67,6 +67,21 @@ public static class DependencyInjection
         // that raise an event without an aggregate to hang it on.
         services.AddScoped<IDomainEventDispatcher, OutboxDomainEventDispatcher>();
 
+        // Outbox drain (P0-050.1). Validated at startup rather than on first
+        // tick: a bad PollInterval would otherwise surface ten seconds into
+        // production as a background exception nobody is watching.
+        services.AddOptions<OutboxOptions>()
+            .Bind(configuration.GetSection(OutboxOptions.SectionName))
+            .Validate(
+                options => options.PollInterval > TimeSpan.Zero,
+                $"{OutboxOptions.SectionName}:{nameof(OutboxOptions.PollInterval)} must be greater than zero.")
+            .Validate(
+                options => options.BatchSize is > 0 and <= OutboxOptions.MaxBatchSize,
+                $"{OutboxOptions.SectionName}:{nameof(OutboxOptions.BatchSize)} must be between 1 and {OutboxOptions.MaxBatchSize}.")
+            .ValidateOnStart();
+
+        services.AddHostedService<OutboxProcessor>();
+
         return services;
     }
 }

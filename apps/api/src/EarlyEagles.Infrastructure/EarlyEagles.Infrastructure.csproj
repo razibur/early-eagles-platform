@@ -16,6 +16,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- BackgroundService + AddHostedService for the outbox drain (P0-050.1),
+         and options binding/validation for its configuration section. -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.11" />
   </ItemGroup>
 
   <PropertyGroup>

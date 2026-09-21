@@ -595,6 +595,60 @@ rollback; the outbox must not.
 - `OutboxMessage.Create` rejects a non-zero `DateTimeOffset` offset, so the dispatcher
   normalises with `ToUniversalTime()`.
 
+### 9.6 Draining the outbox — `OutboxProcessor`
+
+The dispatcher only ever *writes* rows. `OutboxProcessor` is the `BackgroundService`
+that comes along afterwards and reads them back:
+
+```csharp
+using var timer = new PeriodicTimer(options.PollInterval);
+
+while (!stoppingToken.IsCancellationRequested)
+{
+    try
+    {
+        if (!await timer.WaitForNextTickAsync(stoppingToken)) break;
+        var pending = await PollOnceAsync(stoppingToken);
+        // P0-050.2 publishes each message and stamps ProcessedAt.
+    }
+    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+    catch (Exception exception) { OutboxProcessorLog.PollFailed(logger, exception); }
+}
+```
+
+Three decisions worth keeping:
+
+- **A failing tick must not end the loop.** Nothing restarts a `BackgroundService` whose
+  `ExecuteAsync` returned. Let one exception escape and delivery stops for the rest of the
+  process lifetime — silently, because there are no further errors to log after the first.
+- **`PeriodicTimer` waits *before* its first tick.** A host that starts and stops inside one
+  interval never opens a connection, which is what keeps every `WebApplicationFactory` test
+  from touching the database it does not have.
+- **The read crosses tenants on purpose.** Each tick takes its own DI scope, so its
+  `ApplicationDbContext` has no ambient tenant and the query filter would match *nothing*.
+  `PollOnceAsync` opts out with `IgnoreQueryFilters()` — one process delivers for every
+  tenant. It is safe here because the processor never answers a request; there is no caller
+  to leak to.
+
+The query is shaped to the partial index from the outbox migration
+(`... ON (occurred_at) WHERE processed_at IS NULL`): pending only, oldest first, capped at
+`BatchSize`. Processed rows come to dominate the table, so the working set stays proportional
+to the backlog rather than to history.
+
+`OutboxOptions` (`Outbox` section) carries `Enabled`, `PollInterval` and `BatchSize`, bound
+with `.Validate(...).ValidateOnStart()` so a bad interval fails the deploy instead of
+surfacing later as a background exception nobody is watching. `Enabled: false` is the
+operational kill switch: rows keep accumulating, only delivery pauses.
+
+▶ [`OutboxProcessor.cs`](../apps/api/src/EarlyEagles.Infrastructure/Outbox/OutboxProcessor.cs) ·
+[`OutboxOptions.cs`](../apps/api/src/EarlyEagles.Infrastructure/Outbox/OutboxOptions.cs)
+
+⚠ **Gotcha — `StartAsync` does not mean `ExecuteAsync` has run.** It only *schedules* the
+body; stopping straight afterwards can cancel it before it ever executes, leaving
+`ExecuteTask` in the `Canceled` state with nothing logged. A start/stop pair therefore proves
+nothing. Tests here wait for a specific log line before asserting or stopping — which is also
+a handshake rather than a sleep, so they stay fast and deterministic.
+
 ---
 
 ## 10. Testing infrastructure
@@ -679,7 +733,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 
 | Area | Status | Where it plugs in |
 |---|---|---|
-| **Outbox publisher** (P0-050) | next up | `IHostedService` drains `outbox_messages` → Service Bus, marks rows processed |
+| **Outbox publishing** (P0-050.2) | next up | the drain exists and polls; publishing to Service Bus + stamping `ProcessedAt` is next |
 | **EF-backed `ITenantLookup`** | deferred | replaces `NullTenantLookup` once a seeded DB exists |
 | **Audit query endpoint** (P0-048) | not started | tenant-admin-scoped, paginated read over `audit_events` |
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
@@ -710,6 +764,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Riok.Mapperly | 4.3.1 |
 | Microsoft.EntityFrameworkCore (+ Relational, Design) | 10.0.11 |
 | Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.3 |
+| Microsoft.Extensions.Hosting.Abstractions / Options.ConfigurationExtensions | 10.0.11 |
 | dotnet-ef (local tool) | 10.0.11 |
 | StyleCop.Analyzers | 1.2.0-beta.556 |
 | NetArchTest.Rules | 1.3.2 |
@@ -741,6 +796,8 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `/whoami` returns 400 even with a subdomain | `NullTenantLookup` resolves nothing yet | expected until the EF-backed lookup + seed land |
 | Package downgrade error after adding EF | test project pinned an older `Microsoft.Extensions.*` | bump the transitive pin to match (10.0.11) |
 | Domain events never reach the outbox | payload serialised as `IDomainEvent`, or the buffer cleared before it was read | serialise the runtime type; snapshot `DomainEvents` first |
+| `BackgroundService` test fails only in a full run | `StartAsync` schedules `ExecuteAsync`; stopping first cancels it before the body runs | wait for a log-line signal before asserting or stopping |
+| Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
 
