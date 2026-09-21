@@ -80,6 +80,13 @@ public static class DependencyInjection
                 $"{OutboxOptions.SectionName}:{nameof(OutboxOptions.BatchSize)} must be between 1 and {OutboxOptions.MaxBatchSize}.")
             .ValidateOnStart();
 
+        // Placeholder publisher (P0-050.2) — logs instead of sending, until the
+        // Service Bus topic exists (P0-051, blocked on P0-058.4). Scoped so the
+        // real implementation can hold per-scope state without changing the
+        // registration shape. NOTE: while this is registered, queued events are
+        // marked processed without reaching any bus.
+        services.AddScoped<IOutboxPublisher, LoggingOutboxPublisher>();
+
         services.AddHostedService<OutboxProcessor>();
 
         return services;

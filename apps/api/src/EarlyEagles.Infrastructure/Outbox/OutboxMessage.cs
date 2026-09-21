@@ -32,6 +32,15 @@ public sealed class OutboxMessage : ITenantScoped
 {
     public const int EventTypeMaxLength = 256;
 
+    /// <summary>
+    /// Cap on the stored <see cref="LastError"/> text. The column itself is
+    /// unbounded <c>text</c>; this keeps one pathological exception message from
+    /// bloating a row the poller re-reads on every tick. The full detail is in
+    /// the log pipeline — this field only has to say enough to recognise the
+    /// failure.
+    /// </summary>
+    public const int LastErrorMaxLength = 2000;
+
     // EF binds this constructor on materialisation — its parameter names match
     // the mapped columns. Domain callers reach it through Create, which
     // validates first.
@@ -127,6 +136,57 @@ public sealed class OutboxMessage : ITenantScoped
         }
 
         return new OutboxMessage(id, tenantId, eventType, payload, occurredAt);
+    }
+
+    /// <summary>
+    /// Records a successful hand-off to the bus. The row stops being pending —
+    /// it drops out of the partial index the poller scans — and any error from a
+    /// previous attempt is cleared, because it no longer describes the outcome.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Already processed. Publishing the same message twice is a bug in the
+    /// drain, not something to absorb quietly.
+    /// </exception>
+    public void MarkProcessed(DateTimeOffset processedAt)
+    {
+        if (ProcessedAt is not null)
+        {
+            throw new InvalidOperationException(
+                $"Outbox message {Id} was already processed at {ProcessedAt}.");
+        }
+
+        if (processedAt.Offset != TimeSpan.Zero)
+        {
+            throw new ArgumentException("ProcessedAt must be a UTC timestamp.", nameof(processedAt));
+        }
+
+        AttemptCount++;
+        ProcessedAt = processedAt;
+        LastError = null;
+    }
+
+    /// <summary>
+    /// Records a failed attempt. The row stays pending, so the next tick picks
+    /// it up again; <see cref="AttemptCount"/> is what makes a message that
+    /// never succeeds visible instead of invisibly looping.
+    /// </summary>
+    public void RecordFailure(string error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+
+        if (string.IsNullOrWhiteSpace(error))
+        {
+            throw new ArgumentException("Error must not be empty or whitespace.", nameof(error));
+        }
+
+        if (ProcessedAt is not null)
+        {
+            throw new InvalidOperationException(
+                $"Outbox message {Id} was already processed at {ProcessedAt}.");
+        }
+
+        AttemptCount++;
+        LastError = error.Length > LastErrorMaxLength ? error[..LastErrorMaxLength] : error;
     }
 
     private static void ValidateEventType(string eventType)

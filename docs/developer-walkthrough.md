@@ -608,12 +608,33 @@ while (!stoppingToken.IsCancellationRequested)
     try
     {
         if (!await timer.WaitForNextTickAsync(stoppingToken)) break;
-        var pending = await PollOnceAsync(stoppingToken);
-        // P0-050.2 publishes each message and stamps ProcessedAt.
+        await DrainOnceAsync(stoppingToken);
     }
     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
     catch (Exception exception) { OutboxProcessorLog.PollFailed(logger, exception); }
 }
+```
+
+One drain = one DI scope: read the pending batch, publish each message through
+`IOutboxPublisher`, stamp the outcome on the row, save once. The scope spans the whole drain
+rather than just the read, because the messages have to stay **tracked** by the context that
+will save their stamps.
+
+```csharp
+foreach (var message in pending)
+{
+    try
+    {
+        await publisher.PublishAsync(message, cancellationToken);
+        message.MarkProcessed(DateTimeOffset.UtcNow);   // leaves the pending index
+    }
+    catch (Exception exception)
+    {
+        message.RecordFailure(Describe(exception));     // stays pending, attempt counted
+    }
+}
+
+await context.SaveChangesAsync(cancellationToken);      // one round trip for the batch
 ```
 
 Three decisions worth keeping:
@@ -630,6 +651,17 @@ Three decisions worth keeping:
   tenant. It is safe here because the processor never answers a request; there is no caller
   to leak to.
 
+Two consequences worth stating out loud:
+
+- **Delivery is at-least-once, on purpose.** The row is stamped only *after* a successful
+  publish, so a process that dies in between re-sends on the next tick. A lost event is worse
+  than a repeated one, so publishers must tolerate a duplicate.
+- **One bad message does not hold up the batch.** It stays pending with `AttemptCount` bumped
+  and `LastError` recorded, and the drain moves on — which means later messages can be
+  delivered ahead of a failing one, so strict ordering is not preserved across a failure.
+  Availability is worth more here than order; dead-lettering poison messages comes with the
+  real bus.
+
 The query is shaped to the partial index from the outbox migration
 (`... ON (occurred_at) WHERE processed_at IS NULL`): pending only, oldest first, capped at
 `BatchSize`. Processed rows come to dominate the table, so the working set stays proportional
@@ -640,8 +672,15 @@ with `.Validate(...).ValidateOnStart()` so a bad interval fails the deploy inste
 surfacing later as a background exception nobody is watching. `Enabled: false` is the
 operational kill switch: rows keep accumulating, only delivery pauses.
 
+`IOutboxPublisher` is the transport seam. Today it is bound to `LoggingOutboxPublisher`, a
+placeholder in the same spirit as `NullTenantLookup`: it logs and reports success, so the whole
+publish/stamp path runs on a laptop with no Azure account. **While it is registered, events are
+marked processed without reaching any bus.** The real Service Bus implementation waits on the
+topic existing (P0-051 → the Bicep work in P0-058.4) and is a registration change, nothing more.
+
 ▶ [`OutboxProcessor.cs`](../apps/api/src/EarlyEagles.Infrastructure/Outbox/OutboxProcessor.cs) ·
-[`OutboxOptions.cs`](../apps/api/src/EarlyEagles.Infrastructure/Outbox/OutboxOptions.cs)
+[`OutboxOptions.cs`](../apps/api/src/EarlyEagles.Infrastructure/Outbox/OutboxOptions.cs) ·
+[`IOutboxPublisher.cs`](../apps/api/src/EarlyEagles.Infrastructure/Outbox/IOutboxPublisher.cs)
 
 ⚠ **Gotcha — `StartAsync` does not mean `ExecuteAsync` has run.** It only *schedules* the
 body; stopping straight afterwards can cancel it before it ever executes, leaving
@@ -733,7 +772,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 
 | Area | Status | Where it plugs in |
 |---|---|---|
-| **Outbox publishing** (P0-050.2) | next up | the drain exists and polls; publishing to Service Bus + stamping `ProcessedAt` is next |
+| **Service Bus transport** (P0-050.2.2) | blocked | the drain publishes + stamps through `IOutboxPublisher`; the real publisher waits on the topic (P0-051 → P0-058.4) |
 | **EF-backed `ITenantLookup`** | deferred | replaces `NullTenantLookup` once a seeded DB exists |
 | **Audit query endpoint** (P0-048) | not started | tenant-admin-scoped, paginated read over `audit_events` |
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |

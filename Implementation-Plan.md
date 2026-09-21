@@ -665,6 +665,29 @@ Re-plan from scratch when seriously starting.
 
 ---
 
+## Appendix — tasks split after the original plan
+
+Per the conventions above, splits are **appended** here rather than rewritten in place. The
+original row stays where it is; the sub-IDs below are what actually gets built and verified.
+
+### P0-050.2 split (2026-09-21)
+
+`P0-050.2` bundled two independent concerns — the drain's publish/mark-processed pipeline, and
+the Azure Service Bus transport it publishes through. The first needs nothing but Postgres; the
+second is blocked behind `P0-051`, which is itself blocked behind the Bicep work in `P0-058.4`.
+Keeping them together would have left a shippable, testable piece of work parked behind cloud
+provisioning for no reason.
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-050.2.1 | Drain publishes each pending row through an `IOutboxPublisher` port and stamps the outcome (`ProcessedAt` on success, `AttemptCount` + `LastError` on failure) | P0-050.1 | Integration test: published row is stamped and leaves the queue; failed row stays pending with its attempt counted |
+| P0-050.2.2 | `ServiceBusOutboxPublisher` — real Azure Service Bus implementation of the port, replacing the `LoggingOutboxPublisher` placeholder | P0-050.2.1, P0-051 | Outbox row appears as a message on the topic |
+
+`P0-050.3` (emulator/testcontainer integration test) now depends on `P0-050.2.2`, not on
+`P0-050.2` as a whole.
+
+---
+
 ## Sequencing notes
 
 - **Backend solution skeleton (P0-020..P0-027) and frontend foundations (P0-064..P0-077) can run in parallel.** They meet at P0-039 (Clerk wiring) and P0-071 (auth fetch client).

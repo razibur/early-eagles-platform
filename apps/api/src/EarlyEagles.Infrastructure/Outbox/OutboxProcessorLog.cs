@@ -27,6 +27,18 @@ internal static partial class OutboxProcessorLog
     public static partial void FoundPending(ILogger logger, int count);
 
     [LoggerMessage(
+        EventId = 1105,
+        Level = LogLevel.Information,
+        Message = "Outbox drain published {Published} message(s); {Failed} failed and stay pending")]
+    public static partial void Drained(ILogger logger, int published, int failed);
+
+    [LoggerMessage(
+        EventId = 1106,
+        Level = LogLevel.Error,
+        Message = "Failed to publish outbox message {EventType} ({MessageId}); it stays pending for the next tick")]
+    public static partial void PublishFailed(ILogger logger, Exception exception, string eventType, Guid messageId);
+
+    [LoggerMessage(
         EventId = 1104,
         Level = LogLevel.Error,
         Message = "Outbox poll failed; retrying on the next tick")]
