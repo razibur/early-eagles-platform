@@ -20,7 +20,7 @@ Last updated: 2026-09-21
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~38% (73 / ~191 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~39% (74 / ~191 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -281,7 +281,10 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 
 ### Infrastructure as Code (Bicep)
 
-- `[ ]` **P0-056** Naming convention + tagging doc (`docs/infra-conventions.md`)
+- `[x]` **P0-056** Naming convention + tagging doc (`docs/infra-conventions.md`)
+  ↳ verify: [`docs/infra-conventions.md`](./docs/infra-conventions.md) — the rules every `infra/` task (P0-057.\* / P0-058.\* / P0-059.\*) has to follow. Written *before* any Bicep exists because an Azure resource cannot be renamed: fixing a bad name means recreating it, and for a Key Vault that means waiting out a soft-delete purge window. Covers subscription/RG layout (one subscription, `rg-ee-<env>-eus` per environment, sandbox RG for throwaways), the `<type>-<workload>-<env>-<region>[-<instance>]` pattern with CAF abbreviations, `uniqueString` suffixes for globally-unique types seeded on **subscription id + environment** (not `resourceGroup().id`, which changes exactly when you least want a new Key Vault), the length/charset limits that actually bite (Container App caps at 32 chars), five required tags, deployment naming, and a per-resource checklist.
+  Two decisions recorded that later tasks depend on: **primary region `eastus`** (Tenant 0 is US East Coast and Postgres latency is what a CDN can't hide) — flagged as an assumption to confirm before P0-059.3, cheap to change until something is provisioned; and **Service Bus must be Standard, even in dev**, because Basic has queues but no topics and the outbox publishes to a topic (P0-051 / P0-050.2.2). Also pins "no portal clicks", "no per-tenant resources" (pool model — a tenant slug must never appear in a resource name), and no mutable tags (a git SHA on every resource makes every deploy show a diff on everything, which trains you to ignore diffs).
+  §9 leaves four decisions deliberately open for the task that first needs them: region confirmation, a separate prod subscription (Phase 7), prod Postgres HA topology, and private networking.
 - `[ ]` **P0-057.1** Bicep module: `resourceGroup.bicep`
 - `[ ]` **P0-057.2** Bicep module: `keyVault.bicep`
 - `[ ]` **P0-057.3** Bicep module: `logAnalytics.bicep`
