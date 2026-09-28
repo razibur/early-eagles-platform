@@ -198,6 +198,10 @@ does **not** inherit tags from a resource group to its resources, so each module
 takes a `tags` parameter and applies it. `main.<env>.bicep` builds the object
 once and passes it down.
 
+The rule is enforced by the compiler: type every module's `tags` parameter as
+`requiredTags` from [`infra/types.bicep`](../infra/types.bicep). A missing
+required tag, or an `env` outside `dev`/`stg`/`prod`, then fails `bicep build`.
+
 | Tag | Example | Why it exists |
 |---|---|---|
 | `env` | `dev` | Every filter, every cost view, every teardown script starts here. |
@@ -283,7 +287,7 @@ Before opening a PR that adds infrastructure:
 - [ ] Globally-unique types carry the `uniqueString` suffix (§3.1).
 - [ ] Module takes `location` and `tags` parameters and hard-codes neither.
 - [ ] Module takes the SKU as a parameter; `main.<env>.bicep` picks the value.
-- [ ] Required tags applied (§5).
+- [ ] Required tags applied (§5), with `tags` typed as `requiredTags`.
 - [ ] No secret in any `.bicepparam`.
 - [ ] `az bicep build` succeeds with no warnings.
 - [ ] Cost impact stated in the PR description against the §7 table.

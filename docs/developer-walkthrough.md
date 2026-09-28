@@ -9,7 +9,7 @@
 > **Scope of this document.** It covers everything built through **P0-034.4** (the
 > tenant-isolation gate, read and write sides). Later phases (Clerk auth, Stripe, SignalR,
 > Azure/Bicep, CI/CD) are **not built yet**; where they belong is flagged in
-> [§12 Not-yet-built](#12-not-yet-built-and-where-it-goes) so you know what comes next.
+> [§13 Not-yet-built](#13-not-yet-built-and-where-it-goes) so you know what comes next.
 >
 > **How to read it.** Prose explains *why*; fenced blocks are commands or file contents
 > you can copy. `▶ Reference:` links point at the real file so you can diff your result.
@@ -30,9 +30,10 @@
 9. [Persistence — EF Core, the query filter & migrations](#9-persistence--ef-core-the-query-filter--migrations)
 10. [Testing infrastructure](#10-testing-infrastructure)
 11. [Running & verifying locally](#11-running--verifying-locally)
-12. [Not-yet-built (and where it goes)](#12-not-yet-built-and-where-it-goes)
-13. [Appendix A — version pin table](#appendix-a--version-pin-table)
-14. [Appendix B — the gotcha catalogue](#appendix-b--the-gotcha-catalogue)
+12. [Infrastructure — Bicep modules](#12-infrastructure--bicep-modules)
+13. [Not-yet-built (and where it goes)](#13-not-yet-built-and-where-it-goes)
+14. [Appendix A — version pin table](#appendix-a--version-pin-table)
+15. [Appendix B — the gotcha catalogue](#appendix-b--the-gotcha-catalogue)
 
 ---
 
@@ -72,7 +73,9 @@ early-eagles/                     # monorepo root (npm workspaces)
 │           ├── EarlyEagles.Tests.Integration/  # WebApplicationFactory + Testcontainers
 │           └── EarlyEagles.Tests.Acceptance/   # (scaffold, no tests yet)
 ├── docs/                         # ADRs, this walkthrough, alternatives, chat-log
-└── infra/                        # Bicep — NOT yet created
+└── infra/                        # Bicep (modules only; nothing deployed yet)
+    ├── types.bicep               # shared exported types (required tags)
+    └── modules/                  # one file per resource kind
 ```
 
 ---
@@ -86,6 +89,7 @@ early-eagles/                     # monorepo root (npm workspaces)
 | **npm** | **11** | workspace manager | ⚠ pnpm was preferred; see below |
 | **Docker** | any recent | Testcontainers (integration tests) + local Postgres | daemon must be running |
 | **Git** | any | version control | |
+| **Azure CLI + Bicep CLI** | az 2.x · Bicep 0.47.x | builds `infra/` | `az bicep install` (see §12) |
 | **PowerShell 7** or Git Bash | — | the repo is developed on Windows | commands below work in both unless noted |
 
 Verify:
@@ -95,6 +99,7 @@ dotnet --version      # -> 10.0.x
 node --version        # -> v22+
 npm --version         # -> 11.x
 docker version        # server section must respond
+az bicep version      # -> Bicep CLI version 0.47.x
 ```
 
 ⚠ **Gotcha — the .NET 10 SDK must actually be installed and on PATH.** On the dev machine
@@ -765,7 +770,79 @@ In non-Production, `/swagger` serves the API docs.
 
 ---
 
-## 12. Not-yet-built (and where it goes)
+## 12. Infrastructure — Bicep modules
+
+Read [`infra-conventions.md`](./infra-conventions.md) first — names, tags, region and SKUs are
+decided there, and an Azure resource cannot be renamed later. Modules are written and
+`bicep build`-checked locally; **nothing is deployed** until P0-059.3.
+
+Install the Bicep CLI once (it lives under `~/.azure/bin`, no admin needed):
+
+```bash
+az bicep install
+az bicep version
+```
+
+### 12.1 Shared types — `infra/types.bicep`
+
+The five required tags (§5 of the conventions) are an exported **user-defined type**, so a
+module whose `tags` parameter is typed `requiredTags` refuses to compile when a tag is
+missing or `env` is not `dev`/`stg`/`prod`. A `*: string` index signature lets the optional
+tags (`dataClassification`, `criticality`) through.
+
+```bicep
+@export()
+type requiredTags = {
+  env: environmentCode          // 'dev' | 'stg' | 'prod'
+  workload: 'early-eagles'
+  owner: string
+  costCenter: string
+  managedBy: 'bicep'
+  *: string
+}
+```
+
+▶ Reference: [`infra/types.bicep`](../infra/types.bicep)
+
+### 12.2 `resourceGroup.bicep` (P0-057.1)
+
+Resource groups exist at **subscription** scope, so the module sets
+`targetScope = 'subscription'` and is called from the (future) subscription-scoped
+`main.<env>.bicep`. It takes `name`, `location` and `tags` and hard-codes none of them —
+the caller builds `rg-ee-<env>-<region>`. It outputs `name` and `id` so the next modules can
+be deployed with `scope: resourceGroup(rg.outputs.name)`.
+
+```bicep
+targetScope = 'subscription'
+import { requiredTags } from '../types.bicep'
+
+param name string
+param location string
+param tags requiredTags
+
+resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
+  name: name
+  location: location
+  tags: tags
+}
+```
+
+▶ Reference: [`infra/modules/resourceGroup.bicep`](../infra/modules/resourceGroup.bicep)
+
+Verify:
+
+```bash
+az bicep build --file infra/modules/resourceGroup.bicep --stdout > /dev/null   # no output = no warnings
+```
+
+⚠ **Gotcha — module paths must be relative.** A `module x 'D:/…/resourceGroup.bicep'`
+reference fails with `BCP189: module reference scheme "D" is not recognized` — Bicep reads
+the drive letter as a registry scheme (`br:`, `ts:`). Always reference modules relative to
+the calling file.
+
+---
+
+## 13. Not-yet-built (and where it goes)
 
 Everything below is **planned, not built** — see [`Implementation-Plan.md`](../Implementation-Plan.md)
 for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
@@ -778,7 +855,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks, messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); no modules exist yet. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the resource-group module and shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -815,6 +892,8 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Tailwind CSS | v4 |
 | Node.js | ≥ 22 · npm 11 |
 | Postgres (dev/test image) | postgres:17 |
+| Bicep CLI | 0.47.16 |
+| `Microsoft.Resources/resourceGroups` API | 2024-03-01 |
 
 ---
 
@@ -836,6 +915,8 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Package downgrade error after adding EF | test project pinned an older `Microsoft.Extensions.*` | bump the transitive pin to match (10.0.11) |
 | Domain events never reach the outbox | payload serialised as `IDomainEvent`, or the buffer cleared before it was read | serialise the runtime type; snapshot `DomainEvents` first |
 | `BackgroundService` test fails only in a full run | `StartAsync` schedules `ExecuteAsync`; stopping first cancels it before the body runs | wait for a log-line signal before asserting or stopping |
+| `az bicep build` → `Bicep CLI not found` | Bicep is not bundled with az | `az bicep install` |
+| `BCP189: module reference scheme "D" is not recognized` | absolute Windows path in a `module` reference | reference modules by relative path |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
