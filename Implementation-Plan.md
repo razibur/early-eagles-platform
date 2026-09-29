@@ -686,6 +686,24 @@ provisioning for no reason.
 `P0-050.3` (emulator/testcontainer integration test) now depends on `P0-050.2.2`, not on
 `P0-050.2` as a whole.
 
+### Container registry added (2026-09-28)
+
+Found while building `P0-058.3`: nothing in the original plan creates a container registry,
+yet the Container App can only run a publicly pullable placeholder image until one exists.
+[`infra-conventions.md`](./docs/infra-conventions.md) already reserves the `cr` abbreviation
+("one per subscription, no env"), so the gap is in the task list, not the design.
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-058.6 | `infra/modules/containerRegistry.bicep` (Basic SKU, admin user disabled, anonymous pull off) | P0-057.1 | `bicep build` succeeds; after deploy, `az acr show` returns the registry |
+| P0-062.4 | Grant the Container App's managed identity `AcrPull` on the registry; point `containerApp.bicep` at it | P0-062.1, P0-058.6 | Container App pulls a private image with no registry password |
+
+Open for `P0-058.6` to settle: conventions §3.2 says one registry per subscription with no
+environment segment, but its example name (`creedeveus`) contains `dev`. Decide which is right
+(and where a subscription-wide registry is deployed from, since every `main.<env>.bicep` is
+per-environment), then fix §3.2 in the same change. `P0-084` (deploy backend to dev) now also
+depends on `P0-062.4`.
+
 ---
 
 ## Sequencing notes

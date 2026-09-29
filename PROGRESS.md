@@ -20,7 +20,7 @@ Last updated: 2026-09-28
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~42% (80 / ~191 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~42% (81 / ~193 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -297,9 +297,11 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: `az bicep build --file infra/modules/postgresFlexible.bicep` succeeds with no warnings. [`postgresFlexible.bicep`](./infra/modules/postgresFlexible.bicep) creates the server, the Entra admin, the `earlyeagles` database (UTF8) and firewall rules. SKU name/tier, storage, backup retention (7–35), geo-redundant backup and **HA mode are all parameters**, so the same module builds Burstable no-HA dev and a zone-redundant prod — the prod HA call (conventions §9) moves to P0-061. Fixed in the module: **Entra-only auth, password auth disabled** (no admin password exists, so none can leak through a param file; connect with `az account get-access-token --resource-type oss-rdbms` as the password), `dataClassification: confidential` unioned into the tags, maintenance window defaulting to **Tuesday 07:00 UTC** (off Sunday, club play day), Postgres **17** to match the dev/Testcontainers image. `allowAzureServices` (the 0.0.0.0 rule) defaults off. API `2025-08-01` — the first GA version whose `version` enum includes 17 (`2024-08-01` stops at 16, and Bicep does *not* flag it). Checked with a throwaway caller: dev-shaped and prod-shaped (GP + ZoneRedundant + geo backup + operator IP rule) build; bad HA mode (`BCP088`), 3-day retention and 16 GB storage (`BCP328`) and a firewall rule missing `endIpAddress` (`BCP035`) fail at build time. Deploy + `psql` connect carried to P0-059.3.
 - `[x]` **P0-058.2** Bicep module: `containerAppsEnv.bicep`
   ↳ verify: `az bicep build --file infra/modules/containerAppsEnv.bicep` succeeds with no warnings. [`containerAppsEnv.bicep`](./infra/modules/containerAppsEnv.bicep) takes `name` (`cae-ee-<env>-<region>`), `location`, `requiredTags`, `workspaceId`; outputs `name`, `id` (each Container App's `managedEnvironmentId`, P0-058.3) and `defaultDomain`. Serverless **Consumption** workload profile (scale-to-zero, conventions §7). Logs route via the **`azure-monitor` destination + a diagnostic setting** (`allLogs` → the P0-057.3 workspace) rather than `log-analytics`, which would copy the workspace shared key into the environment — no key to rotate or leak, and it's the only path that survives Private Link later. Metrics deliberately not copied into the workspace (they'd only spend the daily cap). **Dapr dropped** from the plan's description: nothing in ADR-0002 uses it. VNet and zone redundancy (zone redundancy requires a VNet) stay Phase 7 per §9. API `2026-01-01`: `2026-07-01` is the latest GA but Bicep 0.47.16 (latest) has no types for it (`BCP081`, properties unchecked); on `2026-01-01` a misspelt property is caught (`BCP089`). Checked with a throwaway caller chaining `resourceGroup` → `logAnalytics` → `containerAppsEnv`: valid builds; missing `workspaceId` fails (`BCP035`). Deploy check carried to P0-059.3.
-- `[ ]` **P0-058.3** Bicep module: `containerApp.bicep`
+- `[x]` **P0-058.3** Bicep module: `containerApp.bicep`
+  ↳ verify: `az bicep build --file infra/modules/containerApp.bicep` succeeds with no warnings. [`containerApp.bicep`](./infra/modules/containerApp.bicep) — one app per call (`ca-ee-<role>-<env>-<region>-<instance>`, `@maxLength(32)`). Takes `environmentId`, `image`, `targetPort`, `externalIngress`, `cpu` (Consumption sizes `0.25`–`2`; memory derived at the fixed 2 GiB/vCPU ratio so an invalid pair can't be sent), `minReplicas` (0 dev / 1 prod per §7), `maxReplicas`, typed plain `env` vars; outputs `name`, `id`, `fqdn`. Single-revision mode, HTTPS-only ingress. **Probes are opt-in** (`livenessPath` / `readinessPath`, empty = none): a placeholder image can't serve `/health`/`/ready`, and a probe it can't pass leaves the revision unhealthy forever — switch them on with the real API image. Deliberately absent until P0-062.1–.3: managed identity, registry credentials, Key Vault secret refs — so the image must be publicly pullable for now (e.g. `mcr.microsoft.com/k8se/quickstart:latest`, port 80). No registry task existed in the plan — added as **P0-058.6** + **P0-062.4** (below). Checked with a throwaway caller chaining `resourceGroup` → `logAnalytics` → `containerAppsEnv` → `containerApp`: placeholder-dev and prod-with-probes build; `cpu: '3'` (`BCP088`), a 36-char name (`BCP332`) and `maxReplicas: 0` (`BCP328`) fail at build time. Deploy check carried to P0-059.3.
 - `[ ]` **P0-058.4** Bicep module: `serviceBus.bicep`
 - `[ ]` **P0-058.5** Bicep module: `redis.bicep`
+- `[ ]` **P0-058.6** Bicep module: `containerRegistry.bicep` — added 2026-09-28, see [Implementation-Plan appendix](./Implementation-Plan.md#container-registry-added-2026-09-28); settles the §3.2 per-subscription-vs-per-env naming contradiction
 - `[ ]` **P0-059.1** `infra/main.dev.bicep` orchestrating all modules
 - `[ ]` **P0-059.2** `infra/main.dev.bicepparam` with dev values
 - `[ ]` **P0-059.3** Deploy `main.dev.bicep` to throwaway RG; verify healthy
@@ -308,6 +310,7 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-062.1** Assign managed identity to Container App
 - `[ ]` **P0-062.2** Grant identity access to Postgres (Azure AD auth)
 - `[ ]` **P0-062.3** Grant identity access to Key Vault + Service Bus
+- `[ ]` **P0-062.4** Grant identity `AcrPull` on the registry; point `containerApp.bicep` at it — added 2026-09-28
 - `[ ]` **P0-063** `docs/runbooks/deploy-infra.md`
 
 ### Frontend foundations

@@ -1006,6 +1006,44 @@ fails (or is silently ignored) in Azure. Pin the newest version the CLI has type
 Query from the Log Analytics workspace instead (same tables). For real-time output use
 `az containerapp logs show --follow`; ingested logs arrive several minutes late.
 
+### 12.8 `containerApp.bicep` (P0-058.3)
+
+Resource-group scoped, **one app per module call** — the API today, a worker or migrations
+job later, each with its own role segment (`ca-ee-api-dev-eus-001`). Container App names cap
+at **32 characters**, enforced with `@maxLength(32)`, so long role names fail the build rather
+than the deploy.
+
+Sizing is one input: `cpu` is one of the Consumption sizes (`'0.25'`…`'2'`, strings because
+Bicep has no decimal type — converted with `json(cpu)`), and memory is looked up at the fixed
+2 GiB-per-vCPU ratio, so an invalid CPU/memory pair can't be sent. `minReplicas` is 0 for
+dev/staging (scale-to-zero) and 1 for prod (no cold start on the first request).
+
+Probes are opt-in:
+
+```bicep
+module api 'modules/containerApp.bicep' = {
+  scope: resourceGroup(rgName)
+  params: {
+    name: 'ca-ee-api-${environment}-eus-001', location: location, tags: tags
+    environmentId: cae.outputs.id
+    image: 'mcr.microsoft.com/k8se/quickstart:latest'   // placeholder, port 80
+    targetPort: 80, externalIngress: true, cpu: '0.25', minReplicas: 0, maxReplicas: 1
+    // livenessPath: '/health', readinessPath: '/ready'  ← once the real API image runs
+  }
+}
+```
+
+Not in the module yet: managed identity, private-registry credentials and Key Vault secret
+references (P0-062.1–.3). Until they land, the image must be publicly pullable and `env` holds
+only non-secret values.
+
+▶ Reference: [`infra/modules/containerApp.bicep`](../infra/modules/containerApp.bicep)
+
+⚠ **Gotcha — a probe the image can't pass means the revision never becomes healthy.**
+The placeholder image serves `/` on port 80 and nothing else. Setting `/health` or `/ready`
+probes against it leaves the revision stuck unhealthy (and failing its traffic). Leave the
+probe paths empty until the real API image is deployed, then set them in the same change.
+
 ⚠ **Gotcha — module paths must be relative.** A `module x 'D:/…/resourceGroup.bicep'`
 reference fails with `BCP189: module reference scheme "D" is not recognized` — Bicep reads
 the drive letter as a registry scheme (`br:`, `ts:`). Always reference modules relative to
@@ -1026,7 +1064,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks, messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the Postgres and Container Apps environment modules (P0-058.1–.2) and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the Postgres, Container Apps environment and Container App modules (P0-058.1–.3) and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -1072,6 +1110,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Azure Postgres major version | 17 |
 | `Microsoft.App/managedEnvironments` API | 2026-01-01 (newest with Bicep types) |
 | `Microsoft.Insights/diagnosticSettings` API | 2021-05-01-preview |
+| `Microsoft.App/containerApps` API | 2026-01-01 |
 
 ---
 
@@ -1100,6 +1139,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Postgres deploy rejects `version: '17'` though Bicep built it | API version older than `2025-08-01` | use `2025-08-01`+; Bicep doesn't validate the enum |
 | `BCP081: does not have types available` | API version newer than the Bicep CLI's type library; properties go unchecked | pin the newest version the CLI has types for |
 | Container Apps environment has no *Logs* blade in the portal | logs destination is `azure-monitor` | query the Log Analytics workspace directly |
+| New Container App revision never becomes healthy | liveness/readiness probe on a path the image doesn't serve | leave `livenessPath`/`readinessPath` empty for placeholder images |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
