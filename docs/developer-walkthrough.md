@@ -1044,6 +1044,46 @@ The placeholder image serves `/` on port 80 and nothing else. Setting `/health` 
 probes against it leaves the revision stuck unhealthy (and failing its traffic). Leave the
 probe paths empty until the real API image is deployed, then set them in the same change.
 
+### 12.9 `serviceBus.bicep` (P0-058.4)
+
+Resource-group scoped. Creates the namespace (`sbns-ee-<env>-<region>-<unique>`, globally
+unique like Key Vault) and whatever topics and subscriptions the caller passes as a typed
+list — choosing them is P0-051's job:
+
+```bicep
+topics: [
+  { name: 'domain-events', subscriptions: [ { name: 'payments' }, { name: 'audit-mirror', maxDeliveryCount: 5 } ] }
+]
+```
+
+The module flattens that into one resource per subscription with a lambda
+(`flatten(map(range(0, length(topics)), i => ...))`), keeping each subscription's parent
+pointed at its own topic instance.
+
+Fixed in the module:
+
+- **`skuName` is `Standard` or `Premium`.** Basic has queues but no topics, and the outbox
+  publishes to a topic — so Basic can't be passed at all.
+- **`disableLocalAuth: true`.** No SAS keys, so no connection string exists. The API
+  authenticates with Entra ID (`DefaultAzureCredential` → managed identity in Azure, your
+  `az login` locally) and gets *Azure Service Bus Data Sender/Receiver* in P0-062.3.
+- **Duplicate detection on every topic** (`duplicateDetectionWindow`, default `PT10M`).
+  The outbox drain is at-least-once: if the process dies after publishing but before
+  stamping the row, the next tick sends it again. The broker drops the repeat **if both
+  sends carry the same `MessageId`**, so `ServiceBusOutboxPublisher` (P0-050.2.2) must set
+  `MessageId` to the outbox row's id. Consumers must still be idempotent — a restart slower
+  than the window gets past it.
+
+The output `fullyQualifiedNamespace` (`<name>.servicebus.windows.net`) is what the Service Bus
+client is constructed with.
+
+▶ Reference: [`infra/modules/serviceBus.bicep`](../infra/modules/serviceBus.bicep)
+
+⚠ **Gotcha — duplicate detection can't be added to an existing topic.** Service Bus
+only accepts `requiresDuplicateDetection` when a topic is created; changing it later
+means deleting and recreating the topic (and losing its messages and subscriptions). That's
+why it's on from the first deploy even though nothing publishes yet.
+
 ⚠ **Gotcha — module paths must be relative.** A `module x 'D:/…/resourceGroup.bicep'`
 reference fails with `BCP189: module reference scheme "D" is not recognized` — Bicep reads
 the drive letter as a registry scheme (`br:`, `ts:`). Always reference modules relative to
@@ -1064,7 +1104,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks, messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the Postgres, Container Apps environment and Container App modules (P0-058.1–.3) and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.4 modules (Postgres, Container Apps environment, Container App, Service Bus) and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -1111,6 +1151,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | `Microsoft.App/managedEnvironments` API | 2026-01-01 (newest with Bicep types) |
 | `Microsoft.Insights/diagnosticSettings` API | 2021-05-01-preview |
 | `Microsoft.App/containerApps` API | 2026-01-01 |
+| `Microsoft.ServiceBus/namespaces` (+ topics, subscriptions) API | 2024-01-01 |
 
 ---
 
@@ -1140,6 +1181,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `BCP081: does not have types available` | API version newer than the Bicep CLI's type library; properties go unchecked | pin the newest version the CLI has types for |
 | Container Apps environment has no *Logs* blade in the portal | logs destination is `azure-monitor` | query the Log Analytics workspace directly |
 | New Container App revision never becomes healthy | liveness/readiness probe on a path the image doesn't serve | leave `livenessPath`/`readinessPath` empty for placeholder images |
+| Service Bus rejects a connection string / SAS token (auth failure) | namespace has SAS keys disabled | authenticate with Entra (`DefaultAzureCredential`) + a data role |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
