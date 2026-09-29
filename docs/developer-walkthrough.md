@@ -898,6 +898,29 @@ a bounded bill for a possible telemetry gap during an incident. Size the cap wit
 over normal volume, and add an alert on the workspace's cap-reached event when the
 alerting work lands (P0-094).
 
+### 12.5 `appInsights.bicep` (P0-057.4)
+
+Resource-group scoped, one per environment (`appi-ee-<env>-<region>`). **Workspace-based**:
+it takes the Log Analytics workspace's resource ID and stores telemetry there, so retention
+and the daily cap from §12.4 apply — there is no second setting to keep in sync. Passing
+the workspace output also gives Bicep the deploy ordering for free:
+
+```bicep
+module appi 'modules/appInsights.bicep' = {
+  scope: resourceGroup(rgName)
+  params: { name: 'appi-ee-${environment}-eus', location: location, tags: tags,
+            workspaceId: log.outputs.id }   // implicit dependsOn: log
+}
+```
+
+The connection string is a `@secure()` output (compiled type `securestring`) so it is kept
+out of deployment history and `az deployment … show`. It only permits *sending* telemetry,
+but there is no reason to publish it. `disableLocalAuth` defaults to `false`; turn it on
+once the OpenTelemetry exporter (P0-089.1) authenticates with the managed identity, after
+which the connection string alone is no longer enough to ingest.
+
+▶ Reference: [`infra/modules/appInsights.bicep`](../infra/modules/appInsights.bicep)
+
 ⚠ **Gotcha — module paths must be relative.** A `module x 'D:/…/resourceGroup.bicep'`
 reference fails with `BCP189: module reference scheme "D" is not recognized` — Bicep reads
 the drive letter as a registry scheme (`br:`, `ts:`). Always reference modules relative to
@@ -918,7 +941,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks, messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the resource-group, Key Vault and Log Analytics modules and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights) and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -959,6 +982,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | `Microsoft.Resources/resourceGroups` API | 2024-03-01 |
 | `Microsoft.KeyVault/vaults` API | 2024-11-01 |
 | `Microsoft.OperationalInsights/workspaces` API | 2023-09-01 |
+| `Microsoft.Insights/components` API | 2020-02-02 |
 
 ---
 
