@@ -20,7 +20,7 @@ Last updated: 2026-09-28
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~40% (76 / ~191 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~40% (77 / ~191 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -289,7 +289,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: `az bicep build --file infra/modules/resourceGroup.bicep` succeeds with no warnings. [`resourceGroup.bicep`](./infra/modules/resourceGroup.bicep) is subscription-scoped and takes `name`, `location` and `tags` as parameters, hard-coding none of them (conventions rule 3); outputs `name` + `id` for scoping the child modules. Also adds [`infra/types.bicep`](./infra/types.bicep) — exported `environmentCode` (`dev`|`stg`|`prod`) and `requiredTags` types, so the five §5 tags are enforced by the compiler instead of by review: a missing `managedBy` is `BCP035`, `env: 'qa'` is `BCP036`, and optional tags (`criticality`, `dataClassification`) pass through the `*: string` index signature. Every later module types its `tags` param with it. Checked with a throwaway caller covering valid / missing-tag / bad-env / extra-tag. Nothing deployed — deployment waits on P0-003 (subscription) and P0-059.3.
 - `[x]` **P0-057.2** Bicep module: `keyVault.bicep`
   ↳ verify: `az bicep build --file infra/modules/keyVault.bicep` succeeds with no warnings. [`keyVault.bicep`](./infra/modules/keyVault.bicep) takes `name` (3–24, caller appends the §3.1 `uniqueString` suffix), `location`, `requiredTags` and `skuName` (`standard`|`premium`); outputs `name`, `id` (role-assignment scope for P0-062.3) and `uri`. RBAC authorization, soft-delete and purge protection are **hard-coded on**, not parameters — conventions §7 keeps them on everywhere, and purge protection is irreversible anyway. Public endpoint with `AzureServices` bypass per the Phase 0 networking position (§9). Checked with a throwaway subscription-scoped caller chaining `resourceGroup.bicep` → `keyVault.bicep` at prod naming (`kv-ee-prod-eus-<5>` = 20 chars): valid builds; bad SKU (`BCP036`), 3-day retention (`BCP328`) and a 2-char name (`BCP333`) fail at build time. The plan's "module deploys; secret round-trip works" acceptance needs a subscription — carried to P0-059.3.
-- `[ ]` **P0-057.3** Bicep module: `logAnalytics.bicep`
+- `[x]` **P0-057.3** Bicep module: `logAnalytics.bicep`
+  ↳ verify: `az bicep build --file infra/modules/logAnalytics.bicep` succeeds with no warnings. [`logAnalytics.bicep`](./infra/modules/logAnalytics.bicep) takes `name` (`log-ee-<env>-<region>`, singleton, no instance suffix), `location`, `requiredTags`, `skuName` (`PerGB2018` only — commitment tiers need properties the module doesn't set), `retentionInDays` (30–730) and `dailyQuotaGb`; outputs `name`, `id` (what App Insights P0-057.4 and the Container Apps env P0-058.2 link to) and `customerId`. **The daily cap is required with `@minValue(1)`** — no default and no `-1` "unlimited", so conventions §7's "set the cap" is enforced by the compiler; the actual per-env numbers are picked in P0-059.2. Resource-context log access is on, so read on one app doesn't expose the whole workspace. Checked with a throwaway caller chaining `resourceGroup.bicep` → `logAnalytics.bicep`: valid builds; missing cap (`BCP035`), `-1` cap and 7-day retention (`BCP328`) fail at build time. Deploy check carried to P0-059.3.
 - `[ ]` **P0-057.4** Bicep module: `appInsights.bicep`
 - `[ ]` **P0-058.1** Bicep module: `postgres-flexible.bicep`
 - `[ ]` **P0-058.2** Bicep module: `containerAppsEnv.bicep`

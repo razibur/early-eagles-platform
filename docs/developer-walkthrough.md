@@ -871,6 +871,33 @@ purged early**. Redeploying the same name during that window fails; recover it i
 `uniqueString` rather than a random suffix — a teardown/redeploy lands on the same name and
 recovery is the fix, not a new vault.
 
+### 12.4 `logAnalytics.bicep` (P0-057.3)
+
+Resource-group scoped, one per environment (`log-ee-<env>-<region>`, no instance suffix).
+Takes `name`, `location`, `tags`, `skuName` (`PerGB2018`), `retentionInDays` (30–730) and
+`dailyQuotaGb`. Outputs `name`, `id` (linked by App Insights and the Container Apps
+environment) and `customerId`.
+
+The cap is the point of this module. `dailyQuotaGb` is required and has `@minValue(1)`, so
+a caller cannot omit it or pass Azure's `-1` ("unlimited") — the build fails:
+
+```bicep
+@minValue(1)
+param dailyQuotaGb int          // no default: every environment must choose
+```
+
+`enableLogAccessUsingOnlyResourcePermissions: true` makes access follow the resource that
+sent the log, so granting read on one Container App does not expose every table.
+
+▶ Reference: [`infra/modules/logAnalytics.bicep`](../infra/modules/logAnalytics.bicep)
+
+⚠ **Gotcha — hitting the daily cap drops data, it doesn't queue it.** When the cap is
+reached, ingestion stops until the daily reset and everything sent in between is discarded
+(the cap is also enforced with some lag, so a spike can overshoot it). That is the trade:
+a bounded bill for a possible telemetry gap during an incident. Size the cap with headroom
+over normal volume, and add an alert on the workspace's cap-reached event when the
+alerting work lands (P0-094).
+
 ⚠ **Gotcha — module paths must be relative.** A `module x 'D:/…/resourceGroup.bicep'`
 reference fails with `BCP189: module reference scheme "D" is not recognized` — Bicep reads
 the drive letter as a registry scheme (`br:`, `ts:`). Always reference modules relative to
@@ -891,7 +918,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks, messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the resource-group and Key Vault modules and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the resource-group, Key Vault and Log Analytics modules and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -931,6 +958,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Bicep CLI | 0.47.16 |
 | `Microsoft.Resources/resourceGroups` API | 2024-03-01 |
 | `Microsoft.KeyVault/vaults` API | 2024-11-01 |
+| `Microsoft.OperationalInsights/workspaces` API | 2023-09-01 |
 
 ---
 
@@ -955,6 +983,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `az bicep build` → `Bicep CLI not found` | Bicep is not bundled with az | `az bicep install` |
 | `BCP189: module reference scheme "D" is not recognized` | absolute Windows path in a `module` reference | reference modules by relative path |
 | Key Vault redeploy fails: name already in use | previous vault is soft-deleted and purge-protected | `az keyvault recover --name <vault>` |
+| Logs stop arriving partway through the day | Log Analytics daily cap reached; ingestion paused until reset | expected; raise `dailyQuotaGb` if normal volume hits it |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
