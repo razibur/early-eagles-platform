@@ -835,6 +835,42 @@ Verify:
 az bicep build --file infra/modules/resourceGroup.bicep --stdout > /dev/null   # no output = no warnings
 ```
 
+### 12.3 `keyVault.bicep` (P0-057.2)
+
+Resource-group scoped. Takes `name`, `location`, `tags` and `skuName`; the caller builds the
+globally-unique name per conventions §3.1:
+
+```bicep
+var unique = take(uniqueString(subscription().subscriptionId, environment), 5)
+var kvName = 'kv-ee-${environment}-eus-${unique}'   // prod: 20 chars, limit 24
+```
+
+Three settings are fixed in the module rather than parameterised, because they must hold in
+every environment: `enableRbacAuthorization: true` (access via role assignments to managed
+identities in P0-062.3, not vault access policies), `enableSoftDelete: true`, and
+`enablePurgeProtection: true`. Outputs are `name`, `id` (the scope for role assignments) and
+`uri` (what the API is configured with).
+
+The calling module deploys it into the group from §12.2:
+
+```bicep
+module kv 'modules/keyVault.bicep' = {
+  scope: resourceGroup(rgName)
+  dependsOn: [ rg ]
+  params: { name: kvName, location: location, tags: tags, skuName: 'standard' }
+}
+```
+
+▶ Reference: [`infra/modules/keyVault.bicep`](../infra/modules/keyVault.bicep)
+
+⚠ **Gotcha — purge protection is one-way, and deleted vault names stay reserved.** Once a
+vault has purge protection it can never be turned off, and after deletion the vault (and its
+name) sits in soft-deleted state for `softDeleteRetentionInDays` (default 90) and **cannot be
+purged early**. Redeploying the same name during that window fails; recover it instead
+(`az keyvault recover --name <vault>`). This is why the vault name comes from a deterministic
+`uniqueString` rather than a random suffix — a teardown/redeploy lands on the same name and
+recovery is the fix, not a new vault.
+
 ⚠ **Gotcha — module paths must be relative.** A `module x 'D:/…/resourceGroup.bicep'`
 reference fails with `BCP189: module reference scheme "D" is not recognized` — Bicep reads
 the drive letter as a registry scheme (`br:`, `ts:`). Always reference modules relative to
@@ -855,7 +891,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks, messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the resource-group module and shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the resource-group and Key Vault modules and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -894,6 +930,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Postgres (dev/test image) | postgres:17 |
 | Bicep CLI | 0.47.16 |
 | `Microsoft.Resources/resourceGroups` API | 2024-03-01 |
+| `Microsoft.KeyVault/vaults` API | 2024-11-01 |
 
 ---
 
@@ -917,6 +954,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `BackgroundService` test fails only in a full run | `StartAsync` schedules `ExecuteAsync`; stopping first cancels it before the body runs | wait for a log-line signal before asserting or stopping |
 | `az bicep build` → `Bicep CLI not found` | Bicep is not bundled with az | `az bicep install` |
 | `BCP189: module reference scheme "D" is not recognized` | absolute Windows path in a `module` reference | reference modules by relative path |
+| Key Vault redeploy fails: name already in use | previous vault is soft-deleted and purge-protected | `az keyvault recover --name <vault>` |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
