@@ -964,6 +964,48 @@ can only be set when the server is created, and storage can grow but never shrin
 `skuTier: 'Burstable'` with any HA mode other than `Disabled` builds fine but is rejected
 at deploy — Bicep can't check one parameter against another.
 
+### 12.7 `containerAppsEnv.bicep` (P0-058.2)
+
+Resource-group scoped, one per environment (`cae-ee-<env>-<region>`). It uses the serverless
+**Consumption** workload profile (scale-to-zero, pay per use). The Container Apps from
+P0-058.3 reference its `id` output as their `managedEnvironmentId`.
+
+Logs go to the §12.4 workspace via the **`azure-monitor`** destination and a diagnostic
+setting on the environment, not via the `log-analytics` destination:
+
+```bicep
+appLogsConfiguration: { destination: 'azure-monitor' }
+...
+resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  scope: environment
+  properties: {
+    workspaceId: workspaceId
+    logs: [ { categoryGroup: 'allLogs', enabled: true } ]   // console + system logs
+  }
+}
+```
+
+`log-analytics` would need the workspace's shared key copied into the environment; this
+route has no key to rotate or leak, and it's the only one that works behind Private Link.
+Logs land in the `ContainerAppConsoleLogs` / `ContainerAppSystemLogs` tables. Metrics are not
+copied into the workspace — they're already in Azure Monitor metrics, and copying them would
+spend the daily cap.
+
+Not included: Dapr (nothing in the stack uses it), VNet integration and zone redundancy
+(zone redundancy requires a VNet; both are Phase 7 per conventions §9).
+
+▶ Reference: [`infra/modules/containerAppsEnv.bicep`](../infra/modules/containerAppsEnv.bicep)
+
+⚠ **Gotcha — the newest API version may have no Bicep types.** `Microsoft.App/managedEnvironments@2026-07-01`
+is GA, but Bicep 0.47.16 ships no type definitions for it. You get `BCP081` ("does not have
+types available") and — worse — **every property goes unchecked**, so a typo deploys and
+fails (or is silently ignored) in Azure. Pin the newest version the CLI has types for
+(`2026-01-01` here); a misspelt property then comes back as `BCP089` with a "did you mean".
+
+⚠ **Gotcha — with `azure-monitor`, the environment's portal *Logs* blade is disabled.**
+Query from the Log Analytics workspace instead (same tables). For real-time output use
+`az containerapp logs show --follow`; ingested logs arrive several minutes late.
+
 ⚠ **Gotcha — module paths must be relative.** A `module x 'D:/…/resourceGroup.bicep'`
 reference fails with `BCP189: module reference scheme "D" is not recognized` — Bicep reads
 the drive letter as a registry scheme (`br:`, `ts:`). Always reference modules relative to
@@ -984,7 +1026,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks, messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the Postgres module (P0-058.1) and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the Postgres and Container Apps environment modules (P0-058.1–.2) and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -1028,6 +1070,8 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | `Microsoft.Insights/components` API | 2020-02-02 |
 | `Microsoft.DBforPostgreSQL/flexibleServers` (+ children) API | 2025-08-01 |
 | Azure Postgres major version | 17 |
+| `Microsoft.App/managedEnvironments` API | 2026-01-01 (newest with Bicep types) |
+| `Microsoft.Insights/diagnosticSettings` API | 2021-05-01-preview |
 
 ---
 
@@ -1054,6 +1098,8 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Key Vault redeploy fails: name already in use | previous vault is soft-deleted and purge-protected | `az keyvault recover --name <vault>` |
 | Logs stop arriving partway through the day | Log Analytics daily cap reached; ingestion paused until reset | expected; raise `dailyQuotaGb` if normal volume hits it |
 | Postgres deploy rejects `version: '17'` though Bicep built it | API version older than `2025-08-01` | use `2025-08-01`+; Bicep doesn't validate the enum |
+| `BCP081: does not have types available` | API version newer than the Bicep CLI's type library; properties go unchecked | pin the newest version the CLI has types for |
+| Container Apps environment has no *Logs* blade in the portal | logs destination is `azure-monitor` | query the Log Analytics workspace directly |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
