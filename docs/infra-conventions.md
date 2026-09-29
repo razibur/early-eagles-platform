@@ -303,7 +303,7 @@ needs them, not guessed at now.
 |---|---|---|
 | Confirm `eastus` as primary region | P0-059.3 (first real deploy) | §2. Cheap to change before anything is provisioned. |
 | Separate prod subscription | Phase 7 | §1. Driven by an enterprise customer requirement, not by engineering taste. |
-| Postgres HA topology in prod | P0-058.1 | Zone-redundant roughly doubles the database cost. Decide against the envelope with real numbers. |
+| Postgres HA topology in prod | P0-061 (`main.prod.bicep`) | Zone-redundant roughly doubles the database cost. Decide against the envelope with real numbers. The module (P0-058.1) takes `highAvailabilityMode` as a parameter, so this is a parameter-file choice, not a module change. |
 | Private networking (VNet + private endpoints) | Phase 7 | Public endpoints with firewall rules are the Phase 0 position. Private endpoints add cost and a VPN/bastion requirement for local admin access. |
 
 ---

@@ -921,6 +921,49 @@ which the connection string alone is no longer enough to ingest.
 
 ▶ Reference: [`infra/modules/appInsights.bicep`](../infra/modules/appInsights.bicep)
 
+### 12.6 `postgresFlexible.bicep` (P0-058.1)
+
+Resource-group scoped (`psql-ee-<env>-<region>-001`). One module creates four things: the
+server, its Entra ID administrator, the `earlyeagles` application database, and firewall
+rules. Everything that differs between dev and prod is a parameter — `skuName`/`skuTier`,
+`storageSizeGB` (≥ 32), `backupRetentionDays` (7–35), `geoRedundantBackup` and
+`highAvailabilityMode` — so the prod HA decision lives in `main.prod.bicep`, not here.
+
+Fixed in the module:
+
+- **Entra-only auth.** `passwordAuth: 'Disabled'`, so there is no admin password to pass in
+  (and none to leak from a parameter file). The admin is an Entra user/group/service
+  principal (`entraAdmin*` params). To connect with `psql`, use a token as the password:
+
+  ```bash
+  export PGPASSWORD=$(az account get-access-token --resource-type oss-rdbms --query accessToken -o tsv)
+  psql "host=<fqdn> dbname=earlyeagles user=<entra-admin-upn> sslmode=require"
+  ```
+
+- **`dataClassification: confidential`** is unioned into the caller's tags.
+- **Maintenance window** defaults to Tuesday 07:00 UTC (03:00 US Eastern) — Sunday is when
+  the club plays.
+- **Postgres 17**, matching the `postgres:17` image used locally and by Testcontainers.
+
+`allowAzureServices` (the `0.0.0.0` "Allow Azure services" rule) defaults **off**: it admits
+*any* Azure customer's resources, not just ours. `firewallRules` is a typed array for
+operator IPs. Rules deploy with `@batchSize(1)` because the server rejects concurrent
+firewall-rule writes.
+
+▶ Reference: [`infra/modules/postgresFlexible.bicep`](../infra/modules/postgresFlexible.bicep)
+
+⚠ **Gotcha — Bicep does not validate the Postgres `version` against the API.** API
+`2024-08-01` only accepts versions 11–16, but a template sending `'17'` (or `'99'`) to it
+builds cleanly and fails only at deploy time. `2025-08-01` is the first GA API that accepts
+17. The module's own `@allowed(['16', '17'])` is the only compile-time guard — check the
+[ARM reference](https://learn.microsoft.com/azure/templates/microsoft.dbforpostgresql/flexibleservers)
+before bumping either the version or the API.
+
+⚠ **Gotcha — some choices are create-time only or cross-parameter.** `geoRedundantBackup`
+can only be set when the server is created, and storage can grow but never shrink. And
+`skuTier: 'Burstable'` with any HA mode other than `Disabled` builds fine but is rejected
+at deploy — Bicep can't check one parameter against another.
+
 ⚠ **Gotcha — module paths must be relative.** A `module x 'D:/…/resourceGroup.bicep'`
 reference fails with `BCP189: module reference scheme "D" is not recognized` — Bicep reads
 the drive letter as a registry scheme (`br:`, `ts:`). Always reference modules relative to
@@ -941,7 +984,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks, messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights) and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the Postgres module (P0-058.1) and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -983,6 +1026,8 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | `Microsoft.KeyVault/vaults` API | 2024-11-01 |
 | `Microsoft.OperationalInsights/workspaces` API | 2023-09-01 |
 | `Microsoft.Insights/components` API | 2020-02-02 |
+| `Microsoft.DBforPostgreSQL/flexibleServers` (+ children) API | 2025-08-01 |
+| Azure Postgres major version | 17 |
 
 ---
 
@@ -1008,6 +1053,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `BCP189: module reference scheme "D" is not recognized` | absolute Windows path in a `module` reference | reference modules by relative path |
 | Key Vault redeploy fails: name already in use | previous vault is soft-deleted and purge-protected | `az keyvault recover --name <vault>` |
 | Logs stop arriving partway through the day | Log Analytics daily cap reached; ingestion paused until reset | expected; raise `dailyQuotaGb` if normal volume hits it |
+| Postgres deploy rejects `version: '17'` though Bicep built it | API version older than `2025-08-01` | use `2025-08-01`+; Bicep doesn't validate the enum |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
