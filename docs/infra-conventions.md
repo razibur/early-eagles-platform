@@ -50,7 +50,10 @@ exhaust a prod quota. That is a Phase 7 concern, not a Phase 0 one; revisit it
 there rather than pre-building it now.
 
 Throwaway experiments (P0-059.3) go in `rg-ee-sandbox-eus` and are deleted when
-done. Never experiment inside `rg-ee-dev-eus` — dev is a deploy target, not a
+done. Deploy them with the environment file's `sandbox` switch (`main.dev.bicep`,
+P0-059.1), which also changes the §3.1 suffix seed: a purge-protected Key Vault
+keeps its name reserved after deletion, so a sandbox must never use the real
+environment's globally unique names. Never experiment inside `rg-ee-dev-eus` — dev is a deploy target, not a
 scratchpad.
 
 ---

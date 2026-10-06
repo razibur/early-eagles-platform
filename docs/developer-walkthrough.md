@@ -1156,6 +1156,49 @@ repository-scoped roles (*Container Registry Repository Reader*, …) and the cl
 `AcrPull`/`AcrPush` stop working for data. The module pins legacy mode so P0-062.4's `AcrPull`
 assignment does what it says.
 
+### 12.12 `main.dev.bicep` — the dev environment (P0-059.1)
+
+The first file that *uses* the modules. Subscription-scoped: it creates `rg-ee-dev-eus` and
+deploys every per-environment module into it.
+
+```
+resourceGroup ─┬─ logAnalytics ─┬─ appInsights
+               │                └─ containerAppsEnv ── containerApp (api)
+               ├─ keyVault
+               ├─ postgresFlexible
+               ├─ serviceBus
+               └─ redis
+```
+
+What goes where:
+
+- **In the file:** what makes it *dev*. The env code, region, every resource name (§3) and the
+  §7 dev sizes (Postgres B1ms Burstable, Redis B0 without HA, Container App scaling 0→1, …).
+- **In the parameter file (P0-059.2):** what's specific to *this* deployment. Tag `owner`/
+  `costCenter`, the Postgres Entra admin, operator IPs for `psql`, and the Log Analytics daily cap,
+  which is required and has no default.
+
+Module deployments are named `<top-level deployment name>-<module>` (e.g.
+`ee-dev-20261006-1430-psql`), so the per-run history §6 asks for is kept at every level.
+
+Deliberately not wired yet: the shared container registry (its own `main.shared.bicep`,
+P0-059.4), managed identity and role assignments (P0-062.\*), app env vars and health probes
+(with the real API image, P0-084), and Service Bus topics (P0-051 passes `serviceBusTopics`).
+
+▶ Reference: [`infra/main.dev.bicep`](../infra/main.dev.bicep)
+
+⚠ **Gotcha — a sandbox deploy can squat the real Key Vault name.** Purge protection is on
+everywhere, so a deleted vault's name stays reserved for its whole soft-delete retention (90 days).
+If a throwaway deploy used `kv-ee-dev-eus-<suffix>`, tearing it down would block the real dev vault
+for three months. `sandbox = true` deploys to `rg-ee-sandbox-eus`, seeds the suffix with
+`dev-sandbox` (new Key Vault/Service Bus/Redis names), adds `-sbx` to the Postgres name and sets the
+vault's retention to 7 days.
+
+⚠ **Gotcha — `scope: resourceGroup(rg.outputs.name)` doesn't compile (`BCP120`).** A module's scope has to be
+known when the deployment starts, so it can't come from another module's output. Scope by the
+`resourceGroupName` variable and add `dependsOn: [rg]` instead. Modules that already consume an
+output (App Insights, the Container Apps env, the app) get the dependency implicitly.
+
 ---
 
 ## 13. Not-yet-built (and where it goes)
@@ -1171,7 +1214,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module now exists, the `main.<env>.bicep` / `main.shared.bicep` entry points do not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module and `main.dev.bicep` exist (§12.12); the dev parameter file, `main.shared.bicep` and the staging/prod entry points do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -1252,6 +1295,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Redis deploy fails: creation blocked / SKU unavailable | `Microsoft.Cache/redis` (Azure Cache for Redis) — closed to new instances since 2026-10-01 | use `Microsoft.Cache/redisEnterprise` (Azure Managed Redis), ADR-0008 |
 | Redis client can't connect on 6380 / rejects the access key | Azure Managed Redis listens on **10000** and has access keys disabled | port 10000 + Entra token via `Microsoft.Azure.StackExchangeRedis` |
 | Container App can't pull (`UNAUTHORIZED`) despite an `AcrPull` assignment | registry in ABAC role-assignment mode | keep `roleAssignmentMode: LegacyRegistryPermissions`, or grant a repository role |
+| Real dev deploy fails: Key Vault name already in use, but nothing is in `rg-ee-dev-eus` | an earlier throwaway deploy used the real name; the deleted vault is purge-protected | deploy throwaways with `sandbox = true`; otherwise wait out retention or recover the vault |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
