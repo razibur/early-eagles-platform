@@ -20,7 +20,7 @@ Last updated: 2026-09-28
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~44% (86 / ~194 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~45% (87 / ~194 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -310,7 +310,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[x]` **P0-059.2** `infra/main.dev.bicepparam` with dev values
   ↳ verify: with `EE_PG_ADMIN_OBJECT_ID` and `EE_PG_ADMIN_NAME` set, `az bicep build-params --file infra/main.dev.bicepparam` succeeds and lints clean. [`main.dev.bicepparam`](./infra/main.dev.bicepparam) commits the values that are the same for anyone deploying dev — `owner: razibur`, `costCenter: platform`, **`logDailyQuotaGb: 1`** — and reads the person/machine-specific ones with `readEnvironmentVariable`: the Postgres Entra admin (`EE_PG_ADMIN_OBJECT_ID`, `EE_PG_ADMIN_NAME`, **required — no default, so a missing one fails with `BCP427` before anything reaches Azure**), an optional operator IP (`EE_OPERATOR_IP` → one `operator` firewall rule, none if unset) and `EE_SANDBOX` (default `false`; P0-059.3 sets `true`). Nothing in it is a secret; the identity is kept out of git because it names a person and will differ between the operator and CI (P0-084 sets the same variables from GitHub). Checked: no vars → `BCP427` ×2; required vars → expected parameter JSON (no firewall rules, `sandbox: false`); IP + sandbox → one rule, `sandbox: true`.
 - `[ ]` **P0-059.3** Deploy `main.dev.bicep` to throwaway RG; verify healthy
-- `[ ]` **P0-059.4** `infra/main.shared.bicep` + `.bicepparam`: `rg-ee-shared-eus` + the shared registry — added 2026-10-06 (P0-058.6)
+- `[x]` **P0-059.4** `infra/main.shared.bicep` + `.bicepparam`: `rg-ee-shared-eus` + the shared registry — added 2026-10-06 (P0-058.6)
+  ↳ verify: `az bicep build --file infra/main.shared.bicep` and `az bicep build-params --file infra/main.shared.bicepparam` succeed and lint clean. [`main.shared.bicep`](./infra/main.shared.bicep) is subscription-scoped: `resourceGroup` (`rg-ee-shared-eus`) → `containerRegistry` (`cree` + `shared` + `eus` + suffix seeded with `'shared'`, Basic), tags `env: shared`. Outputs `resourceGroupName`, `registryId` (AcrPull scope, P0-062.4) and `registryLoginServer`. No sandbox switch — nothing in it is purge-protected. [`main.shared.bicepparam`](./infra/main.shared.bicepparam) commits `owner`/`costCenter` only; nothing person-specific, so no environment variables. Deploy once per subscription (`ee-shared-<yyyyMMdd>-<HHmm>`) before P0-062.4; the `az acr show` acceptance needs the subscription.
 - `[ ]` **P0-060** `infra/main.staging.bicep` — when this lands, extract `main.dev.bicep`'s body into a shared `infra/environment.bicep` rather than copying it (sizes become its params)
 - `[ ]` **P0-061** `infra/main.prod.bicep` (empty, no traffic)
 - `[ ]` **P0-062.1** Assign managed identity to Container App

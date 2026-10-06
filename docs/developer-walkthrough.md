@@ -1226,6 +1226,23 @@ address) invited into a tenant has a UPN like `name_outlook.com#EXT#@tenant.onmi
 the value `az ad signed-in-user show` returns, not the email address. It's also the user name
 `psql` expects.
 
+### 12.14 `main.shared.bicep` — subscription-wide resources (P0-059.4)
+
+The shared entry point, deployed **once per subscription** and before anything that pulls images.
+Today it holds only the container registry (§12.11): it creates `rg-ee-shared-eus` and
+`creesharedeus<suffix>` (Basic) inside it, tagged `env: shared`.
+
+```pwsh
+az deployment sub create --name ee-shared-$(Get-Date -Format yyyyMMdd-HHmm) --location eastus `
+  --template-file infra/main.shared.bicep --parameters infra/main.shared.bicepparam
+```
+
+Its parameter file only sets the `owner`/`costCenter` tags; nothing in it is person-specific.
+The `registryId` output is the scope each environment's `AcrPull` assignment targets (P0-062.4),
+and `registryLoginServer` is the image prefix CI pushes to.
+
+▶ Reference: [`infra/main.shared.bicep`](../infra/main.shared.bicep)
+
 ---
 
 ## 13. Not-yet-built (and where it goes)
@@ -1241,7 +1258,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module, `main.dev.bicep` and its parameter file exist (§12.12–12.13); `main.shared.bicep` and the staging/prod entry points do not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module, `main.dev.bicep` + its parameter file and `main.shared.bicep` exist (§12.12–12.14); the staging/prod entry points do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
