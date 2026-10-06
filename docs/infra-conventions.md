@@ -40,6 +40,7 @@ One Azure subscription, one resource group per environment.
 | Development | `dev` | `rg-ee-dev-eus` | Shared dev environment. Deployed on every merge to `main`. |
 | Staging | `stg` | `rg-ee-stg-eus` | Production-shaped. Deployed on a `v*-staging` tag. |
 | Production | `prod` | `rg-ee-prod-eus` | Deployed only on manual approval. |
+| Shared | `shared` | `rg-ee-shared-eus` | Subscription-wide resources every environment uses — today only the container registry. Deployed by `main.shared.bicep` (P0-059.4) before any environment. |
 
 A single subscription keeps one bill, one set of quotas and one place to look —
 which is right for a solo operator on a $50–80/month envelope. **Split
@@ -137,8 +138,16 @@ Storage accounts and container registries allow lowercase alphanumerics only,
 
 ```
 steedeveus<unique>         storage account
-creedeveus                 container registry (one per subscription, no env)
+creesharedeus<unique>      container registry (one per subscription, env = shared)
 ```
+
+There is **one container registry**, shared by every environment and living in
+`rg-ee-shared-eus` (settled in P0-058.6). CI builds an image once and dev,
+staging and prod run that same digest — what reaches prod is byte-for-byte what
+was tested, and there is one ~$5/month registry instead of three. Its suffix is
+seeded with `'shared'` as the environment, like any other §3.1 name. A per-env
+registry becomes worth it only if prod moves to its own subscription (§1,
+Phase 7); then images are promoted with `az acr import`, which keeps the digest.
 
 ### 3.3 Length limits that actually bite
 
@@ -183,7 +192,7 @@ as every other Azure estate and every doc you will search.
 | Service Bus subscription | `sbts` | P0-058.4 |
 | Azure Managed Redis | `amr` | P0-058.5 ([ADR-0008](./adr/0008-azure-managed-redis.md)) |
 | User-assigned managed identity | `id` | P0-062.1 |
-| Container registry | `cr` | container build pipeline |
+| Container registry | `cr` | P0-058.6 (shared, §3.2) |
 | Storage account | `st` | diagnostics only — blobs live in R2 |
 | SignalR Service | `sigr` | Phase 3 |
 
@@ -201,7 +210,7 @@ once and passes it down.
 
 The rule is enforced by the compiler: type every module's `tags` parameter as
 `requiredTags` from [`infra/types.bicep`](../infra/types.bicep). A missing
-required tag, or an `env` outside `dev`/`stg`/`prod`, then fails `bicep build`.
+required tag, or an `env` outside `dev`/`stg`/`prod`/`shared`, then fails `bicep build`.
 
 | Tag | Example | Why it exists |
 |---|---|---|
@@ -272,6 +281,7 @@ billing alert from P0-003.
 | Redis | Azure Managed Redis `Balanced_B0`, HA off | `Balanced_B1`, HA on | Azure Cache for Redis (Basic/Standard/Premium) can no longer be created — [ADR-0008](./adr/0008-azure-managed-redis.md). Without HA there is no replica and no SLA; acceptable for a cache, not for prod locks. |
 | Log Analytics | Pay-as-you-go, **daily cap** | Pay-as-you-go, daily cap | Set the cap. Ingestion is the classic runaway bill — a logging loop can outspend the database in a day. |
 | Key Vault | Standard | Standard | Cost is per operation and negligible. Soft-delete and purge protection stay **on** in every environment. |
+| Container registry | Basic (one, shared) | — | ~$5/month, 10 GB included. Geo-replication, private endpoints and retention policies are Premium-only and not needed before Phase 7. Admin user and anonymous pull stay **off**. |
 
 Turning dev off overnight is not worth the complexity at this scale — scale-to-zero
 and burstable tiers already do most of that work.

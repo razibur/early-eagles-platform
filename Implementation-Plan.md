@@ -704,6 +704,16 @@ environment segment, but its example name (`creedeveus`) contains `dev`. Decide 
 per-environment), then fix §3.2 in the same change. `P0-084` (deploy backend to dev) now also
 depends on `P0-062.4`.
 
+**Settled 2026-10-06 (P0-058.6):** one registry shared by all environments,
+`creesharedeus<unique>` in a new `rg-ee-shared-eus`, with `shared` added as a fourth
+environment code. It is deployed by its own entry point, so one task is added:
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-059.4 | `infra/main.shared.bicep` + `main.shared.bicepparam`: `rg-ee-shared-eus` and the registry | P0-057.1, P0-058.6 | `bicep build` succeeds; after deploy, `az acr show` returns the registry |
+
+`P0-062.4` now depends on `P0-059.4` as well.
+
 ### Redis product change (2026-10-06)
 
 `P0-058.5` was planned as "Standard SKU, network ACLs" on Azure Cache for Redis. That product

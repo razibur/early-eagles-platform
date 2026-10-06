@@ -793,7 +793,7 @@ tags (`dataClassification`, `criticality`) through.
 ```bicep
 @export()
 type requiredTags = {
-  env: environmentCode          // 'dev' | 'stg' | 'prod'
+  env: environmentCode          // 'dev' | 'stg' | 'prod' | 'shared'
   workload: 'early-eagles'
   owner: string
   costCenter: string
@@ -1129,6 +1129,33 @@ policies, means deleting the database. That's why the default is the one that ca
 show `Microsoft.Cache/redis` with `sku: { name: 'Basic', family: 'C', capacity: 0 }`. It builds
 fine and fails at deploy with a creation-blocked error. Use `Microsoft.Cache/redisEnterprise`.
 
+### 12.11 `containerRegistry.bicep` (P0-058.6)
+
+Resource-group scoped, but unlike every module before it, **not per environment**. There is one
+registry for the whole subscription, in `rg-ee-shared-eus`, tagged `env: shared` (a fourth
+`environmentCode` added for this). CI builds an image once and pushes it here; dev, staging and
+prod each pull that same digest, so prod runs exactly what was tested. It is deployed by
+`main.shared.bicep` (P0-059.4), before any `main.<env>.bicep`.
+
+Registry names allow no hyphens, so the pattern collapses: `creesharedeus<unique>` (18 chars).
+
+Fixed in the module:
+
+- **Admin user off.** It's one shared username/password with push rights. CI pushes through
+  Entra (GitHub OIDC); Container Apps pull with their managed identity.
+- **Anonymous pull off.** Images are private.
+- **`roleAssignmentMode: 'LegacyRegistryPermissions'`**. See the gotcha below.
+
+The `loginServer` output (`<name>.azurecr.io`) is the prefix of every image reference.
+
+▶ Reference: [`infra/modules/containerRegistry.bicep`](../infra/modules/containerRegistry.bicep)
+
+⚠ **Gotcha — in ABAC mode `AcrPull` doesn't grant pull.** Registries can use
+`roleAssignmentMode: 'AbacRepositoryPermissions'`, where data access comes from
+repository-scoped roles (*Container Registry Repository Reader*, …) and the classic
+`AcrPull`/`AcrPush` stop working for data. The module pins legacy mode so P0-062.4's `AcrPull`
+assignment does what it says.
+
 ---
 
 ## 13. Not-yet-built (and where it goes)
@@ -1144,7 +1171,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis) and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module now exists, the `main.<env>.bicep` / `main.shared.bicep` entry points do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -1224,6 +1251,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Service Bus rejects a connection string / SAS token (auth failure) | namespace has SAS keys disabled | authenticate with Entra (`DefaultAzureCredential`) + a data role |
 | Redis deploy fails: creation blocked / SKU unavailable | `Microsoft.Cache/redis` (Azure Cache for Redis) — closed to new instances since 2026-10-01 | use `Microsoft.Cache/redisEnterprise` (Azure Managed Redis), ADR-0008 |
 | Redis client can't connect on 6380 / rejects the access key | Azure Managed Redis listens on **10000** and has access keys disabled | port 10000 + Entra token via `Microsoft.Azure.StackExchangeRedis` |
+| Container App can't pull (`UNAUTHORIZED`) despite an `AcrPull` assignment | registry in ABAC role-assignment mode | keep `roleAssignmentMode: LegacyRegistryPermissions`, or grant a repository role |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
