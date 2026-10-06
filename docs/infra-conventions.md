@@ -115,8 +115,8 @@ role names short and stable (`api`, `worker`, `migrations`).
 
 ### 3.1 Globally unique names
 
-Key Vault, Service Bus namespaces, storage accounts and container registries
-share a global namespace, so the pattern alone is not enough — someone else may
+Key Vault, Service Bus namespaces, Azure Managed Redis caches, storage accounts and
+container registries share a global namespace, so the pattern alone is not enough — someone else may
 already hold `kv-ee-dev-eus`. Append a deterministic suffix:
 
 ```bicep
@@ -149,6 +149,7 @@ creedeveus                 container registry (one per subscription, no env)
 | Container registry | 5–50 | alphanumeric | No hyphens at all. |
 | PostgreSQL Flexible Server | 3–63 | lowercase alphanumeric + `-` | Globally unique within the region. |
 | Service Bus namespace | 6–50 | alphanumeric + `-` | Must start with a letter, end alphanumeric. |
+| Azure Managed Redis | 1–60 | alphanumeric + single `-` | Becomes `<name>.<region>.redis.azure.net`, so it takes the §3.1 suffix. |
 | Container App | 2–32 | lowercase alphanumeric + `-` | The tightest limit in the stack — keep role names short. |
 
 Check the limit **before** adding a role segment. `ca-ee-migrations-prod-eus-001`
@@ -180,7 +181,7 @@ as every other Azure estate and every doc you will search.
 | Service Bus namespace | `sbns` | P0-058.4 |
 | Service Bus topic | `sbt` | P0-058.4 |
 | Service Bus subscription | `sbts` | P0-058.4 |
-| Azure Cache for Redis | `redis` | P0-058.5 |
+| Azure Managed Redis | `amr` | P0-058.5 ([ADR-0008](./adr/0008-azure-managed-redis.md)) |
 | User-assigned managed identity | `id` | P0-062.1 |
 | Container registry | `cr` | container build pipeline |
 | Storage account | `st` | diagnostics only — blobs live in R2 |
@@ -268,7 +269,7 @@ billing alert from P0-003.
 | PostgreSQL Flexible | Burstable `B1ms`, 32 GB, no HA | General Purpose, zone-redundant HA | The single largest line item. Burstable is fine until real traffic. |
 | Container Apps | Consumption, scale-to-zero | Consumption, min 1 replica | Scale-to-zero makes dev nearly free; prod keeps a warm replica so the first request of the day is not a cold start. |
 | Service Bus | **Standard** | **Standard** | **Basic has no topics — only queues.** The outbox publishes to a topic (P0-050.2.2, P0-051), so Basic cannot work even in dev. Budget for it. |
-| Redis | Basic `C0` | Standard `C1` | Basic has no replica and no SLA; acceptable for a cache, not for prod locks. |
+| Redis | Azure Managed Redis `Balanced_B0`, HA off | `Balanced_B1`, HA on | Azure Cache for Redis (Basic/Standard/Premium) can no longer be created — [ADR-0008](./adr/0008-azure-managed-redis.md). Without HA there is no replica and no SLA; acceptable for a cache, not for prod locks. |
 | Log Analytics | Pay-as-you-go, **daily cap** | Pay-as-you-go, daily cap | Set the cap. Ingestion is the classic runaway bill — a logging loop can outspend the database in a day. |
 | Key Vault | Standard | Standard | Cost is per operation and negligible. Soft-delete and purge protection stay **on** in every environment. |
 

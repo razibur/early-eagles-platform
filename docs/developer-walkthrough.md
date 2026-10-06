@@ -1089,6 +1089,46 @@ reference fails with `BCP189: module reference scheme "D" is not recognized` —
 the drive letter as a registry scheme (`br:`, `ts:`). Always reference modules relative to
 the calling file.
 
+### 12.10 `redis.bicep` (P0-058.5)
+
+Resource-group scoped. **Azure Managed Redis** (`Microsoft.Cache/redisEnterprise`), not the
+classic Azure Cache for Redis (`Microsoft.Cache/redis`) — the classic tiers stopped accepting new
+instances on 2026-10-01 ([ADR-0008](./adr/0008-azure-managed-redis.md)). Two resources: the
+cache (`amr-ee-<env>-<region>-<unique>`, a DNS name so it takes the §3.1 suffix) and its one
+database, which must be named `default`.
+
+```bicep
+module redis 'modules/redis.bicep' = {
+  name: 'redis'
+  scope: resourceGroup(rgName)
+  params: { name: 'amr-ee-dev-eus-${unique}', location: location, tags: tags,
+            skuName: 'Balanced_B0', highAvailability: false }
+}
+```
+
+`highAvailability` has no default on purpose — every environment file has to say whether it
+wants a replica (off in dev/stg, on in prod per conventions §7).
+
+Fixed in the module:
+
+- **Access keys disabled** on the database. There is no password; the API connects with an Entra
+  token (`Microsoft.Azure.StackExchangeRedis`). Access is granted with an **access-policy
+  assignment** on the database (P0-062.3), not an Azure RBAC role.
+- **TLS only, port 10000.** Not 6380 like the classic product.
+- **No persistence.** Cache and locks only — durable state belongs in Postgres.
+- **`clusteringPolicy` defaults to `NoCluster`**: one endpoint, so multi-key commands and Lua
+  lock scripts behave like a plain Redis.
+
+▶ Reference: [`infra/modules/redis.bicep`](../infra/modules/redis.bicep)
+
+⚠ **Gotcha — clustering policy is (mostly) create-time.** `NoCluster` can later be switched to
+`OSSCluster`/`EnterpriseCluster` in place; the reverse, or switching between the two clustered
+policies, means deleting the database. That's why the default is the one that can still move.
+
+⚠ **Gotcha — "Azure Cache for Redis" tutorials are now the wrong product.** Most samples still
+show `Microsoft.Cache/redis` with `sku: { name: 'Basic', family: 'C', capacity: 0 }`. It builds
+fine and fails at deploy with a creation-blocked error. Use `Microsoft.Cache/redisEnterprise`.
+
 ---
 
 ## 13. Not-yet-built (and where it goes)
@@ -1103,8 +1143,8 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Audit query endpoint** (P0-048) | not started | tenant-admin-scoped, paginated read over `audit_events` |
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
-| **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks, messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.4 modules (Postgres, Container Apps environment, Container App, Service Bus) and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
+| **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis) and the shared tag type exist (§12), the remaining modules and `main.<env>.bicep` do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -1182,6 +1222,8 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Container Apps environment has no *Logs* blade in the portal | logs destination is `azure-monitor` | query the Log Analytics workspace directly |
 | New Container App revision never becomes healthy | liveness/readiness probe on a path the image doesn't serve | leave `livenessPath`/`readinessPath` empty for placeholder images |
 | Service Bus rejects a connection string / SAS token (auth failure) | namespace has SAS keys disabled | authenticate with Entra (`DefaultAzureCredential`) + a data role |
+| Redis deploy fails: creation blocked / SKU unavailable | `Microsoft.Cache/redis` (Azure Cache for Redis) — closed to new instances since 2026-10-01 | use `Microsoft.Cache/redisEnterprise` (Azure Managed Redis), ADR-0008 |
+| Redis client can't connect on 6380 / rejects the access key | Azure Managed Redis listens on **10000** and has access keys disabled | port 10000 + Entra token via `Microsoft.Azure.StackExchangeRedis` |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---

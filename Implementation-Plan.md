@@ -704,6 +704,16 @@ environment segment, but its example name (`creedeveus`) contains `dev`. Decide 
 per-environment), then fix §3.2 in the same change. `P0-084` (deploy backend to dev) now also
 depends on `P0-062.4`.
 
+### Redis product change (2026-10-06)
+
+`P0-058.5` was planned as "Standard SKU, network ACLs" on Azure Cache for Redis. That product
+stopped accepting new instances on 2026-10-01, so the task was delivered on **Azure Managed
+Redis** instead — see [ADR-0008](./docs/adr/0008-azure-managed-redis.md). Changes that follow:
+
+- `P0-058.5` verify becomes: after deploy, `redis-cli -h <host> -p 10000 --tls --user <objectId> --pass <entra token> ping` returns `PONG` (carried to `P0-059.3`).
+- `P0-062.3` also covers Redis: an `accessPolicyAssignments` entry on the cache's `default` database for the API's managed identity (not an Azure RBAC role).
+- There are no "network ACLs" to set in Phase 0: Azure Managed Redis has no IP firewall, only public/private access. Public + Entra-only is the Phase 0 position; private endpoints stay Phase 7 (conventions §9).
+
 ---
 
 ## Sequencing notes

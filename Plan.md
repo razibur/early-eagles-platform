@@ -87,7 +87,7 @@ Companion documents:
 |---|---|
 | Backend | ASP.NET Core 10 Web API + Clean Architecture + EF Core 10 + tenant middleware (per [ADR-0006](./docs/adr/0006-target-dotnet-10-lts.md)) |
 | Database | Azure Database for PostgreSQL — Flexible Server (HA, point-in-time recovery, read replicas) |
-| Cache + locks | Azure Cache for Redis |
+| Cache + locks | Azure Managed Redis ([ADR-0008](./docs/adr/0008-azure-managed-redis.md)) |
 | Message bus | Azure Service Bus (domain events) |
 | Realtime | SignalR + Azure SignalR Service (managed scale-out) |
 | Auth | Clerk B2B (Organizations) — Google + email magic link + phone OTP, MFA, B2B SSO upgrade |
