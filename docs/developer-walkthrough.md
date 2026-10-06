@@ -1199,6 +1199,33 @@ known when the deployment starts, so it can't come from another module's output.
 `resourceGroupName` variable and add `dependsOn: [rg]` instead. Modules that already consume an
 output (App Insights, the Container Apps env, the app) get the dependency implicitly.
 
+### 12.13 `main.dev.bicepparam` — dev values (P0-059.2)
+
+Shared dev values are committed (`owner`, `costCenter`, a **1 GB/day** log cap). Values tied to a
+person or machine come from environment variables, so set them in the shell before building or
+deploying:
+
+```pwsh
+az login                                   # into the project tenant/subscription
+$env:EE_PG_ADMIN_OBJECT_ID = az ad signed-in-user show --query id -o tsv
+$env:EE_PG_ADMIN_NAME      = az ad signed-in-user show --query userPrincipalName -o tsv
+$env:EE_OPERATOR_IP        = (Invoke-RestMethod https://api.ipify.org)   # optional: lets you psql in
+# $env:EE_SANDBOX          = 'true'                                       # throwaway deploy (P0-059.3)
+
+az bicep build-params --file infra/main.dev.bicepparam   # sanity check
+```
+
+The two `EE_PG_ADMIN_*` variables have no default: if either is missing, Bicep stops with `BCP427`
+before anything is sent to Azure. The operator IP is optional. Without it Postgres has no
+firewall rules, which is fine until you want to `psql` in from your machine.
+
+▶ Reference: [`infra/main.dev.bicepparam`](../infra/main.dev.bicepparam)
+
+⚠ **Gotcha — a guest account's UPN isn't its email.** A Microsoft account (e.g. an outlook.com
+address) invited into a tenant has a UPN like `name_outlook.com#EXT#@tenant.onmicrosoft.com`. Use
+the value `az ad signed-in-user show` returns, not the email address. It's also the user name
+`psql` expects.
+
 ---
 
 ## 13. Not-yet-built (and where it goes)
@@ -1214,7 +1241,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module and `main.dev.bicep` exist (§12.12); the dev parameter file, `main.shared.bicep` and the staging/prod entry points do not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module, `main.dev.bicep` and its parameter file exist (§12.12–12.13); `main.shared.bicep` and the staging/prod entry points do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -1296,6 +1323,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Redis client can't connect on 6380 / rejects the access key | Azure Managed Redis listens on **10000** and has access keys disabled | port 10000 + Entra token via `Microsoft.Azure.StackExchangeRedis` |
 | Container App can't pull (`UNAUTHORIZED`) despite an `AcrPull` assignment | registry in ABAC role-assignment mode | keep `roleAssignmentMode: LegacyRegistryPermissions`, or grant a repository role |
 | Real dev deploy fails: Key Vault name already in use, but nothing is in `rg-ee-dev-eus` | an earlier throwaway deploy used the real name; the deleted vault is purge-protected | deploy throwaways with `sandbox = true`; otherwise wait out retention or recover the vault |
+| `BCP427: Environment variable "EE_PG_ADMIN_OBJECT_ID" does not exist` | `main.dev.bicepparam` reads the Postgres admin from the shell | set `EE_PG_ADMIN_OBJECT_ID` / `EE_PG_ADMIN_NAME` (§12.13) |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
