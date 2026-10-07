@@ -20,7 +20,7 @@ Last updated: 2026-09-28
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~45% (88 / ~195 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~46% (90 / ~195 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -312,10 +312,11 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-059.3** Deploy `main.dev.bicep` to throwaway RG; verify healthy
 - `[x]` **P0-059.4** `infra/main.shared.bicep` + `.bicepparam`: `rg-ee-shared-eus` + the shared registry — added 2026-10-06 (P0-058.6)
   ↳ verify: `az bicep build --file infra/main.shared.bicep` and `az bicep build-params --file infra/main.shared.bicepparam` succeed and lint clean. [`main.shared.bicep`](./infra/main.shared.bicep) is subscription-scoped: `resourceGroup` (`rg-ee-shared-eus`) → `containerRegistry` (`cree` + `shared` + `eus` + suffix seeded with `'shared'`, Basic), tags `env: shared`. Outputs `resourceGroupName`, `registryId` (AcrPull scope, P0-062.4) and `registryLoginServer`. No sandbox switch — nothing in it is purge-protected. [`main.shared.bicepparam`](./infra/main.shared.bicepparam) commits `owner`/`costCenter` only; nothing person-specific, so no environment variables. Deploy once per subscription (`ee-shared-<yyyyMMdd>-<HHmm>`) before P0-062.4; the `az acr show` acceptance needs the subscription.
-- `[~]` **P0-060** `infra/main.staging.bicep` — **split** 2026-10-06, see [Implementation-Plan appendix](./Implementation-Plan.md#p0-060-split-2026-10-06)
+- `[x]` **P0-060** `infra/main.staging.bicep` — **split** 2026-10-06, see [Implementation-Plan appendix](./Implementation-Plan.md#p0-060-split-2026-10-06)
 - `[x]` **P0-060.1** Extract the environment wiring into `infra/environment.bicep`; `main.dev.bicep` becomes a thin caller
   ↳ verify: `az bicep build` + lint clean on both files, and the compiled dev template is **equivalent to before the refactor** — checked by script: all nine module inner templates byte-identical, every module parameter equal once `sizing` references are resolved (the only textual diffs are `variables('environment')` → `parameters('environment')`, literal → `[literal]`, and `geoRedundantBackup: 'Disabled'` now passed explicitly — the module default), derived variables (`unique`, `resourceGroupName`, `postgresName`, tags) identical, same outputs. `main.dev.bicepparam` unchanged and still resolves. [`environment.bicep`](./infra/environment.bicep) holds the wiring, names, tags and sandbox logic, and exports `environmentSizing`, `firewallRule` and `topic`; `environment` is typed `'dev'|'stg'|'prod'` (not `shared`). Each `main.<env>.bicep` now only fixes its env code + a typed §7 `sizing` object (log retention; Postgres SKU/tier/storage/backup/HA/geo-backup; Redis SKU/HA; API cpu/min/max replicas). One intended change: nested deployment names gain a level (`ee-dev-…-env-psql`).
-- `[ ]` **P0-060.2** `infra/main.staging.bicep` + `main.staging.bicepparam` on top of `environment.bicep`
+- `[x]` **P0-060.2** `infra/main.staging.bicep` + `main.staging.bicepparam` on top of `environment.bicep`
+  ↳ verify: `az bicep build` / `build-params` succeed and lint clean (params with `EE_PG_ADMIN_*` set; without them, `BCP427` ×2). [`main.staging.bicep`](./infra/main.staging.bicep) passes `environment: 'stg'` and the §7 stg sizing — **identical to dev today** (checked: compiled `sizing` equal, compiled `environment.bicep` template identical); staging is production-shaped in topology, not size, and gets resized here when there's a reason to load-test. Same parameters as dev minus `sandbox`, which is hard-wired `false` (the sandbox RG is shared; throwaway deploys use `main.dev.bicep`). [`main.staging.bicepparam`](./infra/main.staging.bicepparam) mirrors the dev one (owner/costCenter, 1 GB/day cap, admin + optional operator IP from the environment). The plan's "staging env deployed" acceptance needs the subscription — carried with P0-059.3.
 - `[ ]` **P0-061** `infra/main.prod.bicep` (empty, no traffic)
 - `[ ]` **P0-062.1** Assign managed identity to Container App
 - `[ ]` **P0-062.2** Grant identity access to Postgres (Azure AD auth)
