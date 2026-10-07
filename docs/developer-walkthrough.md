@@ -1178,7 +1178,7 @@ What goes where:
   `costCenter`, the Postgres Entra admin, operator IPs for `psql`, and the Log Analytics daily cap,
   which is required and has no default.
 
-Module deployments are named `<top-level deployment name>-<module>` (e.g.
+Module deployments are named `<top-level deployment name>-<module>` (since P0-060.1 with an `-env` level in between; e.g.
 `ee-dev-20261006-1430-psql`), so the per-run history §6 asks for is kept at every level.
 
 Deliberately not wired yet: the shared container registry (its own `main.shared.bicep`,
@@ -1243,6 +1243,37 @@ and `registryLoginServer` is the image prefix CI pushes to.
 
 ▶ Reference: [`infra/main.shared.bicep`](../infra/main.shared.bicep)
 
+### 12.15 `environment.bicep` — one wiring for every environment (P0-060.1)
+
+Once a second environment was coming, `main.dev.bicep`'s body moved into
+[`infra/environment.bicep`](../infra/environment.bicep): the module graph from §12.12, every
+resource name, the tag object and the sandbox logic. Each `main.<env>.bicep` is now a thin caller
+that fixes two things:
+
+- `environment`: `'dev'`, `'stg'` or `'prod'`. `'shared'` is rejected; that's `main.shared.bicep`.
+- `sizing`: a typed `environmentSizing` object holding the §7 column for that environment.
+
+```bicep
+import { environmentSizing } from 'environment.bicep'
+
+var sizing environmentSizing = {
+  logRetentionInDays: 30
+  postgres: { skuName: 'Standard_B1ms', skuTier: 'Burstable', storageSizeGB: 32,
+              backupRetentionDays: 7, highAvailabilityMode: 'Disabled', geoRedundantBackup: 'Disabled' }
+  redis:    { skuName: 'Balanced_B0', highAvailability: false }
+  api:      { cpu: '0.25', minReplicas: 0, maxReplicas: 1 }
+}
+```
+
+The environments can now differ only in the values they pass, never in how resources are wired.
+The parameter files are untouched: `main.dev.bicep` kept exactly the same parameters.
+
+How the refactor was checked: compile `main.dev.bicep` before and after, then compare each
+module's inner template (identical) and parameters (equal once the `sizing` references are
+resolved). Nested deployment names gain one level, e.g. `ee-dev-20261006-1430-env-psql`.
+
+▶ Reference: [`infra/environment.bicep`](../infra/environment.bicep)
+
 ---
 
 ## 13. Not-yet-built (and where it goes)
@@ -1258,7 +1289,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module, `main.dev.bicep` + its parameter file and `main.shared.bicep` exist (§12.12–12.14); the staging/prod entry points do not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, `main.dev.bicep` + its parameter file and `main.shared.bicep` exist (§12.12–12.15); the staging/prod entry points do not, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))

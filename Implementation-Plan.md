@@ -724,6 +724,19 @@ Redis** instead — see [ADR-0008](./docs/adr/0008-azure-managed-redis.md). Chan
 - `P0-062.3` also covers Redis: an `accessPolicyAssignments` entry on the cache's `default` database for the API's managed identity (not an Azure RBAC role).
 - There are no "network ACLs" to set in Phase 0: Azure Managed Redis has no IP firewall, only public/private access. Public + Entra-only is the Phase 0 position; private endpoints stay Phase 7 (conventions §9).
 
+### P0-060 split (2026-10-06)
+
+`P0-060` bundled two things: a refactor (stop `main.dev.bicep` being the only place the
+environment wiring lives) and a new environment. Split so the refactor can be proven to change
+nothing before staging is built on it.
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-060.1 | Extract the wiring into `infra/environment.bicep`; `main.dev.bicep` passes env code + §7 sizing | P0-059.1 | Compiled dev template equivalent to before (module templates identical, parameters equal) |
+| P0-060.2 | `infra/main.staging.bicep` + `main.staging.bicepparam` | P0-060.1 | `bicep build` / `build-params` succeed; staging deploy carried to the first real deploy |
+
+`P0-061` (`main.prod.bicep`) builds on `P0-060.1` the same way.
+
 ---
 
 ## Sequencing notes
