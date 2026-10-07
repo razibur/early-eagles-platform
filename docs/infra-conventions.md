@@ -34,14 +34,13 @@ Task ID: **P0-056** in [PROGRESS.md](../PROGRESS.md) and
 ## 1. Subscription and resource-group layout
 
 One Azure subscription, one resource group per deployed environment. Since
-[ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md) only prod (and the shared registry) stands permanently.
+[ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md) only prod stands permanently; container images live on GitHub Container Registry ([ADR-0010](./adr/0010-ghcr-instead-of-acr.md)), not in Azure.
 
 | Environment | Code | Resource group | Purpose |
 |---|---|---|---|
 | Development | `dev` | *(none — local)* | Runs on the developer's machine with `docker compose` (Postgres + Service Bus emulator, P0-059.5) — [ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md). `rg-ee-dev-eus` exists only if a cloud dev is stood up on purpose. |
 | Staging | `stg` | `rg-ee-stg-eus` | Production-shaped. **On demand**: deployed for a release rehearsal, then torn down. |
 | Production | `prod` | `rg-ee-prod-eus` | Deployed only on manual approval. |
-| Shared | `shared` | `rg-ee-shared-eus` | Subscription-wide resources every environment uses — today only the container registry. Deployed by `main.shared.bicep` (P0-059.4) before any environment. |
 
 A single subscription keeps one bill, one set of quotas and one place to look —
 which is right for a solo operator on a $50–80/month envelope. **Split
@@ -142,16 +141,13 @@ Storage accounts and container registries allow lowercase alphanumerics only,
 
 ```
 steedeveus<unique>         storage account
-creesharedeus<unique>      container registry (one per subscription, env = shared)
 ```
 
-There is **one container registry**, shared by every environment and living in
-`rg-ee-shared-eus` (settled in P0-058.6). CI builds an image once and dev,
-staging and prod run that same digest — what reaches prod is byte-for-byte what
-was tested, and there is one ~$5/month registry instead of three. Its suffix is
-seeded with `'shared'` as the environment, like any other §3.1 name. A per-env
-registry becomes worth it only if prod moves to its own subscription (§1,
-Phase 7); then images are promoted with `az acr import`, which keeps the digest.
+There is **no Azure container registry** ([ADR-0010](./adr/0010-ghcr-instead-of-acr.md)). Images are published to
+`ghcr.io/razibur/early-eagles-api`; CI builds an image once and staging and prod
+run that same digest. If an Azure registry is ever needed again, it is one per
+subscription with no environment segment (the removed design is in git history,
+P0-058.6).
 
 ### 3.3 Length limits that actually bite
 
@@ -196,7 +192,7 @@ as every other Azure estate and every doc you will search.
 | Service Bus subscription | `sbts` | P0-058.4 |
 | Azure Managed Redis | `amr` | P0-058.5 ([ADR-0008](./adr/0008-azure-managed-redis.md)) |
 | User-assigned managed identity | `id` | P0-062.1 |
-| Container registry | `cr` | P0-058.6 (shared, §3.2) |
+| Container registry | `cr` | not used — images on ghcr.io ([ADR-0010](./adr/0010-ghcr-instead-of-acr.md)) |
 | Storage account | `st` | diagnostics only — blobs live in R2 |
 | SignalR Service | `sigr` | Phase 3 |
 
@@ -214,7 +210,7 @@ once and passes it down.
 
 The rule is enforced by the compiler: type every module's `tags` parameter as
 `requiredTags` from [`infra/types.bicep`](../infra/types.bicep). A missing
-required tag, or an `env` outside `dev`/`stg`/`prod`/`shared`, then fails `bicep build`.
+required tag, or an `env` outside `dev`/`stg`/`prod`, then fails `bicep build`.
 
 | Tag | Example | Why it exists |
 |---|---|---|
@@ -285,7 +281,7 @@ billing alert from P0-003.
 | Redis | **Not deployed yet**; then Azure Managed Redis `Balanced_B0`, HA off | Not deployed yet; then `Balanced_B1`, HA on | Nothing uses Redis yet, so no environment pays ~$13/month for it (ADR-0008 allows leaving it out). Add the `redis` block to an environment's `sizing` when a feature needs a cache or locks. Azure Cache for Redis can no longer be created — [ADR-0008](./adr/0008-azure-managed-redis.md). |
 | Log Analytics | Pay-as-you-go, **daily cap** | Pay-as-you-go, daily cap | Set the cap. Ingestion is the classic runaway bill — a logging loop can outspend the database in a day. |
 | Key Vault | Standard | Standard | Cost is per operation and negligible. Soft-delete and purge protection stay **on** in every environment. |
-| Container registry | Basic (one, shared) | — | ~$5/month, 10 GB included. Geo-replication, private endpoints and retention policies are Premium-only and not needed before Phase 7. Admin user and anonymous pull stay **off**. |
+| Container images | GitHub Container Registry | GitHub Container Registry | $0 — GHCR storage and bandwidth are currently free ([ADR-0010](./adr/0010-ghcr-instead-of-acr.md)). Private images; Container Apps pull with a `read:packages` token from Key Vault. |
 
 **Cost posture (2026-10-06): as close to free as possible.** Every environment
 runs the cheapest configuration that works, and anything nothing uses yet is left
@@ -293,10 +289,11 @@ out instead of provisioned "for later". Optional resources (Redis, Service Bus)
 are present in an environment only when its `sizing` object includes them
 ([`environment.bicep`](../infra/environment.bicep)), so turning one on is a
 one-block change in `main.<env>.bicep`. Rough steady state: Postgres ~$16/month
-per deployed environment (compute + 32 GB), Service Bus ~$10 per namespace, the
-shared registry ~$5; Container Apps, Key Vault and Log Analytics stay within free
-grants at this traffic. Dev runs locally ([ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md)), so the standing bill is
-roughly **$21/month for prod + registry**, about $16 more while staging is
+per deployed environment (compute + 32 GB), Service Bus ~$10 per namespace;
+Container Apps, Key Vault and Log Analytics stay within free grants at this
+traffic, and images live on GHCR for free ([ADR-0010](./adr/0010-ghcr-instead-of-acr.md)). Dev runs locally
+([ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md)), so the standing
+bill is roughly **$16/month for prod**, about $16 more while staging is
 deployed. The dev column below is what `main.dev.bicep` deploys for a sandbox
 smoke test, not a standing environment.
 Moving up a tier is a deliberate decision recorded here.

@@ -750,6 +750,18 @@ machine; prod is the only standing Azure environment, staging is on demand. Task
 | P0-084 | Was "deploy backend to dev on `main` merge" → **build, test and push the image to the shared registry on `main` merge; no deploy.** Depends on P0-059.4 instead of P0-059.3. |
 | P0-086 | Staging deploy on `v*-staging` tag stays, but staging is torn down afterwards (on-demand). |
 
+### Registry moves to GHCR (2026-10-06)
+
+[ADR-0010](./docs/adr/0010-ghcr-instead-of-acr.md): images are published to
+`ghcr.io/razibur/early-eagles-api` instead of an Azure Container Registry. `P0-058.6` and
+`P0-059.4` stay marked done but their files are removed (recoverable from git). Task changes:
+
+| ID | Change |
+|---|---|
+| P0-062.4 | **Redefined:** store a GitHub token scoped to `read:packages` in Key Vault; give `containerApp.bicep` an optional private-registry block (`server: ghcr.io`, username, password secret as a Key Vault reference via the managed identity). Verify: the Container App pulls the private image. Depends on P0-062.1, P0-062.3. |
+| P0-084 | Pushes to `ghcr.io` with `GITHUB_TOKEN` (`packages: write`); no Azure login needed to publish. No longer depends on P0-059.4. |
+| P0-063 | The infra runbook adds rotating the `read:packages` token before it expires. |
+
 ---
 
 ## Sequencing notes

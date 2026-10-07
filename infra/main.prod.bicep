@@ -49,7 +49,7 @@ param postgresAllowAzureServices bool = false
 @description('Service Bus topics and subscriptions. Chosen by P0-051.')
 param serviceBusTopics topic[] = []
 
-@description('API image. Must be publicly pullable until P0-062.4 wires the shared registry; CI deploys the digest staging ran (P0-087).')
+@description('API image. Must be publicly pullable until P0-062.4 wires the ghcr.io pull token (ADR-0010); CI deploys the digest staging ran (P0-087).')
 param apiImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 
 @description('Port the API image listens on. The placeholder serves 80.')

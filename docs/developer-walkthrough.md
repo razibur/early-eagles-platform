@@ -793,7 +793,7 @@ tags (`dataClassification`, `criticality`) through.
 ```bicep
 @export()
 type requiredTags = {
-  env: environmentCode          // 'dev' | 'stg' | 'prod' | 'shared'
+  env: environmentCode          // 'dev' | 'stg' | 'prod'
   workload: 'early-eagles'
   owner: string
   costCenter: string
@@ -1129,32 +1129,14 @@ policies, means deleting the database. That's why the default is the one that ca
 show `Microsoft.Cache/redis` with `sku: { name: 'Basic', family: 'C', capacity: 0 }`. It builds
 fine and fails at deploy with a creation-blocked error. Use `Microsoft.Cache/redisEnterprise`.
 
-### 12.11 `containerRegistry.bicep` (P0-058.6)
+### 12.11 ~~`containerRegistry.bicep`~~ (P0-058.6) — removed
 
-Resource-group scoped, but unlike every module before it, **not per environment**. There is one
-registry for the whole subscription, in `rg-ee-shared-eus`, tagged `env: shared` (a fourth
-`environmentCode` added for this). CI builds an image once and pushes it here; dev, staging and
-prod each pull that same digest, so prod runs exactly what was tested. It is deployed by
-`main.shared.bicep` (P0-059.4), before any `main.<env>.bicep`.
-
-Registry names allow no hyphens, so the pattern collapses: `creesharedeus<unique>` (18 chars).
-
-Fixed in the module:
-
-- **Admin user off.** It's one shared username/password with push rights. CI pushes through
-  Entra (GitHub OIDC); Container Apps pull with their managed identity.
-- **Anonymous pull off.** Images are private.
-- **`roleAssignmentMode: 'LegacyRegistryPermissions'`**. See the gotcha below.
-
-The `loginServer` output (`<name>.azurecr.io`) is the prefix of every image reference.
-
-▶ Reference: [`infra/modules/containerRegistry.bicep`](../infra/modules/containerRegistry.bicep)
-
-⚠ **Gotcha — in ABAC mode `AcrPull` doesn't grant pull.** Registries can use
-`roleAssignmentMode: 'AbacRepositoryPermissions'`, where data access comes from
-repository-scoped roles (*Container Registry Repository Reader*, …) and the classic
-`AcrPull`/`AcrPush` stop working for data. The module pins legacy mode so P0-062.4's `AcrPull`
-assignment does what it says.
+Built as one Basic Azure Container Registry shared by all environments, then **removed by
+[ADR-0010](./adr/0010-ghcr-instead-of-acr.md)**: images now live on GitHub Container Registry
+(`ghcr.io/razibur/early-eagles-api`), where private image storage and bandwidth are currently free.
+CI pushes with its built-in `GITHUB_TOKEN`. The Container App pulls with a `read:packages`
+token kept in Key Vault (P0-062.4); Container Apps can't use a managed identity against GHCR.
+The module is recoverable from commit `208637a` if GitHub ever starts charging.
 
 ### 12.12 `main.dev.bicep` — the dev environment (P0-059.1)
 
@@ -1185,8 +1167,7 @@ What goes where:
 Module deployments are named `<top-level deployment name>-<module>` (since P0-060.1 with an `-env` level in between; e.g.
 `ee-dev-20261006-1430-env-psql`), so the per-run history §6 asks for is kept at every level.
 
-Deliberately not wired yet: the shared container registry (its own `main.shared.bicep`,
-P0-059.4), managed identity and role assignments (P0-062.\*), app env vars and health probes
+Deliberately not wired yet: pulling the private image from ghcr.io (P0-062.4, [ADR-0010](./adr/0010-ghcr-instead-of-acr.md)), managed identity and role assignments (P0-062.\*), app env vars and health probes
 (with the real API image, P0-084), and Service Bus topics (P0-051 passes `serviceBusTopics`).
 
 ▶ Reference: [`infra/main.dev.bicep`](../infra/main.dev.bicep)
@@ -1230,22 +1211,11 @@ address) invited into a tenant has a UPN like `name_outlook.com#EXT#@tenant.onmi
 the value `az ad signed-in-user show` returns, not the email address. It's also the user name
 `psql` expects.
 
-### 12.14 `main.shared.bicep` — subscription-wide resources (P0-059.4)
+### 12.14 ~~`main.shared.bicep`~~ (P0-059.4) — removed
 
-The shared entry point, deployed **once per subscription** and before anything that pulls images.
-Today it holds only the container registry (§12.11): it creates `rg-ee-shared-eus` and
-`creesharedeus<suffix>` (Basic) inside it, tagged `env: shared`.
-
-```pwsh
-az deployment sub create --name ee-shared-$(Get-Date -Format yyyyMMdd-HHmm) --location eastus `
-  --template-file infra/main.shared.bicep --parameters infra/main.shared.bicepparam
-```
-
-Its parameter file only sets the `owner`/`costCenter` tags; nothing in it is person-specific.
-The `registryId` output is the scope each environment's `AcrPull` assignment targets (P0-062.4),
-and `registryLoginServer` is the image prefix CI pushes to.
-
-▶ Reference: [`infra/main.shared.bicep`](../infra/main.shared.bicep)
+Deployed the shared registry's resource group (`rg-ee-shared-eus`). Removed together with the
+registry by [ADR-0010](./adr/0010-ghcr-instead-of-acr.md), along with the `shared` environment
+code in `types.bicep`. Recoverable from commit `8cf194d`.
 
 ### 12.15 `environment.bicep` — one wiring for every environment (P0-060.1)
 
@@ -1254,7 +1224,7 @@ Once a second environment was coming, `main.dev.bicep`'s body moved into
 resource name, the tag object and the sandbox logic. Each `main.<env>.bicep` is now a thin caller
 that fixes two things:
 
-- `environment`: `'dev'`, `'stg'` or `'prod'`. `'shared'` is rejected; that's `main.shared.bicep`.
+- `environment`: `'dev'`, `'stg'` or `'prod'`.
 - `sizing`: a typed `environmentSizing` object holding the §7 column for that environment.
 
 ```bicep
@@ -1344,7 +1314,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files, and `main.shared.bicep` exist (§12.12–12.17), sized for minimum cost, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions: build + push on `main` merge, staging on demand, manual prod promote ([ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md) — dev runs locally) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -1424,10 +1394,10 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Service Bus rejects a connection string / SAS token (auth failure) | namespace has SAS keys disabled | authenticate with Entra (`DefaultAzureCredential`) + a data role |
 | Redis deploy fails: creation blocked / SKU unavailable | `Microsoft.Cache/redis` (Azure Cache for Redis) — closed to new instances since 2026-10-01 | use `Microsoft.Cache/redisEnterprise` (Azure Managed Redis), ADR-0008 |
 | Redis client can't connect on 6380 / rejects the access key | Azure Managed Redis listens on **10000** and has access keys disabled | port 10000 + Entra token via `Microsoft.Azure.StackExchangeRedis` |
-| Container App can't pull (`UNAUTHORIZED`) despite an `AcrPull` assignment | registry in ABAC role-assignment mode | keep `roleAssignmentMode: LegacyRegistryPermissions`, or grant a repository role |
 | Real dev deploy fails: Key Vault name already in use, but nothing is in `rg-ee-dev-eus` | an earlier throwaway deploy used the real name; the deleted vault is purge-protected | deploy throwaways with `sandbox = true`; otherwise wait out retention or recover the vault |
 | `BCP427: Environment variable "EE_PG_ADMIN_OBJECT_ID" does not exist` | `main.dev.bicepparam` reads the Postgres admin from the shell | set `EE_PG_ADMIN_OBJECT_ID` / `EE_PG_ADMIN_NAME` (§12.13) |
 | `BCP318: The value of type "module | null" may be null` | reading an output of a module that has an `if` | use `mod.?outputs.?x ?? <fallback>` |
+| Container App can't pull the `ghcr.io` image (`UNAUTHORIZED`) | image is private; the app has no registry credentials, or the `read:packages` token expired | wire / rotate the token (P0-062.4, [ADR-0010](./adr/0010-ghcr-instead-of-acr.md)) |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---

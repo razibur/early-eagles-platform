@@ -4,7 +4,7 @@
 // code and §7 sizing. Extracted from main.dev.bicep so the environments
 // cannot drift apart in wiring — only in the values they pass.
 //
-// Not here: the container registry (shared, main.shared.bicep), managed
+// Not here: a container registry (images live on ghcr.io, ADR-0010), managed
 // identity and role assignments (P0-062.*), Service Bus topics (passed in by
 // P0-051).
 //
@@ -61,7 +61,7 @@ type environmentSizing = {
   }
 }
 
-@description('Environment code (infra-conventions §1). shared is not an environment — see main.shared.bicep.')
+@description('Environment code (infra-conventions §1).')
 param environment 'dev' | 'stg' | 'prod'
 
 @description('This environment\'s §7 sizing.')

@@ -1,9 +1,9 @@
 // Shared user-defined types for every module under infra/.
 // See docs/infra-conventions.md — this file is the compile-time half of §5.
 
-@description('Environment code. Matches the <env> segment of every resource name (infra-conventions §1). shared is for the few subscription-wide resources every environment uses, such as the container registry.')
+@description('Environment code. Matches the <env> segment of every resource name (infra-conventions §1).')
 @export()
-type environmentCode = 'dev' | 'stg' | 'prod' | 'shared'
+type environmentCode = 'dev' | 'stg' | 'prod'
 
 // The five tags every resource must carry (infra-conventions §5). Typing the
 // `tags` parameter with this makes a missing required tag a build error rather
