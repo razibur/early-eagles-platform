@@ -1,0 +1,65 @@
+# P0-059.5 — the local dev stack (ADR-0009: dev runs locally, not in Azure).
+#
+#   docker compose up -d                  # Postgres only — enough for the API today
+#   docker compose --profile bus up -d    # + Azure Service Bus emulator (outbox work, P0-051)
+#   docker compose down                   # stop (data kept in the pgdata volume)
+#   docker compose down -v                # stop and wipe the database
+#
+# Postgres is published on host port 55432 (override with POSTGRES_PORT), not
+# 5432: a natively installed Windows Postgres usually owns 5432 and silently wins,
+# so tools would talk to the wrong server. Point the API at the container with
+#   ConnectionStrings__Postgres=Host=localhost;Port=55432;Database=earlyeagles;Username=postgres;Password=postgres
+# Same postgres:17 image the integration tests use.
+#
+# The Service Bus emulator is behind the `bus` profile because it needs a SQL
+# Server container and ~2 GB of RAM. It also needs two values in a local .env
+# (copy .env.example): ACCEPT_EULA=Y — your acceptance of the emulator and SQL
+# Server licences — and an MSSQL_SA_PASSWORD. Connect from the host with:
+#   Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;
+# Local-only credentials; nothing here is used in Azure.
+
+name: early-eagles
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: earlyeagles
+    ports:
+      - "${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d earlyeagles"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Backing store for the Service Bus emulator. Not published to the host.
+  mssql:
+    profiles: ["bus"]
+    image: mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04
+    environment:
+      ACCEPT_EULA: "${ACCEPT_EULA:-N}"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-}"
+
+  servicebus:
+    profiles: ["bus"]
+    image: mcr.microsoft.com/azure-messaging/servicebus-emulator:2.0.1
+    volumes:
+      - ./infra/local/servicebus/Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json:ro
+    ports:
+      - "5672:5672"   # AMQP — what the Service Bus client talks to
+      - "5300:5300"   # management + GET /health
+    environment:
+      SQL_SERVER: mssql
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-}"
+      ACCEPT_EULA: "${ACCEPT_EULA:-N}"
+      EMULATOR_HTTP_PORT: "5300"
+    depends_on:
+      - mssql
+
+volumes:
+  pgdata:

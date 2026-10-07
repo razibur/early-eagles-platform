@@ -750,6 +750,64 @@ dotnet test EarlyEagles.slnx
 
 ## 11. Running & verifying locally
 
+Dev runs entirely on your machine ([ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md));
+there is no cloud dev environment. [`docker-compose.yml`](../docker-compose.yml) at the repo root is
+the local stack (P0-059.5):
+
+```bash
+docker compose up -d                  # Postgres 17 on localhost:55432 (db earlyeagles, postgres/postgres)
+docker compose ps                     # postgres should report (healthy)
+docker compose down                   # stop; data survives in the pgdata volume
+docker compose down -v                # stop and wipe the database
+```
+
+It's published on **55432**, not 5432. Point the API (and `dotnet ef`) at it:
+
+```pwsh
+$env:ConnectionStrings__Postgres = "Host=localhost;Port=55432;Database=earlyeagles;Username=postgres;Password=postgres"
+```
+
+Without that variable the API falls back to its built-in default, `localhost:5432`, which on a
+machine with a native Postgres install is that server, not the container. It's the same
+`postgres:17` image the integration tests start through Testcontainers, which use random ports, so
+the two never clash.
+
+⚠ **Gotcha — a native Postgres silently takes 5432.** With the Windows `postgresql-x64-*` service
+running, a container published on `5432:5432` reports the port as bound, but `localhost:5432`
+from Windows still reaches the native server. Migrations, `psql` and the API all succeed against
+the wrong database. That's why the compose file uses 55432. Check with
+`netstat -ano | findstr :5432`.
+
+To create the schema in the container:
+
+```pwsh
+dotnet ef database update --project apps/api/src/EarlyEagles.Infrastructure --startup-project apps/api/src/EarlyEagles.Infrastructure
+```
+
+The Infrastructure project is its own startup project: it has the design-time
+`ApplicationDbContextFactory` and the EF Design package, and the Api project doesn't.
+
+**Service Bus emulator** (only for outbox / messaging work, P0-051). It sits behind the `bus` profile
+because it needs a SQL Server container and ~2 GB of RAM:
+
+```bash
+cp .env.example .env                  # then set ACCEPT_EULA=Y and an MSSQL_SA_PASSWORD
+docker compose --profile bus up -d
+curl http://localhost:5300/health     # emulator management/health port
+```
+
+`ACCEPT_EULA=Y` is your acceptance of the emulator's and SQL Server's licence terms (links in
+`.env.example`), so it isn't set for you. Connect from the host with
+`Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;`.
+Entities are declared in [`infra/local/servicebus/Config.json`](../infra/local/servicebus/Config.json):
+today one provisional topic, `domain-events`, with duplicate detection on to mirror the Bicep
+module, plus a `smoke` subscription. P0-051 settles the real topic list.
+
+⚠ **Gotcha — the emulator exits right after starting.** Usually `ACCEPT_EULA` isn't `Y`, or
+`MSSQL_SA_PASSWORD` is empty or too weak. SQL Server needs 8+ characters with upper case, lower
+case, a digit and a symbol, and the emulator can't reach a SQL container that never came up.
+Check `docker compose --profile bus logs mssql`.
+
 **Backend** (boots without a database — the DbContext is lazy and nothing queries it yet):
 
 ```bash
@@ -1398,6 +1456,9 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `BCP427: Environment variable "EE_PG_ADMIN_OBJECT_ID" does not exist` | `main.dev.bicepparam` reads the Postgres admin from the shell | set `EE_PG_ADMIN_OBJECT_ID` / `EE_PG_ADMIN_NAME` (§12.13) |
 | `BCP318: The value of type "module | null" may be null` | reading an output of a module that has an `if` | use `mod.?outputs.?x ?? <fallback>` |
 | Container App can't pull the `ghcr.io` image (`UNAUTHORIZED`) | image is private; the app has no registry credentials, or the `read:packages` token expired | wire / rotate the token (P0-062.4, [ADR-0010](./adr/0010-ghcr-instead-of-acr.md)) |
+| Migrations / `psql` "succeed" but the container DB is empty | a native Windows Postgres owns `localhost:5432` and took the connection | use the compose port 55432 + `ConnectionStrings__Postgres` (§11) |
+| `dotnet ef`: startup project doesn't reference `Microsoft.EntityFrameworkCore.Design` | Api project used as startup | `--startup-project apps/api/src/EarlyEagles.Infrastructure` |
+| Service Bus emulator container exits immediately | `ACCEPT_EULA` not `Y`, or `MSSQL_SA_PASSWORD` empty/weak, so SQL Server never starts | set both in `.env` (§11); `docker compose --profile bus logs mssql` |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
