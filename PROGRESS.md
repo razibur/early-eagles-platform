@@ -20,7 +20,7 @@ Last updated: 2026-09-28
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~47% (91 / ~195 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~47% (91 / ~196 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -268,7 +268,7 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   10 new unit tests on the row's state machine + 3 new integration tests (published row stamped and gone from the queue; failed row pending with attempt counted, retried next tick; one bad message doesn't block the batch); the 4 existing query tests now drive `DrainOnceAsync` through a recording publisher. 214 unit + 84 integration pass.
 - `[ ]` **P0-050.2.2** `ServiceBusOutboxPublisher` — real Azure Service Bus implementation (blocked on `P0-051`). **Must set `MessageId` to the outbox row id** — topics have duplicate detection on (P0-058.4), which only dedupes re-sends if the id is stable. Authenticate with Entra (`DefaultAzureCredential`); the namespace has SAS keys disabled.
 - `[ ]` **P0-050.3** Integration test: outbox row → Service Bus message received
-- `[ ]` **P0-051** Service Bus topic + subscriptions provisioned (P0-058.4)
+- `[ ]` **P0-051** Service Bus topic + subscriptions provisioned (P0-058.4) — first in the local emulator config (P0-059.5), per ADR-0009
 - `[ ]` **P0-052.1** `PaymentConfirmedHandler` subscribes to topic
 - `[ ]` **P0-052.2** Handler logs the event; integration test verifies firing
 
@@ -309,7 +309,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: `az bicep build --file infra/main.dev.bicep` succeeds with no warnings. [`main.dev.bicep`](./infra/main.dev.bicep) is subscription-scoped and wires every per-env module: `resourceGroup` → `logAnalytics` → `appInsights` / `containerAppsEnv` → `containerApp` (api), plus `keyVault`, `postgresFlexible`, `serviceBus`, `redis` off the resource group. **Split of responsibility:** the file fixes the environment's identity (env `dev`, `eastus`/`eus`, every §3 name, the tag object) and its §7 shape (Postgres `Standard_B1ms` Burstable 32 GB no HA, Service Bus Standard, Redis `Balanced_B0` no HA, Log Analytics 30-day, Container App 0.25 vCPU scale 0→1); the parameter file (P0-059.2) supplies who/where — `owner`, `costCenter`, the Postgres Entra admin, operator IPs, and the **daily log cap (required, no default)**. Nested deployments are named `<top-level name>-<module>` so each run's history survives (§6). **`sandbox` switch for P0-059.3:** deploys into `rg-ee-sandbox-eus`, seeds the §3.1 suffix with `dev-sandbox` and appends `-sbx` to the Postgres name, and drops Key Vault soft-delete retention to 7 days — otherwise a purge-protected sandbox vault would hold the real dev vault's name for 90 days. Not wired yet, on purpose: the shared registry (P0-059.4), managed identity/role assignments and app env vars/probes (P0-062.\*, P0-084), Service Bus topics (P0-051, via `serviceBusTopics`), `postgresAllowAzureServices` (off until the API connects). App Insights' connection string is not re-exported (it's a secure module output). Checked: compiled dependency graph inspected; throwaway param files — complete (sandbox + one topic) builds; missing `logDailyQuotaGb` (`BCP258`) and principal type `Robot` (`BCP033`) fail.
 - `[x]` **P0-059.2** `infra/main.dev.bicepparam` with dev values
   ↳ verify: with `EE_PG_ADMIN_OBJECT_ID` and `EE_PG_ADMIN_NAME` set, `az bicep build-params --file infra/main.dev.bicepparam` succeeds and lints clean. [`main.dev.bicepparam`](./infra/main.dev.bicepparam) commits the values that are the same for anyone deploying dev — `owner: razibur`, `costCenter: platform`, **`logDailyQuotaGb: 1`** — and reads the person/machine-specific ones with `readEnvironmentVariable`: the Postgres Entra admin (`EE_PG_ADMIN_OBJECT_ID`, `EE_PG_ADMIN_NAME`, **required — no default, so a missing one fails with `BCP427` before anything reaches Azure**), an optional operator IP (`EE_OPERATOR_IP` → one `operator` firewall rule, none if unset) and `EE_SANDBOX` (default `false`; P0-059.3 sets `true`). Nothing in it is a secret; the identity is kept out of git because it names a person and will differ between the operator and CI (P0-084 sets the same variables from GitHub). Checked: no vars → `BCP427` ×2; required vars → expected parameter JSON (no firewall rules, `sandbox: false`); IP + sandbox → one rule, `sandbox: true`.
-- `[ ]` **P0-059.3** Deploy `main.dev.bicep` to throwaway RG; verify healthy
+- `[ ]` **P0-059.3** Deploy `main.dev.bicep` to throwaway RG; verify healthy — now *only* a sandbox smoke test (`EE_SANDBOX` defaults to `true`), per [ADR-0009](./docs/adr/0009-local-dev-no-cloud-dev-environment.md)
+- `[ ]` **P0-059.5** `docker-compose.yml` for local dev: Postgres 17 + Service Bus emulator — added 2026-10-06 (ADR-0009)
 - `[x]` **P0-059.4** `infra/main.shared.bicep` + `.bicepparam`: `rg-ee-shared-eus` + the shared registry — added 2026-10-06 (P0-058.6)
   ↳ verify: `az bicep build --file infra/main.shared.bicep` and `az bicep build-params --file infra/main.shared.bicepparam` succeed and lint clean. [`main.shared.bicep`](./infra/main.shared.bicep) is subscription-scoped: `resourceGroup` (`rg-ee-shared-eus`) → `containerRegistry` (`cree` + `shared` + `eus` + suffix seeded with `'shared'`, Basic), tags `env: shared`. Outputs `resourceGroupName`, `registryId` (AcrPull scope, P0-062.4) and `registryLoginServer`. No sandbox switch — nothing in it is purge-protected. [`main.shared.bicepparam`](./infra/main.shared.bicepparam) commits `owner`/`costCenter` only; nothing person-specific, so no environment variables. Deploy once per subscription (`ee-shared-<yyyyMMdd>-<HHmm>`) before P0-062.4; the `az acr show` acceptance needs the subscription.
 - `[x]` **P0-060** `infra/main.staging.bicep` — **split** 2026-10-06, see [Implementation-Plan appendix](./Implementation-Plan.md#p0-060-split-2026-10-06)
@@ -369,7 +370,7 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-081** GitHub secret scanning + push protection enabled
 - `[ ]` **P0-082** CodeQL workflow for C# + TypeScript
 - `[ ]` **P0-083** SBOM (CycloneDX) generated on release
-- `[ ]` **P0-084** GH Actions: deploy backend to dev on `main` merge
+- `[ ]` **P0-084** GH Actions: ~~deploy backend to dev~~ build + test + push image to the shared registry on `main` merge (no cloud dev — ADR-0009)
 - `[ ]` **P0-085** GH Actions: deploy frontend to Vercel preview on PR
 - `[ ]` **P0-086** GH Actions: deploy to staging on tag (`v*-staging`)
 - `[ ]` **P0-087** GH Actions: deploy to prod on manual approval

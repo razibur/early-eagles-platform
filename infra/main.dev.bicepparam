@@ -1,4 +1,7 @@
-// P0-059.2 — dev environment values for main.dev.bicep.
+// P0-059.2 — values for main.dev.bicep. Since ADR-0009 dev runs locally, so this
+// template is only deployed as a throwaway smoke test: EE_SANDBOX defaults to
+// 'true' (rg-ee-sandbox-eus). Set it to 'false' only to stand up a cloud dev
+// environment on purpose.
 //
 // Committed here: values that are the same for anyone deploying dev.
 // Read from the environment: values tied to a person or a machine — the
@@ -9,7 +12,7 @@
 //   $env:EE_PG_ADMIN_OBJECT_ID = az ad signed-in-user show --query id -o tsv
 //   $env:EE_PG_ADMIN_NAME      = az ad signed-in-user show --query userPrincipalName -o tsv
 //   $env:EE_OPERATOR_IP        = (Invoke-RestMethod https://api.ipify.org)   # optional
-//   $env:EE_SANDBOX            = 'true'                                       # P0-059.3 only
+//   $env:EE_SANDBOX            = 'false'                                      # only for a standing cloud dev
 //
 // A missing required variable fails `az bicep build-params` and the deploy
 // before anything is sent to Azure.
@@ -39,4 +42,4 @@ param postgresFirewallRules = empty(operatorIp)
       }
     ]
 
-param sandbox = bool(readEnvironmentVariable('EE_SANDBOX', 'false'))
+param sandbox = bool(readEnvironmentVariable('EE_SANDBOX', 'true'))

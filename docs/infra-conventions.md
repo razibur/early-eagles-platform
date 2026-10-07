@@ -33,12 +33,13 @@ Task ID: **P0-056** in [PROGRESS.md](../PROGRESS.md) and
 
 ## 1. Subscription and resource-group layout
 
-One Azure subscription, one resource group per environment.
+One Azure subscription, one resource group per deployed environment. Since
+[ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md) only prod (and the shared registry) stands permanently.
 
 | Environment | Code | Resource group | Purpose |
 |---|---|---|---|
-| Development | `dev` | `rg-ee-dev-eus` | Shared dev environment. Deployed on every merge to `main`. |
-| Staging | `stg` | `rg-ee-stg-eus` | Production-shaped. Deployed on a `v*-staging` tag. |
+| Development | `dev` | *(none — local)* | Runs on the developer's machine with `docker compose` (Postgres + Service Bus emulator, P0-059.5) — [ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md). `rg-ee-dev-eus` exists only if a cloud dev is stood up on purpose. |
+| Staging | `stg` | `rg-ee-stg-eus` | Production-shaped. **On demand**: deployed for a release rehearsal, then torn down. |
 | Production | `prod` | `rg-ee-prod-eus` | Deployed only on manual approval. |
 | Shared | `shared` | `rg-ee-shared-eus` | Subscription-wide resources every environment uses — today only the container registry. Deployed by `main.shared.bicep` (P0-059.4) before any environment. |
 
@@ -292,10 +293,12 @@ out instead of provisioned "for later". Optional resources (Redis, Service Bus)
 are present in an environment only when its `sizing` object includes them
 ([`environment.bicep`](../infra/environment.bicep)), so turning one on is a
 one-block change in `main.<env>.bicep`. Rough steady state: Postgres ~$16/month
-per deployed environment (compute + 32 GB), Service Bus ~$10 (dev only), the shared
-registry ~$5; Container Apps, Key Vault and Log Analytics stay within free grants
-at this traffic. That is roughly **$47/month for dev + prod + registry**, about
-$16 more whenever staging is deployed, so deploy staging only when it's needed.
+per deployed environment (compute + 32 GB), Service Bus ~$10 per namespace, the
+shared registry ~$5; Container Apps, Key Vault and Log Analytics stay within free
+grants at this traffic. Dev runs locally ([ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md)), so the standing bill is
+roughly **$21/month for prod + registry**, about $16 more while staging is
+deployed. The dev column below is what `main.dev.bicep` deploys for a sandbox
+smoke test, not a standing environment.
 Moving up a tier is a deliberate decision recorded here.
 
 Turning dev off overnight is not worth the complexity at this scale — scale-to-zero

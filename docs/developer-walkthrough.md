@@ -1158,6 +1158,10 @@ assignment does what it says.
 
 ### 12.12 `main.dev.bicep` — the dev environment (P0-059.1)
 
+> **Since [ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md), dev runs locally** (`docker
+> compose`, P0-059.5) and this template is deployed only as a throwaway sandbox smoke test.
+> `EE_SANDBOX` now defaults to `true`; set it to `false` only to stand up a cloud dev on purpose.
+
 The first file that *uses* the modules. Subscription-scoped: it creates `rg-ee-dev-eus` and
 deploys every per-environment module into it.
 
@@ -1210,7 +1214,7 @@ az login                                   # into the project tenant/subscriptio
 $env:EE_PG_ADMIN_OBJECT_ID = az ad signed-in-user show --query id -o tsv
 $env:EE_PG_ADMIN_NAME      = az ad signed-in-user show --query userPrincipalName -o tsv
 $env:EE_OPERATOR_IP        = (Invoke-RestMethod https://api.ipify.org)   # optional: lets you psql in
-# $env:EE_SANDBOX          = 'true'                                       # throwaway deploy (P0-059.3)
+# $env:EE_SANDBOX          = 'false'                                      # default is 'true' (ADR-0009)
 
 az bicep build-params --file infra/main.dev.bicepparam   # sanity check
 ```
@@ -1341,7 +1345,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files, and `main.shared.bicep` exist (§12.12–12.17), sized for minimum cost, and nothing is deployed. |
-| **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
+| **CI/CD** | not started | GitHub Actions: build + push on `main` merge, staging on demand, manual prod promote ([ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md) — dev runs locally) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
 targets **Azure**, not Vercel. The Next.js frontend *could* deploy to Vercel, but that is not

@@ -737,6 +737,19 @@ nothing before staging is built on it.
 
 `P0-061` (`main.prod.bicep`) builds on `P0-060.1` the same way.
 
+### Local dev instead of cloud dev (2026-10-06)
+
+[ADR-0009](./docs/adr/0009-local-dev-no-cloud-dev-environment.md): dev runs on the developer's
+machine; prod is the only standing Azure environment, staging is on demand. Task changes:
+
+| ID | Change |
+|---|---|
+| **P0-059.5** (new) | `docker-compose.yml`: Postgres 17 + Azure Service Bus emulator (and the SQL container it needs), emulator `Config.json` declaring the outbox topic(s). Verify: `docker compose up -d` → API connects to Postgres; emulator answers on its AMQP port. |
+| P0-059.3 | Now only the sandbox smoke test: deploy `main.dev.bicep` with `EE_SANDBOX=true` (the parameter file's new default), verify healthy, delete the RG. |
+| P0-051 | Topics/subscriptions are declared in the emulator config (P0-059.5) first; in prod's `serviceBusTopics` when prod gets Service Bus (P0-087). |
+| P0-084 | Was "deploy backend to dev on `main` merge" → **build, test and push the image to the shared registry on `main` merge; no deploy.** Depends on P0-059.4 instead of P0-059.3. |
+| P0-086 | Staging deploy on `v*-staging` tag stays, but staging is torn down afterwards (on-demand). |
+
 ---
 
 ## Sequencing notes
