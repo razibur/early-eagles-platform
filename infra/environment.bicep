@@ -35,7 +35,7 @@ type topic = {
   }[]
 }
 
-@description('The §7 sizing of one environment. Each main.<env>.bicep fixes its own.')
+@description('The §7 sizing of one environment. Each main.<env>.bicep fixes its own. Leaving out redis or serviceBus means that resource is not deployed in the environment.')
 @export()
 type environmentSizing = {
   logRetentionInDays: int
@@ -50,7 +50,10 @@ type environmentSizing = {
   redis: {
     skuName: 'Balanced_B0' | 'Balanced_B1' | 'Balanced_B3' | 'Balanced_B5'
     highAvailability: bool
-  }
+  }?
+  serviceBus: {
+    skuName: 'Standard' | 'Premium'
+  }?
   api: {
     cpu: '0.25' | '0.5' | '0.75' | '1' | '1.25' | '1.5' | '1.75' | '2'
     minReplicas: int
@@ -201,7 +204,7 @@ module psql 'modules/postgresFlexible.bicep' = {
   }
 }
 
-module sb 'modules/serviceBus.bicep' = {
+module sb 'modules/serviceBus.bicep' = if (sizing.?serviceBus != null) {
   name: '${prefix}-sb'
   scope: resourceGroup(resourceGroupName)
   dependsOn: [rg]
@@ -209,12 +212,12 @@ module sb 'modules/serviceBus.bicep' = {
     name: 'sbns-ee-${environment}-${regionCode}-${unique}'
     location: location
     tags: tags
-    skuName: 'Standard'
+    skuName: sizing.?serviceBus.?skuName ?? 'Standard'
     topics: serviceBusTopics
   }
 }
 
-module redis 'modules/redis.bicep' = {
+module redis 'modules/redis.bicep' = if (sizing.?redis != null) {
   name: '${prefix}-redis'
   scope: resourceGroup(resourceGroupName)
   dependsOn: [rg]
@@ -222,8 +225,8 @@ module redis 'modules/redis.bicep' = {
     name: 'amr-ee-${environment}-${regionCode}-${unique}'
     location: location
     tags: tags
-    skuName: sizing.redis.skuName
-    highAvailability: sizing.redis.highAvailability
+    skuName: sizing.?redis.?skuName ?? 'Balanced_B0'
+    highAvailability: sizing.?redis.?highAvailability ?? false
   }
 }
 
@@ -271,14 +274,14 @@ output postgresFqdn string = psql.outputs.fqdn
 @description('Application database name.')
 output postgresDatabaseName string = psql.outputs.databaseName
 
-@description('Service Bus fully qualified namespace.')
-output serviceBusNamespace string = sb.outputs.fullyQualifiedNamespace
+@description('Service Bus fully qualified namespace; empty when the environment has no Service Bus.')
+output serviceBusNamespace string = sb.?outputs.?fullyQualifiedNamespace ?? ''
 
-@description('Redis host name.')
-output redisHostName string = redis.outputs.hostName
+@description('Redis host name; empty when the environment has no Redis.')
+output redisHostName string = redis.?outputs.?hostName ?? ''
 
-@description('Redis TLS port.')
-output redisPort int = redis.outputs.port
+@description('Redis TLS port; 0 when the environment has no Redis.')
+output redisPort int = redis.?outputs.?port ?? 0
 
 @description('Public FQDN of the API Container App.')
 output apiFqdn string = api.outputs.fqdn

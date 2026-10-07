@@ -53,7 +53,7 @@ param apiImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 @description('Port the API image listens on. The placeholder serves 80.')
 param apiTargetPort int = 80
 
-// infra-conventions §7, stg column (same as dev today).
+// infra-conventions §7, stg column.
 var sizing environmentSizing = {
   logRetentionInDays: 30
   postgres: {
@@ -64,10 +64,8 @@ var sizing environmentSizing = {
     highAvailabilityMode: 'Disabled'
     geoRedundantBackup: 'Disabled'
   }
-  redis: {
-    skuName: 'Balanced_B0'
-    highAvailability: false
-  }
+  // No redis and no serviceBus until the API runs here (cost posture,
+  // infra-conventions §7). Add the blocks back with P0-086.
   api: {
     cpu: '0.25'
     minReplicas: 0

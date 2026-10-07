@@ -69,9 +69,10 @@ var sizing environmentSizing = {
     highAvailabilityMode: 'Disabled'
     geoRedundantBackup: 'Disabled'
   }
-  redis: {
-    skuName: 'Balanced_B0'
-    highAvailability: false
+  // No redis: nothing uses it yet, and it would be ~$13/month (cost posture,
+  // infra-conventions §7). Add the block back when a feature needs it.
+  serviceBus: {
+    skuName: 'Standard'
   }
   api: {
     cpu: '0.25'

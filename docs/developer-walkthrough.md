@@ -1292,6 +1292,39 @@ az deployment sub create --name ee-stg-$(Get-Date -Format yyyyMMdd-HHmm) --locat
 
 ▶ Reference: [`infra/main.staging.bicep`](../infra/main.staging.bicep)
 
+### 12.17 `main.prod.bicep` — and the minimum-cost posture (P0-061)
+
+The owner's call for this platform is **as close to free as possible** (conventions §7, cost
+posture). Prod therefore uses the dev sizes: Burstable `B1ms` Postgres with **no HA**, an API that
+**scales to zero** (max 2 replicas, so the first request after idle has a few seconds of cold
+start), 30-day logs and a 1 GB/day cap.
+
+To make that possible, `environment.bicep` treats **Redis and Service Bus as optional**: they're
+deployed only when the environment's `sizing` includes them.
+
+```bicep
+var sizing environmentSizing = {
+  // …postgres, api, logRetentionInDays…
+  serviceBus: { skuName: 'Standard' }     // present → deployed; leave out → not deployed
+  // redis: { skuName: 'Balanced_B0', highAvailability: false }
+}
+```
+
+Today **no environment has Redis** (nothing uses it), and **only dev has Service Bus** (the outbox
+work, P0-051, needs it). When a resource is off, its outputs come back empty (`''` / `0`).
+Turning one on is adding the block back, not a module change.
+
+```pwsh
+az deployment sub create --name ee-prod-$(Get-Date -Format yyyyMMdd-HHmm) --location eastus `
+  --template-file infra/main.prod.bicep --parameters infra/main.prod.bicepparam
+```
+
+▶ Reference: [`infra/main.prod.bicep`](../infra/main.prod.bicep)
+
+⚠ **Gotcha — reading an output of a conditional module.** `redis.outputs.hostName` fails the
+build with `BCP318` ("may be null at the start of the deployment") when the module has an `if`. Use the safe-access form
+`redis.?outputs.?hostName ?? ''`, which compiles to `tryGet(...)` + `coalesce(...)`.
+
 ---
 
 ## 13. Not-yet-built (and where it goes)
@@ -1307,7 +1340,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev and staging entry points with their parameter files, and `main.shared.bicep` exist (§12.12–12.16); `main.prod.bicep` does not, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.6 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis, container registry) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files, and `main.shared.bicep` exist (§12.12–12.17), sized for minimum cost, and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions (dev → staging → prod, manual prod promote) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -1390,6 +1423,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Container App can't pull (`UNAUTHORIZED`) despite an `AcrPull` assignment | registry in ABAC role-assignment mode | keep `roleAssignmentMode: LegacyRegistryPermissions`, or grant a repository role |
 | Real dev deploy fails: Key Vault name already in use, but nothing is in `rg-ee-dev-eus` | an earlier throwaway deploy used the real name; the deleted vault is purge-protected | deploy throwaways with `sandbox = true`; otherwise wait out retention or recover the vault |
 | `BCP427: Environment variable "EE_PG_ADMIN_OBJECT_ID" does not exist` | `main.dev.bicepparam` reads the Postgres admin from the shell | set `EE_PG_ADMIN_OBJECT_ID` / `EE_PG_ADMIN_NAME` (§12.13) |
+| `BCP318: The value of type "module | null" may be null` | reading an output of a module that has an `if` | use `mod.?outputs.?x ?? <fallback>` |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 
 ---
