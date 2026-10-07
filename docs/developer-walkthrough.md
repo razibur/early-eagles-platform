@@ -1179,7 +1179,7 @@ What goes where:
   which is required and has no default.
 
 Module deployments are named `<top-level deployment name>-<module>` (since P0-060.1 with an `-env` level in between; e.g.
-`ee-dev-20261006-1430-psql`), so the per-run history §6 asks for is kept at every level.
+`ee-dev-20261006-1430-env-psql`), so the per-run history §6 asks for is kept at every level.
 
 Deliberately not wired yet: the shared container registry (its own `main.shared.bicep`,
 P0-059.4), managed identity and role assignments (P0-062.\*), app env vars and health probes
