@@ -1,3 +1,5 @@
+using Azure.Core;
+using Azure.Identity;
 using EarlyEagles.Application.Abstractions.Auditing;
 using EarlyEagles.Application.Abstractions.Messaging;
 using EarlyEagles.Application.Abstractions.Persistence;
@@ -9,6 +11,8 @@ using EarlyEagles.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
 
 namespace EarlyEagles.Infrastructure;
 
@@ -47,8 +51,21 @@ public static class DependencyInjection
 
         // ApplicationDbContext holds the tenant-isolation global query filter
         // (P0-032.2). Scoped so it snapshots ITenantContext per request.
+        // One NpgsqlDataSource for the process (P0-062.2.1): it owns the
+        // connection pool and, in Entra mode, the token refresh timer. Built
+        // lazily, so the credential is only created when a context is.
         var connectionString = configuration.GetConnectionString("Postgres") ?? DefaultConnectionString;
-        services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
+        var postgresOptions = configuration.GetSection(PostgresOptions.SectionName).Get<PostgresOptions>() ?? new PostgresOptions();
+
+        // DefaultAzureCredential: the managed identity in Azure (it reads
+        // AZURE_CLIENT_ID, set by containerApp.bicep), `az login` on a laptop.
+        // TryAdd so tests can swap in a fake.
+        services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential());
+        services.AddSingleton(sp => PostgresDataSourceFactory.Create(
+            connectionString,
+            postgresOptions.Authentication,
+            sp.GetRequiredService<TokenCredential>));
+        services.AddDbContext<ApplicationDbContext>((sp, options) => options.UseNpgsql(sp.GetRequiredService<NpgsqlDataSource>()));
 
         // Audit service (P0-047.1). Scoped because it depends on the scoped
         // ITenantContext. It opens its own DbContext per call so audit writes

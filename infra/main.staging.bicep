@@ -117,5 +117,14 @@ output redisPort int = env.outputs.redisPort
 @description('Public FQDN of the API Container App.')
 output apiFqdn string = env.outputs.apiFqdn
 
+@description('Principal (object) ID of the API managed identity.')
+output apiIdentityPrincipalId string = env.outputs.apiIdentityPrincipalId
+
+@description('Name of the API managed identity; also its Postgres role (role_name for infra/sql/api-role/).')
+output apiIdentityName string = env.outputs.apiIdentityName
+
+@description('Client ID of the API managed identity (AZURE_CLIENT_ID on the app).')
+output apiIdentityClientId string = env.outputs.apiIdentityClientId
+
 @description('App Insights resource name.')
 output appInsightsName string = env.outputs.appInsightsName

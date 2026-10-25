@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
 
 namespace EarlyEagles.Tests.Integration.Persistence;
 
@@ -133,8 +134,12 @@ public class CrossTenantEndpointTests
                 services.RemoveAll<ITenantLookup>();
                 services.AddSingleton<ITenantLookup>(fake);
 
-                services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
-                services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
+                // Swap the data source, not the DbContext registration: since
+                // P0-062.2.1 the context resolves its NpgsqlDataSource from DI,
+                // and EF composes every AddDbContext configuration, so a second
+                // UseNpgsql(connectionString) would not reliably replace it.
+                services.RemoveAll<NpgsqlDataSource>();
+                services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
             });
         }
     }

@@ -762,6 +762,23 @@ machine; prod is the only standing Azure environment, staging is on demand. Task
 | P0-084 | Pushes to `ghcr.io` with `GITHUB_TOKEN` (`packages: write`); no Azure login needed to publish. No longer depends on P0-059.4. |
 | P0-063 | The infra runbook adds rotating the `read:packages` token before it expires. |
 
+### P0-062.2 split (2026-10-23)
+
+"Grant the managed identity access to Postgres" is three jobs in three places, none of which
+Bicep alone can do: the API must sign in with a token instead of a password, the identity needs
+a role *inside* Postgres (data-plane SQL that ARM can't run), and the deployed app needs the
+connection settings. Split so each is verifiable alone:
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-062.2.1 | API connects with an Entra token when `Postgres:Authentication = Entra` (`NpgsqlDataSource` + periodic token provider over `TokenCredential`); password mode unchanged for local dev | P0-062.1 | Unit tests: Entra mode fetches the `ossrdbms-aad` token, refuses a password / missing username; password mode creates no credential |
+| P0-062.2.2 | Versioned SQL script creating the identity's Postgres role (`pgaadauth_create_principal_with_oid`) with least-privilege grants (CONNECT, schema USAGE, table DML, default privileges for future tables) — no DDL | P0-062.1, P0-058.1 | Grant part runs clean against local Postgres for a stand-in role; role can DML, cannot `CREATE TABLE` |
+| P0-062.2.3 | Wire the app: `Postgres__Authentication=Entra` + a password-less connection string (`Username=id-ee-api-<env>-eus`, `SslMode=Require`) as Container App env vars | P0-062.2.1 | `az bicep build` clean; compiled env vars checked. Live "API connects without password" carried to P0-059.3 |
+
+**Note (2026-10-25, P0-062.2.3):** shipped with `SslMode=VerifyFull`, not `Require`. In Npgsql,
+`Require` encrypts but skips certificate validation. `VerifyFull` also checks the chain and host
+name, and Azure Postgres certificates chain to public roots in the .NET image's trust store.
+
 ---
 
 ## Sequencing notes

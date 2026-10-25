@@ -695,6 +695,46 @@ a handshake rather than a sleep, so they stay fast and deterministic.
 
 ---
 
+### 9.7 Signing in to Azure Postgres with a token (P0-062.2.1)
+
+Azure Postgres has password auth switched off (§12.6), so in Azure the API signs in with a
+**Microsoft Entra access token** for its managed identity (§12.18). Locally nothing changes: the
+connection string's password still works.
+
+```jsonc
+// appsettings / env — Azure only
+"ConnectionStrings": { "Postgres": "Host=psql-ee-dev-eus-001.postgres.database.azure.com;Database=earlyeagles;Username=id-ee-api-dev-eus;SslMode=Require" },
+"Postgres": { "Authentication": "Entra" }   // default "Password"
+```
+
+`AddInfrastructure` registers **one `NpgsqlDataSource`** built by `PostgresDataSourceFactory`, and
+`AddDbContext` uses it. In Entra mode the data source gets a periodic password provider. Every
+5 minutes it asks the DI `TokenCredential` (`DefaultAzureCredential`) for a token with scope
+`https://ossrdbms-aad.database.windows.net/.default`, and that token is the password.
+
+Why build the data source ourselves: EF's `UseNpgsql(cs, o => o.ConfigureDataSource(...))` is
+*untracked*, meaning EF doesn't account for the callback when it caches data sources. Npgsql's
+docs say to pass a pre-built data source instead.
+
+Entra mode fails fast at startup if the connection string has a `Password` (it would be
+silently ignored) or no `Username` (Azure matches the token to a Postgres role by name).
+
+To try it from a laptop against a real server, run `az login`, set `Postgres__Authentication=Entra`,
+and set a connection string with your UPN as `Username`. `DefaultAzureCredential` picks up the CLI
+login.
+
+▶ Reference: [`PostgresDataSourceFactory.cs`](../apps/api/src/EarlyEagles.Infrastructure/Persistence/PostgresDataSourceFactory.cs)
+
+⚠ **Gotcha — don't cache the token for an hour.** The common sample refreshes every 55 minutes.
+The credential only renews a token in its last ~5 minutes, so Npgsql could hold one that expires
+partway through that hour, and new connections would fail until the next refresh. A 5-minute
+refresh is cheap because the credential serves its in-memory cache.
+
+⚠ **Gotcha — overriding the database in a test.** Re-registering `AddDbContext(o => o.UseNpgsql(cs))`
+no longer replaces the connection: EF 10 composes every `AddDbContext` configuration, and the
+original one points at the DI data source. Replace the `NpgsqlDataSource` singleton instead
+(`CrossTenantEndpointTests` does).
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
@@ -1091,9 +1131,10 @@ module api 'modules/containerApp.bicep' = {
 }
 ```
 
-Not in the module yet: managed identity, private-registry credentials and Key Vault secret
-references (P0-062.1–.3). Until they land, the image must be publicly pullable and `env` holds
-only non-secret values.
+Identity is opt-in through one typed param, `identity: { id, clientId }?` (P0-062.1, see §12.18).
+Not in the module yet: private-registry credentials and Key Vault secret references
+(P0-062.3–.4). Until they land, the image must be publicly pullable and `env` holds only
+non-secret values.
 
 ▶ Reference: [`infra/modules/containerApp.bicep`](../infra/modules/containerApp.bicep)
 
@@ -1225,7 +1266,7 @@ What goes where:
 Module deployments are named `<top-level deployment name>-<module>` (since P0-060.1 with an `-env` level in between; e.g.
 `ee-dev-20261006-1430-env-psql`), so the per-run history §6 asks for is kept at every level.
 
-Deliberately not wired yet: pulling the private image from ghcr.io (P0-062.4, [ADR-0010](./adr/0010-ghcr-instead-of-acr.md)), managed identity and role assignments (P0-062.\*), app env vars and health probes
+Deliberately not wired yet: pulling the private image from ghcr.io (P0-062.4, [ADR-0010](./adr/0010-ghcr-instead-of-acr.md)), role assignments for the API identity (P0-062.2–.4; the identity itself landed in P0-062.1, §12.18), app env vars and health probes
 (with the real API image, P0-084), and Service Bus topics (P0-051 passes `serviceBusTopics`).
 
 ▶ Reference: [`infra/main.dev.bicep`](../infra/main.dev.bicep)
@@ -1357,6 +1398,111 @@ az deployment sub create --name ee-prod-$(Get-Date -Format yyyyMMdd-HHmm) --loca
 build with `BCP318` ("may be null at the start of the deployment") when the module has an `if`. Use the safe-access form
 `redis.?outputs.?hostName ?? ''`, which compiles to `tryGet(...)` + `coalesce(...)`.
 
+### 12.18 `userAssignedIdentity.bicep` — the API's managed identity (P0-062.1)
+
+The API authenticates to Azure (Postgres, Key Vault, Service Bus) as a **managed identity**, so
+no password or connection-string secret exists for those services. `environment.bicep` creates
+one per environment, `id-ee-api-<env>-eus` (CAF abbreviation `id`, conventions §4), and attaches
+it to the Container App:
+
+```bicep
+module apiIdentity 'modules/userAssignedIdentity.bicep' = {
+  scope: resourceGroup(resourceGroupName)
+  dependsOn: [rg]
+  params: { name: 'id-ee-api-${environment}-eus', location: location, tags: tags }
+}
+
+module api 'modules/containerApp.bicep' = {
+  params: {
+    // …
+    identity: { id: apiIdentity.outputs.id, clientId: apiIdentity.outputs.clientId }
+  }
+}
+```
+
+**User-assigned rather than system-assigned.** A system-assigned identity only exists once the
+app does. The app's first revision has to pull its private image with a token that the identity
+reads from Key Vault (P0-062.4), so the identity and its access have to come first. A
+user-assigned identity also keeps its role assignments if the app is deleted and recreated.
+There's one identity per role (api now, later worker / migrations), so each gets only the access
+it needs.
+
+The module outputs `id`, `principalId` (the object that role assignments in P0-062.2/.3 grant
+to) and `clientId`. The Container App sets **`AZURE_CLIENT_ID`** to the client ID, so
+`DefaultAzureCredential` in the API picks this identity without guessing. The entry points
+re-export `apiIdentityPrincipalId` and `apiIdentityClientId`.
+
+`identity` is a nullable typed object, not two loose strings, so an id without its client ID is a
+build error (`BCP035`). Leaving it out compiles to `identity: { type: 'None' }`.
+
+▶ Reference: [`infra/modules/userAssignedIdentity.bicep`](../infra/modules/userAssignedIdentity.bicep)
+
+⚠ **Gotcha — `DefaultAzureCredential` with a user-assigned identity needs `AZURE_CLIENT_ID`.**
+Without it, the managed-identity credential asks IMDS for *the* identity and gets an error when
+the identity isn't system-assigned (or when more than one is attached). The module sets it
+whenever an identity is passed; don't remove it from `env`.
+
+### 12.19 The identity's Postgres role — `infra/sql/api-role/` (P0-062.2.2)
+
+Bicep can create the identity and the server, but **not a role inside Postgres**. That's
+data-plane SQL, and ARM doesn't run it. Two scripts, run once per environment by the server's
+Entra administrator after deploy:
+
+| Script | Database | Does |
+|---|---|---|
+| [`01-create-principal.sql`](../infra/sql/api-role/01-create-principal.sql) | `postgres` | `pgaadauth_create_principal_with_oid(name, principalId, 'service', false, false)`: a role named after the identity, bound to its object ID. Azure only. Skips if the role exists. |
+| [`02-grants.sql`](../infra/sql/api-role/02-grants.sql) | `earlyeagles` | CONNECT, schema USAGE, SELECT/INSERT/UPDATE/DELETE on all tables, and the same as **default privileges** for tables future migrations create |
+
+```pwsh
+psql "host=<server> dbname=postgres user=<entra-admin> sslmode=require" `
+  -v role_name=id-ee-api-dev-eus -v principal_id=<apiIdentityPrincipalId> `
+  -f infra/sql/api-role/01-create-principal.sql
+psql "host=<server> dbname=earlyeagles user=<entra-admin> sslmode=require" `
+  -v role_name=id-ee-api-dev-eus -f infra/sql/api-role/02-grants.sql
+```
+
+**No DDL.** The API never calls `Migrate`; migrations run as the admin. So the API role can't
+`CREATE`, `ALTER`, `DROP` or `TRUNCATE`, and it isn't allowed to read `__EFMigrationsHistory`.
+`audit_events` gets **SELECT + INSERT only**. Its trigger already rejects UPDATE/DELETE, and
+withholding the privileges too means dropping the trigger alone doesn't reopen the table.
+
+Both scripts are idempotent, and they fail with a non-zero exit when a `-v` variable is missing
+(`RAISE EXCEPTION` under `ON_ERROR_STOP`, because psql's `\quit` exits 0).
+
+**Testing locally** (no `pgaadauth` there): copy the migrated database
+(`CREATE DATABASE x TEMPLATE earlyeagles`), create a stand-in `CREATE ROLE … LOGIN PASSWORD …`,
+then run `02-grants.sql` against the copy.
+
+⚠ **Gotcha — default privileges are per creator.** `ALTER DEFAULT PRIVILEGES` only applies to
+tables created by the role it names (`FOR ROLE`). The script uses the role running it unless you
+pass `-v migration_owner=<role>`. If migrations ever run as a different role (a migrations
+identity, say), re-run the script with that role. Otherwise new tables arrive with no grants,
+and the API gets `permission denied` on its first query against them.
+
+⚠ **Gotcha — `principal_id` is the object ID, not the client ID.** Use the
+`apiIdentityPrincipalId` output. `AZURE_CLIENT_ID` is the other one.
+
+**Wiring the app (P0-062.2.3).** `environment.bicep` gives the API two plain env vars (nothing in
+them is secret):
+
+```bicep
+env: [
+  { name: 'Postgres__Authentication', value: 'Entra' }
+  { name: 'ConnectionStrings__Postgres'
+    value: 'Host=${psql.outputs.fqdn};Database=${psql.outputs.databaseName};Username=${apiIdentity.outputs.name};SslMode=VerifyFull' }
+]
+```
+
+`Username` is the identity's name, taken from the module output rather than retyped, and the
+entry points export it as `apiIdentityName`. Pass that output as `role_name` to the SQL scripts,
+so the role and the connection string always agree. There's no `Password`. The API fetches a
+token instead (§9, P0-062.2.1), and refuses to start in Entra mode if a password is present.
+
+⚠ **Gotcha — Npgsql's `SslMode=Require` doesn't check the certificate.** It encrypts, but it
+accepts any server certificate. `VerifyFull` also checks the chain and the host name. Azure
+Postgres certificates chain to public roots in the .NET container image's trust store, so it
+needs no extra setup.
+
 ---
 
 ## 13. Not-yet-built (and where it goes)
@@ -1372,7 +1518,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
-| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, and nothing is deployed. |
+| **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
 | **CI/CD** | not started | GitHub Actions: build + push on `main` merge, staging on demand, manual prod promote ([ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md) — dev runs locally) |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
@@ -1397,6 +1543,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Riok.Mapperly | 4.3.1 |
 | Microsoft.EntityFrameworkCore (+ Relational, Design) | 10.0.11 |
 | Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.3 |
+| Azure.Identity | 1.21.0 |
 | Microsoft.Extensions.Hosting.Abstractions / Options.ConfigurationExtensions | 10.0.11 |
 | dotnet-ef (local tool) | 10.0.11 |
 | StyleCop.Analyzers | 1.2.0-beta.556 |
@@ -1420,6 +1567,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | `Microsoft.Insights/diagnosticSettings` API | 2021-05-01-preview |
 | `Microsoft.App/containerApps` API | 2026-01-01 |
 | `Microsoft.ServiceBus/namespaces` (+ topics, subscriptions) API | 2024-01-01 |
+| `Microsoft.ManagedIdentity/userAssignedIdentities` API | 2024-11-30 |
 
 ---
 
@@ -1455,6 +1603,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Real dev deploy fails: Key Vault name already in use, but nothing is in `rg-ee-dev-eus` | an earlier throwaway deploy used the real name; the deleted vault is purge-protected | deploy throwaways with `sandbox = true`; otherwise wait out retention or recover the vault |
 | `BCP427: Environment variable "EE_PG_ADMIN_OBJECT_ID" does not exist` | `main.dev.bicepparam` reads the Postgres admin from the shell | set `EE_PG_ADMIN_OBJECT_ID` / `EE_PG_ADMIN_NAME` (§12.13) |
 | `BCP318: The value of type "module | null" may be null` | reading an output of a module that has an `if` | use `mod.?outputs.?x ?? <fallback>` |
+| API in Azure gets `ManagedIdentityCredential authentication unavailable` / no identity found | user-assigned identity attached but `AZURE_CLIENT_ID` not set | pass `identity` to `containerApp.bicep` — it sets the variable (§12.18) |
 | Container App can't pull the `ghcr.io` image (`UNAUTHORIZED`) | image is private; the app has no registry credentials, or the `read:packages` token expired | wire / rotate the token (P0-062.4, [ADR-0010](./adr/0010-ghcr-instead-of-acr.md)) |
 | Migrations / `psql` "succeed" but the container DB is empty | a native Windows Postgres owns `localhost:5432` and took the connection | use the compose port 55432 + `ConnectionStrings__Postgres` (§11) |
 | `dotnet ef`: startup project doesn't reference `Microsoft.EntityFrameworkCore.Design` | Api project used as startup | `--startup-project apps/api/src/EarlyEagles.Infrastructure` |

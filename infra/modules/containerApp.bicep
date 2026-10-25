@@ -6,10 +6,15 @@
 // Container Apps cap names at 32 characters — the tightest limit in the stack
 // (infra-conventions §3.3) — so keep roles short (api, worker, migrations).
 //
+// Identity (P0-062.1): pass a user-assigned identity and it is attached to
+// the app, with its client ID exported as AZURE_CLIENT_ID so
+// DefaultAzureCredential uses it. No system-assigned identity: see
+// userAssignedIdentity.bicep for why.
+//
 // Not here yet, by design:
-//   - Managed identity, registry credentials and Key Vault secret references.
-//     They arrive with P0-062.1–.3; until then the image must be publicly
-//     pullable (a placeholder such as mcr.microsoft.com/k8se/quickstart).
+//   - Registry credentials and Key Vault secret references. They arrive with
+//     P0-062.3–.4; until then the image must be publicly pullable (a
+//     placeholder such as mcr.microsoft.com/k8se/quickstart).
 //   - Health probes are opt-in (livenessPath / readinessPath). A placeholder
 //     image doesn't serve /health or /ready, and a probe it can't pass leaves
 //     the revision unhealthy forever.
@@ -20,6 +25,15 @@ import { requiredTags } from '../types.bicep'
 type envVar = {
   name: string
   value: string
+}
+
+@description('A user-assigned identity. Typed as a pair so the client ID cannot be forgotten.')
+type identityRef = {
+  @description('Resource ID.')
+  id: string
+
+  @description('Client (application) ID, set as AZURE_CLIENT_ID.')
+  clientId: string
 }
 
 @description('App name, e.g. ca-ee-api-dev-eus-001 (infra-conventions §3). Lowercase alphanumerics and hyphens, at most 32 characters.')
@@ -73,6 +87,9 @@ param maxReplicas int
 @description('Plain environment variables.')
 param env envVar[] = []
 
+@description('User-assigned identity to attach: userAssignedIdentity.bicep outputs `id` and `clientId`. Null = no identity.')
+param identity identityRef?
+
 @description('HTTP path for the liveness probe, e.g. /health. Empty = no probe (placeholder images).')
 param livenessPath string = ''
 
@@ -118,10 +135,30 @@ var readinessProbe = empty(readinessPath)
       }
     ]
 
+// With more than one identity attached, DefaultAzureCredential can't guess
+// which to use; naming it explicitly also keeps a later second identity from
+// silently changing what the app authenticates as.
+var identityEnv = identity == null
+  ? []
+  : [
+      {
+        name: 'AZURE_CLIENT_ID'
+        value: identity!.clientId
+      }
+    ]
+
 resource app 'Microsoft.App/containerApps@2026-01-01' = {
   name: name
   location: location
   tags: tags
+  identity: identity == null
+    ? { type: 'None' }
+    : {
+        type: 'UserAssigned'
+        userAssignedIdentities: {
+          '${identity!.id}': {}
+        }
+      }
   properties: {
     environmentId: environmentId
     workloadProfileName: 'Consumption'
@@ -145,7 +182,7 @@ resource app 'Microsoft.App/containerApps@2026-01-01' = {
             cpu: json(cpu)
             memory: memoryByCpu[cpu]
           }
-          env: env
+          env: concat(identityEnv, env)
           probes: concat(livenessProbe, readinessProbe)
         }
       ]

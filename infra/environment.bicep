@@ -4,9 +4,9 @@
 // code and §7 sizing. Extracted from main.dev.bicep so the environments
 // cannot drift apart in wiring — only in the values they pass.
 //
-// Not here: a container registry (images live on ghcr.io, ADR-0010), managed
-// identity and role assignments (P0-062.*), Service Bus topics (passed in by
-// P0-051).
+// Not here: a container registry (images live on ghcr.io, ADR-0010), role
+// assignments for the API identity (P0-062.2–.4), Service Bus topics (passed
+// in by P0-051).
 //
 // sandbox = true deploys a throwaway copy into rg-ee-sandbox-eus. Its
 // globally unique names get a different suffix: Key Vault purge protection
@@ -241,6 +241,19 @@ module cae 'modules/containerAppsEnv.bicep' = {
   }
 }
 
+// The API's identity (P0-062.1). Its own module, not created by the app, so
+// role assignments (P0-062.2–.4) can be granted before the app first starts.
+module apiIdentity 'modules/userAssignedIdentity.bicep' = {
+  name: '${prefix}-api-id'
+  scope: resourceGroup(resourceGroupName)
+  dependsOn: [rg]
+  params: {
+    name: 'id-ee-api-${environment}-${regionCode}'
+    location: location
+    tags: tags
+  }
+}
+
 module api 'modules/containerApp.bicep' = {
   name: '${prefix}-api'
   scope: resourceGroup(resourceGroupName)
@@ -255,10 +268,28 @@ module api 'modules/containerApp.bicep' = {
     cpu: sizing.api.cpu
     minReplicas: sizing.api.minReplicas
     maxReplicas: sizing.api.maxReplicas
-    // No env vars and no probes yet: the placeholder image reads no config
-    // and serves only /. Endpoints, secrets (Key Vault references) and the
-    // /health + /ready probes arrive with the real image and managed
-    // identity (P0-062.*, P0-084).
+    identity: {
+      id: apiIdentity.outputs.id
+      clientId: apiIdentity.outputs.clientId
+    }
+    // Password-less Postgres (P0-062.2.3): the API signs in with an Entra
+    // token for its identity (P0-062.2.1). Username is the identity's name,
+    // which is also the role infra/sql/api-role/ creates, so the two can't
+    // drift. VerifyFull, not Require: Npgsql's Require encrypts without
+    // checking the certificate; Azure's chains to a public root the image
+    // already trusts. Nothing secret here, so plain env vars.
+    // The placeholder image ignores these; no probes until the real image
+    // (P0-084).
+    env: [
+      {
+        name: 'Postgres__Authentication'
+        value: 'Entra'
+      }
+      {
+        name: 'ConnectionStrings__Postgres'
+        value: 'Host=${psql.outputs.fqdn};Database=${psql.outputs.databaseName};Username=${apiIdentity.outputs.name};SslMode=VerifyFull'
+      }
+    ]
   }
 }
 
@@ -285,6 +316,15 @@ output redisPort int = redis.?outputs.?port ?? 0
 
 @description('Public FQDN of the API Container App.')
 output apiFqdn string = api.outputs.fqdn
+
+@description('Principal (object) ID of the API identity — for granting it access by hand or from another template.')
+output apiIdentityPrincipalId string = apiIdentity.outputs.principalId
+
+@description('Name of the API identity — also its Postgres role (role_name for infra/sql/api-role/).')
+output apiIdentityName string = apiIdentity.outputs.name
+
+@description('Client ID of the API identity (also set on the app as AZURE_CLIENT_ID).')
+output apiIdentityClientId string = apiIdentity.outputs.clientId
 
 @description('App Insights resource name. The connection string is a secure output of the module and is deliberately not re-exported.')
 output appInsightsName string = appi.outputs.name
