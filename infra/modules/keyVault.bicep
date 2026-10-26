@@ -39,6 +39,13 @@ param skuName string
 @maxValue(90)
 param softDeleteRetentionInDays int = 90
 
+@description('Principal (object) IDs of managed identities that read secrets: Key Vault Secrets User on this vault (P0-062.3.1). Read only, no list of keys or certificates, no writes.')
+param secretsUserPrincipalIds string[] = []
+
+// Built-in role IDs are the same in every tenant (learn.microsoft.com, Azure
+// built-in roles → Security).
+var keyVaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
+
 resource vault 'Microsoft.KeyVault/vaults@2024-11-01' = {
   name: name
   location: location
@@ -62,6 +69,22 @@ resource vault 'Microsoft.KeyVault/vaults@2024-11-01' = {
     }
   }
 }
+
+// Scoped to this vault, not the resource group, so the role reaches no other
+// vault. The name is a deterministic guid, so redeploys don't duplicate it.
+// principalType skips the directory lookup that fails for an identity created
+// moments earlier in the same deployment (replication delay).
+resource secretsUsers 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for principalId in secretsUserPrincipalIds: {
+    name: guid(vault.id, principalId, keyVaultSecretsUserRoleId)
+    scope: vault
+    properties: {
+      roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultSecretsUserRoleId)
+      principalId: principalId
+      principalType: 'ServicePrincipal'
+    }
+  }
+]
 
 @description('Key Vault name.')
 output name string = vault.name

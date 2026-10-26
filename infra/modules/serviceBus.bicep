@@ -60,6 +60,23 @@ param duplicateDetectionWindow string = 'PT10M'
 @description('How long an undelivered message lives before it expires to the dead-letter queue (ISO 8601).')
 param messageTimeToLive string = 'P14D'
 
+@description('Principal (object) IDs that publish: Azure Service Bus Data Sender on the namespace (P0-062.3.2).')
+param dataSenderPrincipalIds string[] = []
+
+@description('Principal (object) IDs that consume: Azure Service Bus Data Receiver on the namespace (P0-062.3.2).')
+param dataReceiverPrincipalIds string[] = []
+
+// Built-in role IDs are the same in every tenant (learn.microsoft.com, Azure
+// built-in roles → Integration).
+var dataSenderRoleId = '69a216fc-b8fb-44d8-bc22-1f3c2cd27a39'
+var dataReceiverRoleId = '4f6d3b9b-027b-4f4c-9142-0e5a2a2247e0'
+
+// One row per (principal, role) so both lists share one resource loop.
+var dataRoleRows = concat(
+  map(dataSenderPrincipalIds, p => { principalId: p, roleId: dataSenderRoleId }),
+  map(dataReceiverPrincipalIds, p => { principalId: p, roleId: dataReceiverRoleId })
+)
+
 resource namespace 'Microsoft.ServiceBus/namespaces@2024-01-01' = {
   name: name
   location: location
@@ -102,6 +119,22 @@ resource subscriptionResources 'Microsoft.ServiceBus/namespaces/topics/subscript
       maxDeliveryCount: row.sub.?maxDeliveryCount ?? 10
       deadLetteringOnMessageExpiration: true
       lockDuration: 'PT1M'
+    }
+  }
+]
+
+// Namespace scope, not per topic: topics come and go with P0-051, and a
+// grant per entity would have to follow them. Data roles only. Neither one
+// can manage entities or read keys (local auth is off anyway).
+// principalType: see keyVault.bicep.
+resource dataRoles 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for row in dataRoleRows: {
+    name: guid(namespace.id, row.principalId, row.roleId)
+    scope: namespace
+    properties: {
+      roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', row.roleId)
+      principalId: row.principalId
+      principalType: 'ServicePrincipal'
     }
   }
 ]

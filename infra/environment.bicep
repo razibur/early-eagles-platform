@@ -4,9 +4,10 @@
 // code and §7 sizing. Extracted from main.dev.bicep so the environments
 // cannot drift apart in wiring — only in the values they pass.
 //
-// Not here: a container registry (images live on ghcr.io, ADR-0010), role
-// assignments for the API identity (P0-062.2–.4), Service Bus topics (passed
-// in by P0-051).
+// Not here: a container registry (images live on ghcr.io, ADR-0010), Service
+// Bus topics (passed in by P0-051). The API identity's data access is granted
+// inside each resource's module (P0-062.3): Key Vault secrets, Service Bus
+// send + receive, Redis. Postgres is SQL, not ARM (infra/sql/api-role/).
 //
 // sandbox = true deploys a throwaway copy into rg-ee-sandbox-eus. Its
 // globally unique names get a different suffix: Key Vault purge protection
@@ -179,6 +180,7 @@ module kv 'modules/keyVault.bicep' = {
     skuName: 'standard'
     // A sandbox vault's name is freed 7 days after teardown instead of 90.
     softDeleteRetentionInDays: sandbox ? 7 : 90
+    secretsUserPrincipalIds: [apiIdentity.outputs.principalId]
   }
 }
 
@@ -214,6 +216,10 @@ module sb 'modules/serviceBus.bicep' = if (sizing.?serviceBus != null) {
     tags: tags
     skuName: sizing.?serviceBus.?skuName ?? 'Standard'
     topics: serviceBusTopics
+    // The API both publishes (outbox drain) and consumes (P0-052 handlers);
+    // a separate worker would take the receiver role when it exists.
+    dataSenderPrincipalIds: [apiIdentity.outputs.principalId]
+    dataReceiverPrincipalIds: [apiIdentity.outputs.principalId]
   }
 }
 
@@ -227,6 +233,7 @@ module redis 'modules/redis.bicep' = if (sizing.?redis != null) {
     tags: tags
     skuName: sizing.?redis.?skuName ?? 'Balanced_B0'
     highAvailability: sizing.?redis.?highAvailability ?? false
+    dataAccessPrincipalIds: [apiIdentity.outputs.principalId]
   }
 }
 

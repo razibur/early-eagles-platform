@@ -779,6 +779,19 @@ connection settings. Split so each is verifiable alone:
 `Require` encrypts but skips certificate validation. `VerifyFull` also checks the chain and host
 name, and Azure Postgres certificates chain to public roots in the .NET image's trust store.
 
+### P0-062.3 split (2026-10-26)
+
+"Grant the identity access to Key Vault + Service Bus" (plus Redis, per the 2026-10-06 note)
+is three grants on three resources, each deployed only where the resource exists. Each grant
+lives in the module that owns the resource, as a list of principal IDs, and `environment.bicep`
+passes the API identity:
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-062.3.1 | Key Vault Secrets User on the vault (`keyVault.bicep` `secretsUserPrincipalIds`) | P0-062.1, P0-057.2 | `az bicep build` clean; compiled assignment checked. Live "API reads a secret" carried to P0-059.3 |
+| P0-062.3.2 | Service Bus Data Sender + Data Receiver on the namespace (`serviceBus.bicep`): the API publishes (outbox) and consumes (P0-052) | P0-062.1, P0-058.4 | Same; only where Service Bus is deployed. Live "API publishes a message" carried to P0-059.3 |
+| P0-062.3.3 | Redis `default` access-policy assignment on the database (`redis.bicep`), not an RBAC role | P0-062.1, P0-058.5 | Same; only where Redis is deployed (none today) |
+
 ---
 
 ## Sequencing notes

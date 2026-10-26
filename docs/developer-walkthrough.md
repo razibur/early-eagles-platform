@@ -1503,6 +1503,58 @@ accepts any server certificate. `VerifyFull` also checks the chain and the host 
 Postgres certificates chain to public roots in the .NET container image's trust store, so it
 needs no extra setup.
 
+### 12.20 The identity's access to Key Vault, Service Bus and Redis (P0-062.3)
+
+Every data service here has its keys or passwords turned off (Key Vault RBAC, Service Bus
+`disableLocalAuth`, Redis `accessKeysAuthentication: 'Disabled'`), so an identity can only get
+in through an explicit grant. Each grant lives **in the module that owns the resource**, as a
+list of principal IDs, and `environment.bicep` passes the API identity:
+
+| Module | Param | Grant | Scope |
+|---|---|---|---|
+| `keyVault.bicep` | `secretsUserPrincipalIds` | RBAC **Key Vault Secrets User** (read secrets only) | the vault |
+| `serviceBus.bicep` | `dataSenderPrincipalIds` / `dataReceiverPrincipalIds` | RBAC **Azure Service Bus Data Sender / Receiver** | the namespace |
+| `redis.bicep` | `dataAccessPrincipalIds` | Redis **access-policy assignment** to `default` (not RBAC) | the database |
+
+Putting the grant inside the module means it's deployed exactly when the resource is. Service
+Bus exists only in dev today, and Redis nowhere, so their grants follow automatically. It also
+needs no `existing` lookups. The role assignment itself:
+
+```bicep
+resource secretsUsers 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
+  for principalId in secretsUserPrincipalIds: {
+    name: guid(vault.id, principalId, keyVaultSecretsUserRoleId)
+    scope: vault
+    properties: {
+      roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultSecretsUserRoleId)
+      principalId: principalId
+      principalType: 'ServicePrincipal'
+    }
+  }
+]
+```
+
+The API gets both Service Bus roles because it both publishes (the outbox drain) and consumes
+(the P0-052 handlers). When a separate worker exists, the receiver role moves to its identity.
+
+⚠ **Gotcha — set `principalType` on role assignments for a new identity.** Without it, ARM
+looks the principal up in Entra ID. An identity created seconds earlier in the same deployment
+often hasn't replicated yet, and the assignment fails with `PrincipalNotFound`. With
+`ServicePrincipal` set, the lookup is skipped.
+
+⚠ **Gotcha — role assignment names must be GUIDs, and stable.** Use
+`guid(scope, principal, role)`. A random or changing name makes a redeploy try to create a
+second assignment of the same role, which fails with `RoleAssignmentExists`.
+
+⚠ **Gotcha — verify built-in role IDs; don't trust memory.** They're the same in every tenant,
+but they're 36 hex characters. My remembered Service Bus Data Receiver ID was off by one
+character, and nothing in Bicep would have caught that before a failed deploy. The source of
+truth is Microsoft's built-in roles reference, or `az role definition list --name "<role>"`.
+
+⚠ **Gotcha — Redis data access isn't RBAC.** Azure RBAC on `redisEnterprise` covers the control
+plane only. Data access is a `databases/accessPolicyAssignments` child. The client signs in with
+the identity's **object ID as the user name** and an Entra token as the password.
+
 ---
 
 ## 13. Not-yet-built (and where it goes)

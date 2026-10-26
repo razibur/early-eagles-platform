@@ -16,11 +16,11 @@ Each task carries a one-line **verify:** with the exact thing to check / command
 to run. If a verify step requires external accounts (Azure, Stripe, Clerk),
 that's noted — the rest you can verify on your laptop.
 
-Last updated: 2026-10-25
+Last updated: 2026-10-26
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~48% (95 / ~198 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~49% (98 / ~200 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -330,7 +330,13 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: against the native PG 16 on :5432, in a throwaway `CREATE DATABASE … TEMPLATE earlyeagles` copy with a stand-in login role, [`02-grants.sql`](./infra/sql/api-role/02-grants.sql) runs clean **twice** and exits non-zero without `-v role_name`. 20/20 checks: the role can SELECT/INSERT/UPDATE/DELETE `tenants` and `outbox_messages`, SELECT/INSERT `audit_events`, and DML a table created *after* the grants (default privileges). It **can't** UPDATE/DELETE `audit_events`, CREATE TABLE/SCHEMA, ALTER/DROP/TRUNCATE, drop the audit trigger, or read `__EFMigrationsHistory`. [`01-create-principal.sql`](./infra/sql/api-role/01-create-principal.sql) (`pgaadauth_create_principal_with_oid`, run on the `postgres` db, skips if the role exists) is Azure-only, so its live run is carried to P0-059.3. Walkthrough §12.19.
 - `[x]` **P0-062.2.3** Container App env: `Postgres__Authentication=Entra` + password-less connection string
   ↳ verify: `az bicep build` + lint clean on all three `main.<env>.bicep`; each `build-params` resolves with `EE_PG_ADMIN_*` set. In every compiled template the API gets `Postgres__Authentication=Entra` and `ConnectionStrings__Postgres = Host=<psql fqdn>;Database=<db>;Username=<identity name>;SslMode=VerifyFull` (after the module's `AZURE_CLIENT_ID`). `Username` comes from `apiIdentity.outputs.name`, the same name the SQL scripts take as `role_name`, so it can't drift; exported as the new `apiIdentityName` output from every entry point. **`VerifyFull`, not the plan's `Require`:** Npgsql's `Require` encrypts without checking the certificate (see [appendix note](./Implementation-Plan.md#p0-0622-split-2026-10-23)). Plain env vars, since nothing is secret. Live "API connects without password" carried to P0-059.3. Walkthrough §12.19.
-- `[ ]` **P0-062.3** Grant identity access to Key Vault + Service Bus
+- `[x]` **P0-062.3** Grant identity access to Key Vault + Service Bus (+ Redis) — **split** 2026-10-26, see [Implementation-Plan appendix](./Implementation-Plan.md#p0-0623-split-2026-10-26). All three grants in Bicep; the live checks are carried to P0-059.3. Common verify: `az bicep build` + lint clean on the three modules and all three `main.<env>.bicep`, and each `build-params` resolves with `EE_PG_ADMIN_*` set. Each grant is a list param on the resource's own module (default `[]`). `environment.bicep` passes `apiIdentity.outputs.principalId`, and every compiled grant module `dependsOn: [apiIdentity, rg]`. Role IDs are checked against Microsoft's built-in roles source (my remembered Service Bus Receiver ID was wrong by one character). The assignment `name` is a deterministic `guid(scope, principal, role)`, and `principalType: 'ServicePrincipal'` avoids the replication-delay failure for an identity created in the same deployment.
+- `[x]` **P0-062.3.1** Key Vault Secrets User (`4633458b-…69e6`) on the vault
+  ↳ verify: compiled in dev, stg and prod. Scoped to the vault, not the RG. Read secrets only: no keys, certificates or writes.
+- `[x]` **P0-062.3.2** Service Bus Data Sender (`69a216fc-…7a39`) + Data Receiver (`4f6d3b9b-…47e0`) on the namespace
+  ↳ verify: compiled, under the `sizing.serviceBus` condition, so deployed in **dev only** today (stg/prod add Service Bus with P0-086/087). Namespace scope, since topics come with P0-051. The API both publishes and consumes; a future worker would take the receiver role.
+- `[x]` **P0-062.3.3** Redis `default` access-policy assignment on the database
+  ↳ verify: compiled, under the `sizing.redis` condition, so **deployed nowhere** today (no env has Redis). Not an RBAC role (`redisEnterprise` RBAC is control-plane only). Name `uniqueString(database, principal)`, since the name must be alphanumeric.
 - `[ ]` **P0-062.4** Container App pulls the private `ghcr.io` image with a `read:packages` token held in Key Vault (registry secret via managed identity) — redefined by ADR-0010 (was: `AcrPull` on ACR)
 - `[ ]` **P0-063** `docs/runbooks/deploy-infra.md`
 

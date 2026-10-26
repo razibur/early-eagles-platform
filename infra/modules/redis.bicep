@@ -68,6 +68,9 @@ param clusteringPolicy string = 'NoCluster'
 ])
 param evictionPolicy string = 'VolatileLRU'
 
+@description('Principal (object) IDs that read and write keys: the database\'s built-in `default` access policy (P0-062.3.3). Entra-only, so an identity left out has no way in.')
+param dataAccessPrincipalIds string[] = []
+
 resource cache 'Microsoft.Cache/redisEnterprise@2025-07-01' = {
   name: name
   location: location
@@ -98,6 +101,24 @@ resource database 'Microsoft.Cache/redisEnterprise/databases@2025-07-01' = {
     port: 10000
   }
 }
+
+// Data access is a Redis access-policy assignment, not an Azure RBAC role:
+// RBAC on redisEnterprise covers the control plane only. `default` is the one
+// built-in policy (full data access). The client signs in with the
+// identity's object ID as the user name and an Entra token as the password.
+// Names must be alphanumeric, so a hash of the principal stands in.
+resource dataAccess 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01' = [
+  for principalId in dataAccessPrincipalIds: {
+    parent: database
+    name: uniqueString(database.id, principalId)
+    properties: {
+      accessPolicyName: 'default'
+      user: {
+        objectId: principalId
+      }
+    }
+  }
+]
 
 @description('Cache name.')
 output name string = cache.name
