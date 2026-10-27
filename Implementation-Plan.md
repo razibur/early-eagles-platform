@@ -792,6 +792,20 @@ passes the API identity:
 | P0-062.3.2 | Service Bus Data Sender + Data Receiver on the namespace (`serviceBus.bicep`): the API publishes (outbox) and consumes (P0-052) | P0-062.1, P0-058.4 | Same; only where Service Bus is deployed. Live "API publishes a message" carried to P0-059.3 |
 | P0-062.3.3 | Redis `default` access-policy assignment on the database (`redis.bicep`), not an RBAC role | P0-062.1, P0-058.5 | Same; only where Redis is deployed (none today) |
 
+### PWA without a plugin (2026-10-26)
+
+[ADR-0011](./docs/adr/0011-hand-written-service-worker-instead-of-next-pwa.md): `next-pwa` is
+unmaintained (last release 2022) and webpack-only, and Next 16 builds with Turbopack. The
+service worker is hand-written instead, per the Next.js 16 PWA guide. Acceptance criteria are
+unchanged:
+
+| ID | Change |
+|---|---|
+| P0-067.1 | **Redefined:** hand-written `apps/web/public/sw.js` (no caching, no `fetch` handler), registered by a Client Component in the root layout; `next.config.ts` serves `/sw.js` with `no-cache` and a `self`-only CSP. Verify unchanged: service worker registers in dev. |
+| P0-067.2 | **Reworded:** the manifest is the built-in `app/manifest.ts` metadata route, not `public/manifest.webmanifest`. |
+| P0-067.4 | **Added:** fix the three Recharts 3.8 type errors in the sample charts (`components/charts/*`, from P0-019/064/065) that make `npm run build` fail. Verify: `npm run build` passes. Found while verifying P0-067.1. |
+| P0-068.2 | Adds the `push` / `notificationclick` handlers to the same `public/sw.js`. |
+
 ---
 
 ## Sequencing notes

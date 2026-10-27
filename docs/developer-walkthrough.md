@@ -196,6 +196,46 @@ shadcn/ui (Base UI variant), and Recharts**. The dependency set to reproduce:
 
 Run it: `npm run dev` from the root → http://localhost:3000.
 
+### 4.1 The service worker — no PWA plugin (P0-067.1)
+
+The PWA layer has **no plugin** ([ADR-0011](./adr/0011-hand-written-service-worker-instead-of-next-pwa.md)).
+`next-pwa` hasn't been released since 2022 and only hooks into webpack, while Next 16 builds
+with Turbopack. The Next.js 16 PWA guide (`node_modules/next/dist/docs/01-app/02-guides/progressive-web-apps.md`)
+does it by hand, and so do we. Three pieces:
+
+1. **`apps/web/public/sw.js`** — served as-is from `/sw.js`. It calls `skipWaiting()` on
+   install and `clients.claim()` on activate, and nothing else: **no `fetch` handler, no
+   caches**, so every request goes to the network and a deploy can't be hidden behind a stale
+   cache. Push handlers join it in P0-068.2.
+2. **`apps/web/components/pwa/service-worker-registration.tsx`** — a Client Component that
+   registers `/sw.js` in a `useEffect` with `scope: "/"` and `updateViaCache: "none"`, and
+   renders nothing. It sits at the end of `<body>` in `app/layout.tsx`.
+3. **`apps/web/next.config.ts`** — an `async headers()` rule for `/sw.js`:
+   `Cache-Control: no-cache, no-store, must-revalidate`, an explicit JavaScript
+   `Content-Type`, and `Content-Security-Policy: default-src 'self'; script-src 'self'`.
+
+▶ Reference: [`public/sw.js`](../apps/web/public/sw.js),
+[`service-worker-registration.tsx`](../apps/web/components/pwa/service-worker-registration.tsx),
+[`next.config.ts`](../apps/web/next.config.ts)
+
+Check it: `npm run dev`, open http://localhost:3000, then DevTools → **Application → Service
+workers** shows `/sw.js` *activated and running* for scope `/`. In the console,
+`navigator.serviceWorker.controller` is non-null on the **first** visit (that's
+`clients.claim()`). `curl -I http://localhost:3000/sw.js` shows the three headers.
+
+> ⚠ **Gotcha — a cached worker outlives the deploy.** Without `updateViaCache: "none"` *and*
+> `no-cache` on `/sw.js`, the browser can keep checking against a cached copy of the old worker,
+> and users run it until the cache expires. Keep both.
+
+> ⚠ **Gotcha — "cleaning up" with `skipWaiting` once caching exists.** Taking over immediately
+> is safe only because the worker caches nothing. If offline precaching is added later (Serwist,
+> per ADR-0011), revisit it: a new worker taking over a page that loaded old assets can serve a
+> mismatched mix.
+
+> ⚠ **Gotcha — `npm run build` fails on the sample charts.** Recharts 3.8's tick-prop types
+> reject `textTransform` (and siblings) in `components/charts/*`. That's pre-existing and
+> unrelated to the service worker; `npm run dev` is unaffected. Fix tracked as P0-067.4.
+
 ---
 
 ## 5. Backend — Clean Architecture solution
@@ -1717,6 +1757,8 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Postgres deploy rejects `version: '17'` though Bicep built it | API version older than `2025-08-01` | use `2025-08-01`+; Bicep doesn't validate the enum |
 | `BCP081: does not have types available` | API version newer than the Bicep CLI's type library; properties go unchecked | pin the newest version the CLI has types for |
 | Container Apps environment has no *Logs* blade in the portal | logs destination is `azure-monitor` | query the Log Analytics workspace directly |
+| Users keep running an old service worker after a deploy | `/sw.js` came from a cache | keep `updateViaCache: "none"` + `no-cache` on `/sw.js` (§4.1) |
+| `npm run build`: `'textTransform' does not exist in type …XAxisTickContentProps` | Recharts 3.8 tick types (sample charts) | pre-existing; P0-067.4 |
 | New Container App revision never becomes healthy | liveness/readiness probe on a path the image doesn't serve | leave `livenessPath`/`readinessPath` empty for placeholder images |
 | Service Bus rejects a connection string / SAS token (auth failure) | namespace has SAS keys disabled | authenticate with Entra (`DefaultAzureCredential`) + a data role |
 | Redis deploy fails: creation blocked / SKU unavailable | `Microsoft.Cache/redis` (Azure Cache for Redis) — closed to new instances since 2026-10-01 | use `Microsoft.Cache/redisEnterprise` (Azure Managed Redis), ADR-0008 |

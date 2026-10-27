@@ -20,7 +20,7 @@ Last updated: 2026-10-26
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~50% (100 / ~200 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~50% (101 / ~201 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -349,9 +349,11 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[x]` **P0-065** Tailwind v4 + shadcn/ui (Base UI) + base components
   ↳ verify: `components.json` + `components/ui/{button,card,chart}.tsx` present
 - `[-]` **P0-066** `next-intl` + locale routing + bn messages — deferred per [ADR-0003](docs/adr/0003-defer-i18n.md)
-- `[ ]` **P0-067.1** Install `next-pwa`; configure in `next.config.ts`
-- `[ ]` **P0-067.2** `public/manifest.webmanifest` with icon set + theme color
+- `[x]` **P0-067.1** Register a hand-written service worker (`public/sw.js`); serve it uncached via `next.config.ts` — redefined by [ADR-0011](./docs/adr/0011-hand-written-service-worker-instead-of-next-pwa.md) (was: install `next-pwa`, unmaintained since 2022 and webpack-only)
+  ↳ verify: `npm run dev`, then headless Chrome on `/`: `navigator.serviceWorker.ready` resolves with scope `/` and script `/sw.js`, and the page is controlled on the first visit without a reload (`clients.claim`); `GET /sw.js` returns `Content-Type: application/javascript; charset=utf-8`, `Cache-Control: no-cache, no-store, must-revalidate` and the `self`-only CSP; no console errors. `npm run lint` clean. Zero new dependencies. `npm run build` still fails on three **pre-existing** Recharts type errors in `components/charts/*` (from `1ceddf1`, untouched here) — tracked as P0-067.4.
+- `[ ]` **P0-067.2** `app/manifest.ts` (built-in metadata route, ADR-0011) with icon set + theme color
 - `[ ]` **P0-067.3** Verify install on Chrome DevTools + Android home screen
+- `[ ]` **P0-067.4** Fix the three Recharts 3.8 type errors in `components/charts/*` so `npm run build` passes — added 2026-10-26
 - `[ ]` **P0-068.1** Generate VAPID keys; store public in env, private in vault
 - `[ ]` **P0-068.2** Service worker registers push subscription
 - `[ ]` **P0-068.3** API endpoint `POST /api/push/subscribe` stores subscription per user

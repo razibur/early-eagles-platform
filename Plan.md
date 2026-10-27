@@ -93,7 +93,7 @@ Companion documents:
 | Auth | Clerk B2B (Organizations) — Google + email magic link + phone OTP, MFA, B2B SSO upgrade |
 | Object storage | Cloudflare R2 (S3-compatible). Azure Blob as fallback for data-residency contracts. |
 | Frontend | Next.js 16 (App Router) + TypeScript + Tailwind + shadcn/ui |
-| PWA | `next-pwa` + Web Push (VAPID) |
+| PWA | Hand-written service worker + `app/manifest.ts` + Web Push (VAPID); no plugin ([ADR-0011](./docs/adr/0011-hand-written-service-worker-instead-of-next-pwa.md)) |
 | i18n | `next-intl` + `IStringLocalizer` (en + bn) |
 | Data fetching | TanStack Query + Zustand |
 | Email | Resend (transactional) + SendGrid or Azure Communication Services (bulk) |

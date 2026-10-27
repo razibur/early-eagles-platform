@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Big_Shoulders, Hanken_Grotesk } from "next/font/google"
+import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration"
 import "./globals.css"
 
 const bigShoulders = Big_Shoulders({
@@ -34,6 +35,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-primary/30 selection:text-foreground">
         {children}
+        <ServiceWorkerRegistration />
       </body>
     </html>
   )
