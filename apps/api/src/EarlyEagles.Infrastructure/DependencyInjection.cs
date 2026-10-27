@@ -6,6 +6,7 @@ using EarlyEagles.Application.Abstractions.Messaging;
 using EarlyEagles.Application.Abstractions.Persistence;
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Infrastructure.Auditing;
+using EarlyEagles.Infrastructure.Messaging;
 using EarlyEagles.Infrastructure.Outbox;
 using EarlyEagles.Infrastructure.Persistence;
 using EarlyEagles.Infrastructure.Tenancy;
@@ -109,7 +110,7 @@ public static class DependencyInjection
         return services;
     }
 
-    // Where outbox rows go (P0-050.2.2). Azure: the namespace from config,
+    // Where outbox rows go (P0-050.2.2), and who listens (P0-052). Azure: the namespace from config,
     // signed in with the app's TokenCredential (the namespace has SAS keys
     // disabled). Emulator: a connection string. Neither: the logging
     // publisher, so a laptop without the bus still runs; queued events are
@@ -132,5 +133,10 @@ public static class DependencyInjection
             : new ServiceBusClient(connectionString));
         services.AddSingleton(sp => sp.GetRequiredService<ServiceBusClient>().CreateSender(options.TopicName));
         services.AddScoped<IOutboxPublisher, ServiceBusOutboxPublisher>();
+
+        // Consumers (P0-052) share the client. Options are bound for them
+        // through IOptions so tests and handlers see the same topic name.
+        services.AddOptions<ServiceBusOptions>().Bind(configuration.GetSection(ServiceBusOptions.SectionName));
+        services.AddHostedService<PaymentConfirmedHandler>();
     }
 }

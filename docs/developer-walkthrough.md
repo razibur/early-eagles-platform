@@ -810,6 +810,30 @@ events are marked processed without reaching any bus.** Point a local API at the
 $env:ConnectionStrings__ServiceBus = "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
 ```
 
+**The first consumer (P0-052).** [`PaymentConfirmedHandler`](../apps/api/src/EarlyEagles.Infrastructure/Messaging/PaymentConfirmedHandler.cs)
+is a `BackgroundService` that owns a `ServiceBusProcessor` on `domain-events/payments`. The P0-051
+filter means it only ever sees `Subject = PaymentConfirmed`. It is registered only when a bus is
+configured (same condition as the publisher) and reuses the one `ServiceBusClient`. It settles
+messages explicitly (`AutoCompleteMessages = false`): **complete only after the handler returns**,
+so a crash mid-handle redelivers, up to `MaxDeliveryCount` (10), then dead-letters. Every consumer
+must therefore be idempotent on `MessageId`, which is the outbox row id. Today it logs
+(`EventId 1301`); dues tracking (Phase 1) gives it real work in `HandleAsync`.
+
+**Running the bus tests.** `OutboxToServiceBusTests` (P0-050.3) and `PaymentConfirmedHandlerTests`
+(P0-052.2) are marked `[ServiceBusEmulatorFact]` and **skip** unless `EE_SERVICEBUS_EMULATOR`
+holds the emulator's connection string. The suite never starts the emulator itself, because
+starting it means accepting its licence:
+
+```pwsh
+docker compose --profile bus up -d          # after ACCEPT_EULA=Y and MSSQL_SA_PASSWORD in .env
+$env:EE_SERVICEBUS_EMULATOR = "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+dotnet test apps/api/tests/EarlyEagles.Tests.Integration --filter "FullyQualifiedName~Messaging"
+```
+
+⚠ **Gotcha — two tests on one subscription steal each other's messages.** Both bus test classes
+read `payments`; run in parallel, one receives the other's message. They share the Postgres
+collection, which xUnit runs serially.
+
 ⚠ **Gotcha — the emulator's connection string goes nowhere near Azure.** The namespace in Azure
 has local auth disabled, so a SAS connection string fails there by design. Azure gets the
 namespace name only, and the identity does the rest.
