@@ -919,6 +919,24 @@ dotnet ef database update --project apps/api/src/EarlyEagles.Infrastructure --st
 The Infrastructure project is its own startup project: it has the design-time
 `ApplicationDbContextFactory` and the EF Design package, and the Api project doesn't.
 
+**Check the result with psql (P0-033.4).** Any psql client works; the container's own is
+`docker compose exec postgres psql -U postgres -d earlyeagles`:
+
+```sql
+\dt                                          -- tenants, tenant_members, audit_events, outbox_messages, __EFMigrationsHistory
+SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY 1;   -- InitialCreate, AddAuditEvents, AddOutboxMessages
+\d audit_events                              -- two triggers: audit_events_reject_update_delete / _reject_truncate
+```
+
+Running `dotnet ef database update` a second time prints *No migrations were applied*. To see the
+append-only rule hold at the storage layer, try it inside a transaction you roll back. UPDATE,
+DELETE and TRUNCATE on `audit_events` each fail with `audit_events is append-only: … is not
+allowed`, and deleting a tenant that has audit rows fails on the `ON DELETE RESTRICT` foreign key.
+
+⚠ **Gotcha — `ON DELETE CASCADE` stops at the audit log.** `tenant_members` cascades when a
+tenant is deleted; `audit_events` is `RESTRICT`. Deleting a tenant with any audit history fails by
+design. Tenant offboarding needs its own retention decision, not a `DELETE FROM tenants`.
+
 **Service Bus emulator** (only for outbox / messaging work, P0-051). It sits behind the `bus` profile
 because it needs a SQL Server container and ~2 GB of RAM:
 
