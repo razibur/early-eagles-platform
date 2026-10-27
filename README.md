@@ -26,8 +26,9 @@ Read these in order to get the full picture:
 
 Historical context and rejected alternatives live under [`docs/`](./docs/) — read only if you need to understand why a particular path was not chosen.
 
-## Code of conduct
+## Contributing
 
+Branch, commit and pull-request conventions are in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 Everyone working on the project follows the [Code of Conduct](./CODE_OF_CONDUCT.md)
 (Contributor Covenant 2.1).
 

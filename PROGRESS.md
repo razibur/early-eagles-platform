@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~52% (105 / ~201 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~53% (106 / ~201 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -69,8 +69,8 @@ External account / billing tasks. Mostly off the laptop; you confirm by logging 
   ↳ verify: VS / Rider / VSCode all respect settings
 - `[x]` **P0-014.5** Add `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1)
   ↳ verify: file present, linked from README. [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) is the official 2.1 text (fetched from the EthicalSource repo), with the reporting contact set to the README's contact address; README has a "Code of conduct" section linking it.
-- `[ ]` **P0-014.6** Add `CONTRIBUTING.md` (branch + commit + PR conventions)
-  ↳ verify: file present, linked from README
+- `[x]` **P0-014.6** Add `CONTRIBUTING.md` (branch + commit + PR conventions)
+  ↳ verify: file present, linked from README. [`CONTRIBUTING.md`](./CONTRIBUTING.md) covers task IDs and splitting, branch names (`p0-048/audit-query-endpoint`), the `P0-xxx: summary` commit format already used in history, and a PR checklist (PROGRESS verify line, walkthrough, warnings-as-errors build, tenant-isolation gate, `TenantId` + query filter, `AuditBehavior`, feature flag, no secrets). All its relative links resolve. The PR *template* file is P0-098.
 - `[ ]` **P0-015** Branch protection on `main` (PR review, status checks, signed commits)
   ↳ verify: direct push to `main` blocked
 - `[ ]` **P0-016** Add `CODEOWNERS` file
