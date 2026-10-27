@@ -4,6 +4,7 @@ using EarlyEagles.Api.OpenApi;
 using EarlyEagles.Api.Tenancy;
 using EarlyEagles.Application;
 using EarlyEagles.Infrastructure;
+using EarlyEagles.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,10 +19,11 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddExceptionHandling();
 builder.Services.AddTransient<TenantResolutionMiddleware>();
 
-// HealthChecks pipeline for the /ready endpoint. Concrete checks land later:
-//   .AddDbContextCheck<ApplicationDbContext>("database")  // P0-032.2
-//   .AddAzureServiceBusQueue(...)                         // P0-058.4
-builder.Services.AddHealthChecks();
+// Readiness checks behind /ready (P0-026.2). Each has its own timeout so one
+// slow dependency fails the probe quickly instead of hanging it. Service Bus
+// joins when the real publisher does (P0-050.2.2).
+builder.Services.AddHealthChecks()
+    .AddCheck<PostgresHealthCheck>(PostgresHealthCheck.Name, timeout: TimeSpan.FromSeconds(5));
 
 var app = builder.Build();
 

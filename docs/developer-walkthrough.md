@@ -386,6 +386,23 @@ cross-cutting concerns in `Program.cs`. Build these in this order:
 1. **Health & readiness endpoints** — `GET /health` (liveness, custom payload with assembly
    version + uptime) and `GET /ready` (readiness, runs registered `IHealthCheck`s).
    ▶ [`HealthEndpoints.cs`](../apps/api/src/EarlyEagles.Api/Health/HealthEndpoints.cs)
+
+   The one readiness check today is the database (P0-026.2):
+   [`PostgresHealthCheck`](../apps/api/src/EarlyEagles.Infrastructure/Persistence/PostgresHealthCheck.cs)
+   runs `SELECT 1` through the app's own `NpgsqlDataSource`, so in Azure it also proves the Entra
+   token works. `Program.cs` registers it with a **5-second timeout**:
+   `AddHealthChecks().AddCheck<PostgresHealthCheck>("postgres", timeout: TimeSpan.FromSeconds(5))`.
+   The check lives in Infrastructure, which references only
+   `Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions`; the API gets the rest from ASP.NET.
+   A down database makes `/ready` return **503** while `/health` stays 200, so the platform stops
+   routing traffic to the replica but doesn't restart it.
+
+   ⚠ **Gotcha — `/ready` is public.** Health-check descriptions are written to the response, and
+   the endpoint has no auth. Return fixed text (`"Database unreachable."`) and attach the exception
+   to the result for logs. An exception message would leak host names and auth errors.
+
+   ⚠ **Gotcha — Npgsql's connect timeout is 15 s.** Without the registration timeout, a probe
+   against an unresponsive host hangs past the platform's probe deadline.
 2. **OpenAPI + Swagger UI** — `Microsoft.AspNetCore.OpenApi` generates the doc;
    `Swashbuckle.AspNetCore.SwaggerUI` renders it. Gated to non-Production. Document
    transformers advertise the Clerk bearer scheme and the tenant subdomain contract.
@@ -958,7 +975,7 @@ module, plus a `smoke` subscription. P0-051 settles the real topic list.
 case, a digit and a symbol, and the emulator can't reach a SQL container that never came up.
 Check `docker compose --profile bus logs mssql`.
 
-**Backend** (boots without a database — the DbContext is lazy and nothing queries it yet):
+**Backend** (boots without a database — the DbContext is lazy; only `/ready` touches it):
 
 ```bash
 dotnet run --project apps/api/src/EarlyEagles.Api --urls http://localhost:5080
@@ -966,7 +983,8 @@ dotnet run --project apps/api/src/EarlyEagles.Api --urls http://localhost:5080
 
 ```bash
 curl http://localhost:5080/health   # {"status":"Healthy","version":"1.0.0+<sha>","uptimeSeconds":..}
-curl http://localhost:5080/ready    # {"status":"Healthy","checks":[],...}
+curl http://localhost:5080/ready    # {"status":"Healthy","checks":[{"name":"postgres","status":"Healthy",...}],...}
+                                    # 503 + "Database unreachable." while `docker compose stop postgres`
 curl http://localhost:5080/whoami   # 400 "Tenant not resolved" (no subdomain; dev is lenient)
 ```
 
@@ -1776,6 +1794,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.3 |
 | Azure.Identity | 1.21.0 |
 | Microsoft.Extensions.Hosting.Abstractions / Options.ConfigurationExtensions | 10.0.11 |
+| Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions | 10.0.11 |
 | dotnet-ef (local tool) | 10.0.11 |
 | StyleCop.Analyzers | 1.2.0-beta.556 |
 | NetArchTest.Rules | 1.3.2 |
@@ -1830,6 +1849,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Users keep running an old service worker after a deploy | `/sw.js` came from a cache | keep `updateViaCache: "none"` + `no-cache` on `/sw.js` (§4.1) |
 | `npm run build`: `'textTransform' does not exist in type …XAxisTickContentProps` | CSS-only property passed as an SVG attribute in a Recharts `tick` object | move it into `tick.style` (§4.1) |
 | DevTools says the app isn't installable: *incognito* | private / automation profile | test in a normal profile (§4.2) |
+| `/ready` hangs ~15 s when the DB host is unresponsive | Npgsql connect timeout, no check timeout | register the check with `timeout:` (§7) |
 | New Container App revision never becomes healthy | liveness/readiness probe on a path the image doesn't serve | leave `livenessPath`/`readinessPath` empty for placeholder images |
 | Service Bus rejects a connection string / SAS token (auth failure) | namespace has SAS keys disabled | authenticate with Entra (`DefaultAzureCredential`) + a data role |
 | Redis deploy fails: creation blocked / SKU unavailable | `Microsoft.Cache/redis` (Azure Cache for Redis) — closed to new instances since 2026-10-01 | use `Microsoft.Cache/redisEnterprise` (Azure Managed Redis), ADR-0008 |

@@ -13,8 +13,9 @@ namespace EarlyEagles.Api.Health;
 ///   payload with assembly version + process uptime. No auth.</item>
 ///   <item><c>/ready</c> — readiness. Runs every registered
 ///   <see cref="IHealthCheck"/> and reports the aggregate + per-check details.
-///   503 if any check is Unhealthy. No checks are registered yet — DbContext
-///   (P0-032.2) and Service Bus (P0-058.4) plug in here as they land. No auth.</item>
+///   503 if any check is Unhealthy. Today: the database
+///   (<c>PostgresHealthCheck</c>, P0-026.2); Service Bus joins with the real
+///   publisher (P0-050.2.2). No auth, so descriptions are fixed text.</item>
 /// </list>
 /// </summary>
 public static class HealthEndpoints

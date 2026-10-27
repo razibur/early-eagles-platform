@@ -806,6 +806,17 @@ unchanged:
 | P0-067.4 | **Added:** fix the three Recharts 3.8 type errors in the sample charts (`components/charts/*`, from P0-019/064/065) that make `npm run build` fail. Verify: `npm run build` passes. Found while verifying P0-067.1. |
 | P0-068.2 | Adds the `push` / `notificationclick` handlers to the same `public/sw.js`. |
 
+
+### P0-026.2 split (2026-10-27)
+
+"`/ready` returns 200 when DB + Service Bus reachable" is two checks with different blockers: the
+database exists locally today, the Service Bus topic doesn't (P0-051). Split so the database half
+ships now:
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-026.2.1 | `PostgresHealthCheck` (`SELECT 1` through the app's `NpgsqlDataSource`) registered behind `/ready` with a 5 s timeout; fixed-text descriptions because `/ready` is unauthenticated | P0-026.1, P0-062.2.1 | Integration: reachable DB → 200, unreachable → 503 within the timeout; live toggle of the compose Postgres flips it |
+| P0-026.2.2 | Service Bus readiness check behind `/ready` | P0-050.2.2 | Integration against the emulator: topic reachable → 200, emulator stopped → 503 |
 ---
 
 ## Sequencing notes

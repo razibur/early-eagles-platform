@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~54% (108 / ~201 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~54% (109 / ~202 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -133,8 +133,11 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`ValidationExceptionHandler.cs`](./apps/api/src/EarlyEagles.Api/ExceptionHandling/ValidationExceptionHandler.cs) maps FluentValidation → 400 `ValidationProblemDetails` with grouped `errors`; [`GlobalExceptionHandler.cs`](./apps/api/src/EarlyEagles.Api/ExceptionHandling/GlobalExceptionHandler.cs) maps everything else → 500 ProblemDetails without leaking message/stack; both wired in [`Program.cs`](./apps/api/src/EarlyEagles.Api/Program.cs) via `AddExceptionHandling()` + `UseExceptionHandler()`; 4 integration tests pass
 - `[x]` **P0-026.1** `/health` endpoint returns 200 + version + uptime
   ↳ verify: [`HealthEndpoints.cs`](./apps/api/src/EarlyEagles.Api/Health/HealthEndpoints.cs) maps `GET /health` to `{ status, version, uptimeSeconds }`; integration test via `WebApplicationFactory<Program>` asserts 200 + JSON shape
-- `[~]` **P0-026.2** `/ready` endpoint returns 200 when DB + Service Bus reachable
-  ↳ endpoint shape + framework wired: `app.MapHealthChecks("/ready", ...)` with a custom JSON writer producing `{ status, checks[], totalDurationMs }`; returns 200 + empty `checks[]` until concrete `IHealthCheck` implementations land for the DB (P0-032.2) and Service Bus (P0-058.4). Integration test asserts current 200/Healthy/empty-checks shape.
+- `[~]` **P0-026.2** `/ready` endpoint returns 200 when DB + Service Bus reachable — **split** 2026-10-27, see [Implementation-Plan appendix](./Implementation-Plan.md#p0-0262-split-2026-10-27)
+  ↳ endpoint shape + framework wired: `app.MapHealthChecks("/ready", ...)` with a custom JSON writer producing `{ status, checks[], totalDurationMs }`. Database half done (.1); Service Bus half (.2) ships with the real publisher.
+- `[x]` **P0-026.2.1** Database readiness check behind `/ready`
+  ↳ verify: [`PostgresHealthCheck`](./apps/api/src/EarlyEagles.Infrastructure/Persistence/PostgresHealthCheck.cs) (`SELECT 1` through the app's `NpgsqlDataSource`, fixed-text descriptions) registered as `postgres` with a 5 s timeout. Integration tests: Testcontainers DB → 200 Healthy; unreachable DB → 503 Unhealthy, description "Database unreachable.", no host in the body, < 10 s. Live: API on :5080 against compose Postgres → 200; `docker compose stop postgres` → 503 in 28 ms with `/health` still 200; restart → 200. Unit 222/222, integration 85/85.
+- `[ ]` **P0-026.2.2** Service Bus readiness check behind `/ready` — with P0-050.2.2 (needs the topic, P0-051)
 - `[x]` **P0-027.1** Swashbuckle UI wired; `/swagger` lists endpoints
   ↳ verify: `Swashbuckle.AspNetCore.SwaggerUI` consumes Microsoft's `/openapi/v1.json` doc; both endpoints gated on non-Production env in [`Program.cs`](./apps/api/src/EarlyEagles.Api/Program.cs); 3 integration tests cover doc parses + UI returns HTML + UI is 404 in Production
 - `[x]` **P0-027.2** Auth scheme documented in OpenAPI (Clerk JWT bearer)

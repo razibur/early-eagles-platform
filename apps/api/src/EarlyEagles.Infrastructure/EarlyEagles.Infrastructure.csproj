@@ -23,6 +23,9 @@
          and options binding/validation for its configuration section. -->
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.11" />
+    <!-- IHealthCheck for the database readiness check (P0-026.2). The API
+         registers it; the full HealthChecks package comes with ASP.NET Core. -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.11" />
   </ItemGroup>
 
   <PropertyGroup>
