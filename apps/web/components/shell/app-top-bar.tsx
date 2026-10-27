@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { DesktopNav } from "@/components/shell/desktop-nav"
+import { ThemeSwitcher } from "@/components/shell/theme-switcher"
 import { UserMenu } from "@/components/shell/user-menu"
 
 // The persistent app bar (P0-070.1): brand on the left, account on the
@@ -37,6 +38,7 @@ export function AppTopBar({ children }: { children?: React.ReactNode }) {
 
         <div className="ml-auto flex items-center gap-2">
           {children}
+          <ThemeSwitcher />
           <UserMenu />
         </div>
       </div>

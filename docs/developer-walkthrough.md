@@ -328,6 +328,37 @@ replaced by its real page when that phase lands.
 ⚠ **Gotcha — the dev indicator sits on the Home tab.** In `next dev`, the "N" bubble floats over
 the bottom-left of the viewport, covering the first tab on phones. It doesn't exist in production
 builds.
+
+### 4.5 Theme switcher — light, dark, system (P0-070.3)
+
+Dark is the default surface; `.light` on `<html>` swaps every token in `globals.css` (the
+`@custom-variant light` targets it too). [`lib/theme.ts`](../apps/web/lib/theme.ts) owns the
+preference: `localStorage["ee-theme"]` = `light` | `dark` | `system`, read and written inside
+`try/catch` (private mode and storage policies throw), and `applyTheme()`, which sets the class,
+`color-scheme` and the `theme-color` meta (browser chrome: `#080d11` / `#f6f9fb`).
+
+**No flash.** `app/layout.tsx` renders `themeBootScript` as an inline `<script>` in `<head>`. It
+runs before first paint, so a light-theme user never sees a dark frame. Because that script changes
+`<html>` before React hydrates, `<html>` carries `suppressHydrationWarning`. That flag covers that
+element only, not its children.
+
+[`theme-switcher.tsx`](../apps/web/components/shell/theme-switcher.tsx) is a radio menu in the top
+bar. It reads the choice with **`useSyncExternalStore`**, whose server snapshot is `null` so the
+first render matches the server HTML. It subscribes to its own change event and the `storage` event,
+so other open tabs follow. While `system` is selected, it follows the OS through a
+`matchMedia("(prefers-color-scheme: light)")` listener.
+
+Verified in headless Chrome: the class is already right at `DOMContentLoaded` after a reload, System
+follows an emulated OS change live and after reload, a second tab switches, and there are no
+hydration warnings.
+
+⚠ **Gotcha — reading `localStorage` in `useState` + `useEffect`.** The React lint rule
+`react-hooks/set-state-in-effect` rejects `useEffect(() => setTheme(readTheme()), [])`. Saved
+preferences are an external store, so read them with `useSyncExternalStore`.
+
+⚠ **Gotcha — the boot script can't import.** It's a string injected into the HTML, so it can't
+reach module code. It repeats the storage key and light color via `JSON.stringify` of the
+constants, so a rename can't leave it behind.
 ---
 
 ## 5. Backend — Clean Architecture solution

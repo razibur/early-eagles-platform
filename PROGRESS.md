@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~57% (115 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~57% (116 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -378,7 +378,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`AppTopBar`](./apps/web/components/shell/app-top-bar.tsx) (sticky, 56px, EE mark + wordmark + green/red tick) mounted in the root layout; [`UserMenu`](./apps/web/components/shell/user-menu.tsx) on the shadcn `dropdown-menu` (Base UI) shows Guest / Not signed in, a disabled Sign in ("Arrives with member accounts", until P0-039) and a Settings link. Headless Chrome at 390×844 and 1280×800: bar renders, menu opens aligned to the trigger, no console errors; `npm run lint` + `tsc --noEmit` clean. `shadcn add` also installed an unrelated `cn` npm package and a broken import — removed/fixed (walkthrough §4.3 gotcha).
 - `[x]` **P0-070.2** Bottom-nav for mobile (Home / Wall / Roster / Events / Chat / Settings)
   ↳ verify: one nav list ([`lib/navigation.ts`](./apps/web/lib/navigation.ts)) drives [`BottomNav`](./apps/web/components/shell/bottom-nav.tsx) (fixed, `md:hidden`, safe-area padded; body pads on phones) and [`DesktopNav`](./apps/web/components/shell/desktop-nav.tsx) (top bar from md up). Unbuilt sections are [`ComingSoon`](./apps/web/components/shell/coming-soon.tsx) pages naming their phase (Wall 4, Roster 1, Events 4, Chat 3, Settings 1). Headless Chrome: at 390px on `/roster` the Roster tab is the one `aria-current="page"` and highlighted; at 1280px on `/events` the Events link is; the bar is `display:block` at 767px and `none` at 768px; all six targets return 200; titles set; no console errors. Lint + `tsc` clean.
-- `[ ]` **P0-070.3** Theme switcher (light / dark / system) wired to `.light` class
+- `[x]` **P0-070.3** Theme switcher (light / dark / system) wired to `.light` class
+  ↳ verify: [`ThemeSwitcher`](./apps/web/components/shell/theme-switcher.tsx) (radio menu in the top bar) + [`lib/theme.ts`](./apps/web/lib/theme.ts) (`localStorage["ee-theme"]`, `applyTheme` sets `.light`, `color-scheme`, `theme-color` meta) + an inline `<head>` boot script so the saved theme applies before first paint. Headless Chrome: default dark; choosing Light sets the class, stores `light`, meta `#f6f9fb`, body background light; after reload the class is already `light` at `DOMContentLoaded` (no flash); System follows an emulated OS change live and on reload; a second tab follows a change; no console errors or hydration warnings. Lint + `tsc` clean.
 - `[ ]` **P0-070.4** Responsive layout tests at phone / tablet / desktop breakpoints
   ↳ scope note: per [ADR-0004](docs/adr/0004-role-based-landing-and-routing.md) the eventual nav splits into member (`/`, `/roster`, `/events`, `/chat`, `/settings`) and admin (`/admin`, `/insights`). Real implementation in Phase 1.
 - `[ ]` **P0-071.1** Install `@tanstack/react-query`; set up `QueryClientProvider`
