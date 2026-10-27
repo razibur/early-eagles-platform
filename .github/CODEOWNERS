@@ -1,0 +1,20 @@
+# P0-016 — who reviews what. GitHub requests these owners on every PR that
+# touches a matching path; with branch protection (P0-015) requiring code-owner
+# review, their approval is needed to merge. Later lines win over earlier ones.
+#
+# One owner today. The path rules below exist so a second maintainer can be
+# added to the sensitive areas without re-deriving the list.
+
+# Default: everything.
+*                                   @razibur
+
+# Tenant isolation, persistence and audit — the non-negotiables (CLAUDE.md).
+/apps/api/src/EarlyEagles.Infrastructure/   @razibur
+/apps/api/tests/EarlyEagles.Tests.Integration/  @razibur
+
+# Infrastructure, deploy pipelines and this file.
+/infra/                             @razibur
+/.github/                           @razibur
+
+# Decisions are immutable once accepted.
+/docs/adr/                          @razibur
