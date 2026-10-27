@@ -72,6 +72,10 @@ public static class DependencyInjection
         // survive request-transaction rollbacks — see AuditService for why.
         services.AddScoped<IAuditService, AuditService>();
 
+        // Audit log read side (P0-048). Scoped onto the request's context so the
+        // tenant query filter applies.
+        services.AddScoped<IAuditLogReader, EfAuditLogReader>();
+
         // Unit of work (P0-024.3) backing TransactionBehavior. Scoped so it
         // shares the request's ApplicationDbContext — the transaction it opens
         // covers everything that context saves.

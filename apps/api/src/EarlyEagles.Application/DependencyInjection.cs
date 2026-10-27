@@ -38,7 +38,11 @@ public static class DependencyInjection
         //                            Queries pass through.
         services.AddMediator(options =>
         {
-            options.Assemblies = [applicationAssembly];
+            // Must be a typeof(...) expression: the source generator reads this
+            // option from syntax at compile time and cannot evaluate a variable.
+            // `[applicationAssembly]` compiled fine but scanned nothing, so the
+            // first real handler (P0-048.1) failed with MissingMessageHandlerException.
+            options.Assemblies = [typeof(AssemblyMarker)];
             options.ServiceLifetime = ServiceLifetime.Scoped;
             options.PipelineBehaviors =
             [

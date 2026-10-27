@@ -817,6 +817,17 @@ ships now:
 |---|---|---|---|
 | P0-026.2.1 | `PostgresHealthCheck` (`SELECT 1` through the app's `NpgsqlDataSource`) registered behind `/ready` with a 5 s timeout; fixed-text descriptions because `/ready` is unauthenticated | P0-026.1, P0-062.2.1 | Integration: reachable DB → 200, unreachable → 503 within the timeout; live toggle of the compose Postgres flips it |
 | P0-026.2.2 | Service Bus readiness check behind `/ready` | P0-050.2.2 | Integration against the emulator: topic reachable → 200, emulator stopped → 503 |
+
+### P0-048 split (2026-10-27)
+
+"Audit query endpoint (tenant-admin scope only) with pagination" has two halves with different
+blockers: the query and paging need nothing new; the admin restriction needs Clerk role claims
+(P0-038). Split so the query ships now, kept out of Production until it is restricted:
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-048.1 | `GET /audit-events` via a Mediator `IQuery` + `IAuditLogReader` port; keyset paging on `(occurred_at, id)`; mapped outside Production only | P0-046.1, P0-032.2 | Integration: pages without gaps/duplicates, tenant-isolated, bad input → 400, Production → 404 |
+| P0-048.2 | Tenant-admin authorization policy on the endpoint; map it in every environment | P0-048.1, P0-038 | Tenant-admin can list own audit; member → 403 |
 ---
 
 ## Sequencing notes

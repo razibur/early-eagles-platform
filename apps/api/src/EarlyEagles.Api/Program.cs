@@ -1,3 +1,4 @@
+using EarlyEagles.Api.Auditing;
 using EarlyEagles.Api.ExceptionHandling;
 using EarlyEagles.Api.Health;
 using EarlyEagles.Api.OpenApi;
@@ -59,6 +60,13 @@ app.UseMiddleware<TenantResolutionMiddleware>();
 app.MapHealthEndpoints();
 app.MapTenancyEndpoints();
 app.MapTenantMembersEndpoints();
+
+// Audit log query (P0-048.1). Outside Production only until it is restricted
+// to tenant admins (P0-048.2, needs Clerk role claims from P0-038).
+if (!app.Environment.IsProduction())
+{
+    app.MapAuditEventsEndpoints();
+}
 
 app.Run();
 

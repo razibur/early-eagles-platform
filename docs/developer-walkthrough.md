@@ -844,6 +844,59 @@ no longer replaces the connection: EF 10 composes every `AddDbContext` configura
 original one points at the DI data source. Replace the `NpgsqlDataSource` singleton instead
 (`CrossTenantEndpointTests` does).
 
+### 9.8 Reading the audit log — the first Mediator query (P0-048.1)
+
+`GET /audit-events?limit=50&cursor=…` returns the ambient tenant's audit log, newest first. It is
+the first endpoint that goes through Mediator, so it sets the pattern for reads:
+
+| Layer | File | Role |
+|---|---|---|
+| Application | `Auditing/ListAuditEventsQuery.cs` (+ `…Validator`, `…Handler`) | `IQuery<AuditEventPage>`; limit 1–100, cursor must decode |
+| Application | `Abstractions/Auditing/IAuditLogReader.cs` | the port, so the handler never sees EF |
+| Infrastructure | `Auditing/EfAuditLogReader.cs` | EF implementation over the request's `ApplicationDbContext` |
+| API | `Auditing/AuditEventsEndpoints.cs` | resolves the tenant, sends the query, returns the page |
+
+Because it is an `IQuery`, `AuditBehavior` and `TransactionBehavior` let it pass: reading the log
+doesn't write to it. There is **no tenant parameter anywhere** on the read path; the global query
+filter (§9.2) scopes every page, and the integration tests prove it with two tenants.
+
+**Keyset paging.** Each page returns `nextCursor`, an opaque base64url token holding the last
+row's `(OccurredAt, Id)`. The next page is everything strictly older:
+
+```csharp
+events.Where(e => EF.Functions.LessThan(
+    ValueTuple.Create(e.OccurredAt, e.Id),
+    ValueTuple.Create(cursor.OccurredAt, cursor.Id)))
+  .OrderByDescending(e => e.OccurredAt).ThenByDescending(e => e.Id)
+```
+
+Npgsql turns that into a Postgres row-value comparison, `(occurred_at, id) < (@t, @id)`, which
+follows the existing `(tenant_id, occurred_at DESC)` index. Offset paging would get slower as the
+log grows and skip or repeat rows when new events arrive between pages. The handler fetches
+`limit + 1` rows to learn whether another page exists, so it never needs a `COUNT`.
+
+**Not in Production yet.** The task says *tenant-admin only*, and admin role claims come from
+Clerk (P0-038). Until P0-048.2 adds that policy, `Program.cs` maps the endpoint only outside
+Production, and a test pins the 404 in Production.
+
+▶ Reference: [`ListAuditEventsQueryHandler.cs`](../apps/api/src/EarlyEagles.Application/Auditing/ListAuditEventsQueryHandler.cs),
+[`EfAuditLogReader.cs`](../apps/api/src/EarlyEagles.Infrastructure/Auditing/EfAuditLogReader.cs),
+[`AuditEventsEndpointTests.cs`](../apps/api/tests/EarlyEagles.Tests.Integration/Auditing/AuditEventsEndpointTests.cs)
+
+⚠ **Gotcha — Mediator scans nothing if `Assemblies` is a variable.** The source generator reads
+`options.Assemblies` from the *syntax* at compile time. `[typeof(AssemblyMarker)]` works.
+`[applicationAssembly]` compiles fine but registers no handlers, and the first `Send` throws
+`MissingMessageHandlerException` at runtime. `AddApplication` shipped with the variable form and
+nobody noticed until this first handler.
+
+⚠ **Gotcha — `FindAsync` obeys the tenant filter.** With no tenant resolved, the filter hides
+every row, so `db.Tenants.FindAsync(id)` returns `null` for a row that exists. Test seeding that
+checks "already there?" must use `IgnoreQueryFilters()`.
+
+⚠ **Gotcha — sort uuids in the database, not in .NET.** `Guid.CompareTo` and Postgres `uuid`
+order differ. The tie-break is valid only because the ordering *and* the cursor comparison both
+run in SQL. Tests compute the expected order with a SQL `ORDER BY`.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
@@ -1849,6 +1902,8 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Users keep running an old service worker after a deploy | `/sw.js` came from a cache | keep `updateViaCache: "none"` + `no-cache` on `/sw.js` (§4.1) |
 | `npm run build`: `'textTransform' does not exist in type …XAxisTickContentProps` | CSS-only property passed as an SVG attribute in a Recharts `tick` object | move it into `tick.style` (§4.1) |
 | DevTools says the app isn't installable: *incognito* | private / automation profile | test in a normal profile (§4.2) |
+| `MissingMessageHandlerException` though the handler exists | `options.Assemblies` set from a variable; the generator scanned nothing | use `[typeof(AssemblyMarker)]` (§9.8) |
+| `FindAsync` returns null for a row that exists | tenant query filter, no tenant resolved | `IgnoreQueryFilters()` for setup code (§9.8) |
 | `/ready` hangs ~15 s when the DB host is unresponsive | Npgsql connect timeout, no check timeout | register the check with `timeout:` (§7) |
 | New Container App revision never becomes healthy | liveness/readiness probe on a path the image doesn't serve | leave `livenessPath`/`readinessPath` empty for placeholder images |
 | Service Bus rejects a connection string / SAS token (auth failure) | namespace has SAS keys disabled | authenticate with Entra (`DefaultAzureCredential`) + a data role |
