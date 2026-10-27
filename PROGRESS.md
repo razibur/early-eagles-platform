@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~56% (113 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~56% (114 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -374,7 +374,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-068.3** API endpoint `POST /api/push/subscribe` stores subscription per user
 - `[ ]` **P0-068.4** Integration test: subscribe → endpoint → DB row exists
 - `[-]` **P0-069** Bangla font — deferred per [ADR-0003](docs/adr/0003-defer-i18n.md)
-- `[ ]` **P0-070.1** Top-bar component (masthead with logo slot + user dropdown)
+- `[x]` **P0-070.1** Top-bar component (masthead with logo slot + user dropdown)
+  ↳ verify: [`AppTopBar`](./apps/web/components/shell/app-top-bar.tsx) (sticky, 56px, EE mark + wordmark + green/red tick) mounted in the root layout; [`UserMenu`](./apps/web/components/shell/user-menu.tsx) on the shadcn `dropdown-menu` (Base UI) shows Guest / Not signed in, a disabled Sign in ("Arrives with member accounts", until P0-039) and a Settings link. Headless Chrome at 390×844 and 1280×800: bar renders, menu opens aligned to the trigger, no console errors; `npm run lint` + `tsc --noEmit` clean. `shadcn add` also installed an unrelated `cn` npm package and a broken import — removed/fixed (walkthrough §4.3 gotcha).
 - `[ ]` **P0-070.2** Bottom-nav for mobile (Home / Wall / Roster / Events / Chat / Settings)
 - `[ ]` **P0-070.3** Theme switcher (light / dark / system) wired to `.light` class
 - `[ ]` **P0-070.4** Responsive layout tests at phone / tablet / desktop breakpoints

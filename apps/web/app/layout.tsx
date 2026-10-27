@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import { Big_Shoulders, Hanken_Grotesk } from "next/font/google"
 import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration"
+import { AppTopBar } from "@/components/shell/app-top-bar"
 import "./globals.css"
 
 const bigShoulders = Big_Shoulders({
@@ -46,6 +47,7 @@ export default function RootLayout({
       className={`${bigShoulders.variable} ${hanken.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-primary/30 selection:text-foreground">
+        <AppTopBar />
         {children}
         <ServiceWorkerRegistration />
       </body>

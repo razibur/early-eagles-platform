@@ -288,6 +288,24 @@ Manifest**: no errors or warnings, the three icons render, and Chrome offers *In
 > all clubs. Per-tenant manifests (each club's name and icon) need a request-aware
 > `manifest.ts` and belong with tenant branding, later.
 
+
+### 4.3 App shell — top bar (P0-070.1)
+
+Every page sits under one sticky **app bar**, mounted in `app/layout.tsx`:
+[`components/shell/app-top-bar.tsx`](../apps/web/components/shell/app-top-bar.tsx). It is chrome, so it
+stays slim (56px) and quiet. The editorial `Masthead` keeps being *page content* on `/`, and the two
+deliberately don't look alike. Left: the EE mark (`/icon.svg` from §4.2) with the wordmark and the
+green/red tick from the masthead strike. Right: the account menu.
+
+[`user-menu.tsx`](../apps/web/components/shell/user-menu.tsx) is a Client Component on the shadcn
+`dropdown-menu` (Base UI `Menu`). There is no user until Clerk (P0-039), so it shows **Guest · Not
+signed in**, a disabled *Sign in* entry that says why, and a *Settings* link. When Clerk lands, the
+trigger becomes the avatar and the label the member's name. The shape stays the same.
+
+⚠ **Gotcha — `shadcn add` can install a stray package.** `npx shadcn@4.8.0 add dropdown-menu`
+wrote `import { cn } from "cn"` and added the unrelated npm package **`cn`** to `package.json`.
+Fix the import to `@/lib/utils` and `npm uninstall cn --workspace web`. Always diff
+`package.json` after a `shadcn add`.
 ---
 
 ## 5. Backend — Clean Architecture solution
