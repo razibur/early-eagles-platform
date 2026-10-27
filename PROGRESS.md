@@ -16,11 +16,11 @@ Each task carries a one-line **verify:** with the exact thing to check / command
 to run. If a verify step requires external accounts (Azure, Stripe, Clerk),
 that's noted — the rest you can verify on your laptop.
 
-Last updated: 2026-10-26
+Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~50% (101 / ~201 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~51% (102 / ~201 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -353,7 +353,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: `npm run dev`, then headless Chrome on `/`: `navigator.serviceWorker.ready` resolves with scope `/` and script `/sw.js`, and the page is controlled on the first visit without a reload (`clients.claim`); `GET /sw.js` returns `Content-Type: application/javascript; charset=utf-8`, `Cache-Control: no-cache, no-store, must-revalidate` and the `self`-only CSP; no console errors. `npm run lint` clean. Zero new dependencies. `npm run build` still fails on three **pre-existing** Recharts type errors in `components/charts/*` (from `1ceddf1`, untouched here) — tracked as P0-067.4.
 - `[ ]` **P0-067.2** `app/manifest.ts` (built-in metadata route, ADR-0011) with icon set + theme color
 - `[ ]` **P0-067.3** Verify install on Chrome DevTools + Android home screen
-- `[ ]` **P0-067.4** Fix the three Recharts 3.8 type errors in `components/charts/*` so `npm run build` passes — added 2026-10-26
+- `[x]` **P0-067.4** Fix the three Recharts 3.8 type errors in `components/charts/*` so `npm run build` passes — added 2026-10-26
+  ↳ verify: `npx tsc --noEmit`, `npm run lint` and `npm run build` pass. Under `next start` in headless Chrome, all 23 X-axis tick labels carry `style="text-transform: uppercase"` and compute to `uppercase` (screenshot: MAR 9 … MAY 25), and `/sw.js` still registers in the production build. The old code passed `textTransform` as an SVG attribute, which browsers ignore, so the uppercase styling is now actually applied.
 - `[ ]` **P0-068.1** Generate VAPID keys; store public in env, private in vault
 - `[ ]` **P0-068.2** Service worker registers push subscription
 - `[ ]` **P0-068.3** API endpoint `POST /api/push/subscribe` stores subscription per user

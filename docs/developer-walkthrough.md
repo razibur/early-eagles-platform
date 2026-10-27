@@ -232,9 +232,12 @@ workers** shows `/sw.js` *activated and running* for scope `/`. In the console,
 > per ADR-0011), revisit it: a new worker taking over a page that loaded old assets can serve a
 > mismatched mix.
 
-> ⚠ **Gotcha — `npm run build` fails on the sample charts.** Recharts 3.8's tick-prop types
-> reject `textTransform` (and siblings) in `components/charts/*`. That's pre-existing and
-> unrelated to the service worker; `npm run dev` is unaffected. Fix tracked as P0-067.4.
+> ⚠ **Gotcha — CSS-only properties in a Recharts `tick` object (P0-067.4).** A chart's `tick`
+> object becomes SVG attributes on `<text>`. `text-transform` is CSS, not an SVG attribute, so
+> `tick={{ textTransform: "uppercase" }}` fails the type check (and `npm run build`) and would be
+> ignored by the browser anyway. Put it in `style`:
+> `tick={{ fill: …, fontSize: 11, style: { textTransform: "uppercase" } }}`. `npm run dev`
+> doesn't type-check, so this only shows up at build time.
 
 ---
 
@@ -1758,7 +1761,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `BCP081: does not have types available` | API version newer than the Bicep CLI's type library; properties go unchecked | pin the newest version the CLI has types for |
 | Container Apps environment has no *Logs* blade in the portal | logs destination is `azure-monitor` | query the Log Analytics workspace directly |
 | Users keep running an old service worker after a deploy | `/sw.js` came from a cache | keep `updateViaCache: "none"` + `no-cache` on `/sw.js` (§4.1) |
-| `npm run build`: `'textTransform' does not exist in type …XAxisTickContentProps` | Recharts 3.8 tick types (sample charts) | pre-existing; P0-067.4 |
+| `npm run build`: `'textTransform' does not exist in type …XAxisTickContentProps` | CSS-only property passed as an SVG attribute in a Recharts `tick` object | move it into `tick.style` (§4.1) |
 | New Container App revision never becomes healthy | liveness/readiness probe on a path the image doesn't serve | leave `livenessPath`/`readinessPath` empty for placeholder images |
 | Service Bus rejects a connection string / SAS token (auth failure) | namespace has SAS keys disabled | authenticate with Entra (`DefaultAzureCredential`) + a data role |
 | Redis deploy fails: creation blocked / SKU unavailable | `Microsoft.Cache/redis` (Azure Cache for Redis) — closed to new instances since 2026-10-01 | use `Microsoft.Cache/redisEnterprise` (Azure Managed Redis), ADR-0008 |

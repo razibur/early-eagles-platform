@@ -45,7 +45,7 @@ export function MemberGrowthAreaChart() {
           tickLine={false}
           axisLine={{ stroke: "var(--rule)" }}
           tickMargin={12}
-          tick={{ fill: "var(--muted-foreground)", fontSize: 11, letterSpacing: "0.08em", fontWeight: 600, textTransform: "uppercase" }}
+          tick={{ fill: "var(--muted-foreground)", fontSize: 11, letterSpacing: "0.08em", fontWeight: 600, style: { textTransform: "uppercase" } }}
         />
         <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
         <Area
