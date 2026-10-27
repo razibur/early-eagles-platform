@@ -19,6 +19,8 @@
     <!-- Entra token auth to Azure Postgres (P0-062.2.1): DefaultAzureCredential
          resolves to the Container App's managed identity in Azure. -->
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <!-- Outbox publisher to the domain-events topic (P0-050.2.2). -->
+    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.21.0" />
     <!-- BackgroundService + AddHostedService for the outbox drain (P0-050.1),
          and options binding/validation for its configuration section. -->
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.11" />

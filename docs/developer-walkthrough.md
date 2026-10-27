@@ -786,11 +786,33 @@ with `.Validate(...).ValidateOnStart()` so a bad interval fails the deploy inste
 surfacing later as a background exception nobody is watching. `Enabled: false` is the
 operational kill switch: rows keep accumulating, only delivery pauses.
 
-`IOutboxPublisher` is the transport seam. Today it is bound to `LoggingOutboxPublisher`, a
-placeholder in the same spirit as `NullTenantLookup`: it logs and reports success, so the whole
-publish/stamp path runs on a laptop with no Azure account. **While it is registered, events are
-marked processed without reaching any bus.** The real Service Bus implementation waits on the
-topic existing (P0-051 → the Bicep work in P0-058.4) and is a registration change, nothing more.
+`IOutboxPublisher` is the transport seam. Which implementation is bound depends on configuration
+(P0-050.2.2):
+
+| Configuration | Publisher | Signs in with |
+|---|---|---|
+| `ServiceBus:FullyQualifiedNamespace` (Azure; `environment.bicep` sets it where Service Bus exists) | `ServiceBusOutboxPublisher` | the app's `TokenCredential` (managed identity). The namespace has SAS keys disabled |
+| `ConnectionStrings:ServiceBus` (the local emulator) | `ServiceBusOutboxPublisher` | the emulator's fixed SAS key |
+| neither | `LoggingOutboxPublisher` | — |
+
+`ServiceBusOutboxPublisher` maps each row onto the P0-051 contract (§12.9): `MessageId` = row id,
+`Subject` = short event name, `EventType` / `TenantId` properties, JSON body. It sends to
+`ServiceBus:TopicName` (default `domain-events`) through **one `ServiceBusClient` and one
+`ServiceBusSender` for the process**. Both are thread-safe and own the AMQP connection, so
+creating them per request would reconnect every time. A failed send throws, and the drain records
+it on the row and retries next tick.
+
+The logging fallback is a placeholder in the same spirit as `NullTenantLookup`: it logs and
+reports success, so the publish/stamp path runs on a laptop with no bus. **While it is bound,
+events are marked processed without reaching any bus.** Point a local API at the emulator with:
+
+```pwsh
+$env:ConnectionStrings__ServiceBus = "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;"
+```
+
+⚠ **Gotcha — the emulator's connection string goes nowhere near Azure.** The namespace in Azure
+has local auth disabled, so a SAS connection string fails there by design. Azure gets the
+namespace name only, and the identity does the rest.
 
 ▶ [`OutboxProcessor.cs`](../apps/api/src/EarlyEagles.Infrastructure/Outbox/OutboxProcessor.cs) ·
 [`OutboxOptions.cs`](../apps/api/src/EarlyEagles.Infrastructure/Outbox/OutboxOptions.cs) ·
@@ -1876,6 +1898,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Microsoft.EntityFrameworkCore (+ Relational, Design) | 10.0.11 |
 | Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.3 |
 | Azure.Identity | 1.21.0 |
+| Azure.Messaging.ServiceBus | 7.21.0 |
 | Microsoft.Extensions.Hosting.Abstractions / Options.ConfigurationExtensions | 10.0.11 |
 | Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions | 10.0.11 |
 | dotnet-ef (local tool) | 10.0.11 |

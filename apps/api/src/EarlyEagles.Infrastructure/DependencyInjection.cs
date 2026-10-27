@@ -1,5 +1,6 @@
 using Azure.Core;
 using Azure.Identity;
+using Azure.Messaging.ServiceBus;
 using EarlyEagles.Application.Abstractions.Auditing;
 using EarlyEagles.Application.Abstractions.Messaging;
 using EarlyEagles.Application.Abstractions.Persistence;
@@ -101,15 +102,35 @@ public static class DependencyInjection
                 $"{OutboxOptions.SectionName}:{nameof(OutboxOptions.BatchSize)} must be between 1 and {OutboxOptions.MaxBatchSize}.")
             .ValidateOnStart();
 
-        // Placeholder publisher (P0-050.2) — logs instead of sending, until the
-        // Service Bus topic exists (P0-051, blocked on P0-058.4). Scoped so the
-        // real implementation can hold per-scope state without changing the
-        // registration shape. NOTE: while this is registered, queued events are
-        // marked processed without reaching any bus.
-        services.AddScoped<IOutboxPublisher, LoggingOutboxPublisher>();
+        AddOutboxPublisher(services, configuration);
 
         services.AddHostedService<OutboxProcessor>();
 
         return services;
+    }
+
+    // Where outbox rows go (P0-050.2.2). Azure: the namespace from config,
+    // signed in with the app's TokenCredential (the namespace has SAS keys
+    // disabled). Emulator: a connection string. Neither: the logging
+    // publisher, so a laptop without the bus still runs; queued events are
+    // then marked processed without reaching any bus.
+    private static void AddOutboxPublisher(IServiceCollection services, IConfiguration configuration)
+    {
+        var options = configuration.GetSection(ServiceBusOptions.SectionName).Get<ServiceBusOptions>() ?? new ServiceBusOptions();
+        var connectionString = configuration.GetConnectionString(ServiceBusOptions.ConnectionStringName);
+
+        if (string.IsNullOrWhiteSpace(connectionString) && string.IsNullOrWhiteSpace(options.FullyQualifiedNamespace))
+        {
+            services.AddScoped<IOutboxPublisher, LoggingOutboxPublisher>();
+            return;
+        }
+
+        // One client and one sender for the process: both are thread-safe and
+        // own the AMQP connection. The container disposes them at shutdown.
+        services.AddSingleton(sp => string.IsNullOrWhiteSpace(connectionString)
+            ? new ServiceBusClient(options.FullyQualifiedNamespace, sp.GetRequiredService<TokenCredential>())
+            : new ServiceBusClient(connectionString));
+        services.AddSingleton(sp => sp.GetRequiredService<ServiceBusClient>().CreateSender(options.TopicName));
+        services.AddScoped<IOutboxPublisher, ServiceBusOutboxPublisher>();
     }
 }

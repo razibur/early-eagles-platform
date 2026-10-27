@@ -310,16 +310,29 @@ module api 'modules/containerApp.bicep' = {
     // already trusts. Nothing secret here, so plain env vars.
     // The placeholder image ignores these; no probes until the real image
     // (P0-084).
-    env: [
-      {
-        name: 'Postgres__Authentication'
-        value: 'Entra'
-      }
-      {
-        name: 'ConnectionStrings__Postgres'
-        value: 'Host=${psql.outputs.fqdn};Database=${psql.outputs.databaseName};Username=${apiIdentity.outputs.name};SslMode=VerifyFull'
-      }
-    ]
+    // Service Bus (P0-050.2.2): only where the namespace exists. Without it
+    // the API keeps its logging publisher. Entra auth through the identity's
+    // data roles (P0-062.3.2); the namespace has SAS keys disabled.
+    env: concat(
+      [
+        {
+          name: 'Postgres__Authentication'
+          value: 'Entra'
+        }
+        {
+          name: 'ConnectionStrings__Postgres'
+          value: 'Host=${psql.outputs.fqdn};Database=${psql.outputs.databaseName};Username=${apiIdentity.outputs.name};SslMode=VerifyFull'
+        }
+      ],
+      sizing.?serviceBus == null
+        ? []
+        : [
+            {
+              name: 'ServiceBus__FullyQualifiedNamespace'
+              value: sb.?outputs.?fullyQualifiedNamespace ?? ''
+            }
+          ]
+    )
   }
 }
 
