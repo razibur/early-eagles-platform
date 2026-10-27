@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~51% (103 / ~201 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~52% (104 / ~201 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -67,8 +67,8 @@ External account / billing tasks. Mostly off the laptop; you confirm by logging 
   ↳ verify: build artifacts don't show in `git status`
 - `[x]` **P0-014.4** Add `.editorconfig` (indentation, line endings, final newline)
   ↳ verify: VS / Rider / VSCode all respect settings
-- `[ ]` **P0-014.5** Add `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1)
-  ↳ verify: file present, linked from README
+- `[x]` **P0-014.5** Add `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1)
+  ↳ verify: file present, linked from README. [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) is the official 2.1 text (fetched from the EthicalSource repo), with the reporting contact set to the README's contact address; README has a "Code of conduct" section linking it.
 - `[ ]` **P0-014.6** Add `CONTRIBUTING.md` (branch + commit + PR conventions)
   ↳ verify: file present, linked from README
 - `[ ]` **P0-015** Branch protection on `main` (PR review, status checks, signed commits)
