@@ -239,6 +239,55 @@ workers** shows `/sw.js` *activated and running* for scope `/`. In the console,
 > `tick={{ fill: …, fontSize: 11, style: { textTransform: "uppercase" } }}`. `npm run dev`
 > doesn't type-check, so this only shows up at build time.
 
+### 4.2 Manifest and icons (P0-067.2)
+
+The manifest is Next's built-in metadata route, **`app/manifest.ts`**, served at
+`/manifest.webmanifest` and linked from every page automatically. Name *Early Eagles — Club
+HQ*, short name *Early Eagles*, `display: "standalone"`, and `theme_color` / `background_color`
+both `#080d11`, the dark theme's `--background`. The root layout repeats that color as
+`viewport.themeColor` (Next 16 keeps it in the `viewport` export, not `metadata`) and sets
+`metadata.appleWebApp` for iOS, which ignores most of the manifest.
+
+**Icons are generated, not hand-exported.** There's no club logo in the repo yet (the masthead's
+logo slot is empty), so the mark is a placeholder: a jersey-block **"EE"** slanted forward over
+the masthead's green/red accent strike. The letters are plain rectangles, so no font file is
+involved and the mark holds up at 16px. One script draws everything from the same geometry, and
+converts the colors from the OKLCH tokens in `globals.css`:
+
+```pwsh
+node apps/web/scripts/generate-icons.mjs   # from the repo root
+```
+
+| File | Size | Used by |
+|---|---|---|
+| `app/icon.svg` | vector | modern browser tabs (`<link rel="icon" type="image/svg+xml">`, added by Next) |
+| `app/favicon.ico` | 16 / 32 / 48 | older browsers; replaces the Next default |
+| `app/apple-icon.png` | 180 | iOS home screen (`apple-touch-icon`, added by Next); full-bleed, iOS rounds it |
+| `public/icons/icon-192.png`, `icon-512.png` | 192 / 512 | manifest, `purpose: "any"`; rounded corners |
+| `public/icons/icon-maskable-512.png` | 512 | manifest, `purpose: "maskable"`; full-bleed, mark scaled into the central 80% |
+
+Rendering uses **sharp**, which Next already installs for image optimisation, so there's no new
+dependency. When the real logo arrives, change the drawing in the script and re-run it; the
+file names and the manifest stay the same.
+
+▶ Reference: [`app/manifest.ts`](../apps/web/app/manifest.ts),
+[`scripts/generate-icons.mjs`](../apps/web/scripts/generate-icons.mjs),
+[`app/layout.tsx`](../apps/web/app/layout.tsx)
+
+Check it: `npm run build && npm --workspace web run start`, then DevTools → **Application →
+Manifest**: no errors or warnings, the three icons render, and Chrome offers *Install*.
+
+> ⚠ **Gotcha — "Page is in an incognito window".** Installability checks fail in a private or
+> automation profile (`in-incognito`). Test installing in a normal profile.
+
+> ⚠ **Gotcha — `black-translucent` hides the masthead on iOS.** That status-bar style draws the
+> page *under* the iOS status bar. Nothing pads for `env(safe-area-inset-top)` yet, so the
+> layout uses `black`. Switch only together with safe-area padding.
+
+> ⚠ **Gotcha — one manifest for every tenant.** Name and icons are the Early Eagles ones for
+> all clubs. Per-tenant manifests (each club's name and icon) need a request-aware
+> `manifest.ts` and belong with tenant branding, later.
+
 ---
 
 ## 5. Backend — Clean Architecture solution
@@ -1762,6 +1811,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Container Apps environment has no *Logs* blade in the portal | logs destination is `azure-monitor` | query the Log Analytics workspace directly |
 | Users keep running an old service worker after a deploy | `/sw.js` came from a cache | keep `updateViaCache: "none"` + `no-cache` on `/sw.js` (§4.1) |
 | `npm run build`: `'textTransform' does not exist in type …XAxisTickContentProps` | CSS-only property passed as an SVG attribute in a Recharts `tick` object | move it into `tick.style` (§4.1) |
+| DevTools says the app isn't installable: *incognito* | private / automation profile | test in a normal profile (§4.2) |
 | New Container App revision never becomes healthy | liveness/readiness probe on a path the image doesn't serve | leave `livenessPath`/`readinessPath` empty for placeholder images |
 | Service Bus rejects a connection string / SAS token (auth failure) | namespace has SAS keys disabled | authenticate with Entra (`DefaultAzureCredential`) + a data role |
 | Redis deploy fails: creation blocked / SKU unavailable | `Microsoft.Cache/redis` (Azure Cache for Redis) — closed to new instances since 2026-10-01 | use `Microsoft.Cache/redisEnterprise` (Azure Managed Redis), ADR-0008 |

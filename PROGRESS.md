@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~51% (102 / ~201 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~51% (103 / ~201 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -351,7 +351,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[-]` **P0-066** `next-intl` + locale routing + bn messages — deferred per [ADR-0003](docs/adr/0003-defer-i18n.md)
 - `[x]` **P0-067.1** Register a hand-written service worker (`public/sw.js`); serve it uncached via `next.config.ts` — redefined by [ADR-0011](./docs/adr/0011-hand-written-service-worker-instead-of-next-pwa.md) (was: install `next-pwa`, unmaintained since 2022 and webpack-only)
   ↳ verify: `npm run dev`, then headless Chrome on `/`: `navigator.serviceWorker.ready` resolves with scope `/` and script `/sw.js`, and the page is controlled on the first visit without a reload (`clients.claim`); `GET /sw.js` returns `Content-Type: application/javascript; charset=utf-8`, `Cache-Control: no-cache, no-store, must-revalidate` and the `self`-only CSP; no console errors. `npm run lint` clean. Zero new dependencies. `npm run build` still fails on three **pre-existing** Recharts type errors in `components/charts/*` (from `1ceddf1`, untouched here) — tracked as P0-067.4.
-- `[ ]` **P0-067.2** `app/manifest.ts` (built-in metadata route, ADR-0011) with icon set + theme color
+- `[x]` **P0-067.2** `app/manifest.ts` (built-in metadata route, ADR-0011) with icon set + theme color
+  ↳ verify: `npm run build` lists `/manifest.webmanifest`, `/icon.svg`, `/apple-icon.png`. Under `next start`, Chrome DevTools protocol on `/`: `Page.getAppManifest` → **no parse errors**; `Page.getInstallabilityErrors` → **none** (normal profile; a private profile reports only `in-incognito`). All icons serve 200 with the right type; `<head>` has `theme-color`, the manifest link, SVG + ICO favicons and a 180px `apple-touch-icon`. Icons are a placeholder "EE" monogram from [`scripts/generate-icons.mjs`](./apps/web/scripts/generate-icons.mjs) (sharp, already installed by Next), until the real club logo arrives.
 - `[ ]` **P0-067.3** Verify install on Chrome DevTools + Android home screen
 - `[x]` **P0-067.4** Fix the three Recharts 3.8 type errors in `components/charts/*` so `npm run build` passes — added 2026-10-26
   ↳ verify: `npx tsc --noEmit`, `npm run lint` and `npm run build` pass. Under `next start` in headless Chrome, all 23 X-axis tick labels carry `style="text-transform: uppercase"` and compute to `uppercase` (screenshot: MAR 9 … MAY 25), and `/sw.js` still registers in the production build. The old code passed `textTransform` as an SVG attribute, which browsers ignore, so the uppercase styling is now actually applied.
