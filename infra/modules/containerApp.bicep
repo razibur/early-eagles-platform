@@ -11,10 +11,13 @@
 // DefaultAzureCredential uses it. No system-assigned identity: see
 // userAssignedIdentity.bicep for why.
 //
+// Private registry (P0-062.4): pass `registry` and the app pulls with a
+// password that is a Key Vault secret, read through the identity (which
+// therefore needs Key Vault Secrets User — P0-062.3.1). For ghcr.io, which
+// accepts no managed identity, the password is a read:packages token
+// (ADR-0010). No registry = the image must be publicly pullable.
+//
 // Not here yet, by design:
-//   - Registry credentials and Key Vault secret references. They arrive with
-//     P0-062.3–.4; until then the image must be publicly pullable (a
-//     placeholder such as mcr.microsoft.com/k8se/quickstart).
 //   - Health probes are opt-in (livenessPath / readinessPath). A placeholder
 //     image doesn't serve /health or /ready, and a probe it can't pass leaves
 //     the revision unhealthy forever.
@@ -34,6 +37,18 @@ type identityRef = {
 
   @description('Client (application) ID, set as AZURE_CLIENT_ID.')
   clientId: string
+}
+
+@description('A private registry whose password lives in Key Vault.')
+type registryRef = {
+  @description('Registry host, e.g. ghcr.io.')
+  server: string
+
+  @description('User name the registry expects with the password. For ghcr.io: the token owner\'s GitHub login.')
+  username: string
+
+  @description('Key Vault secret URL without a version, e.g. https://kv-…vault.azure.net/secrets/ghcr-pull-token. Version-less so a rotated value is picked up.')
+  passwordKeyVaultSecretUrl: string
 }
 
 @description('App name, e.g. ca-ee-api-dev-eus-001 (infra-conventions §3). Lowercase alphanumerics and hyphens, at most 32 characters.')
@@ -89,6 +104,9 @@ param env envVar[] = []
 
 @description('User-assigned identity to attach: userAssignedIdentity.bicep outputs `id` and `clientId`. Null = no identity.')
 param identity identityRef?
+
+@description('Private registry to pull `image` from. Requires `identity`: the password is read from Key Vault as that identity. Null = public image.')
+param registry registryRef?
 
 @description('HTTP path for the liveness probe, e.g. /health. Empty = no probe (placeholder images).')
 param livenessPath string = ''
@@ -147,6 +165,31 @@ var identityEnv = identity == null
       }
     ]
 
+// The registry password is an app secret that is a Key Vault reference, so
+// the token's value never passes through the deployment.
+var registrySecretName = 'registry-password'
+
+var registrySecrets = registry == null
+  ? []
+  : [
+      {
+        name: registrySecretName
+        keyVaultUrl: registry!.passwordKeyVaultSecretUrl
+        // Fails validation with this message rather than a null dereference.
+        identity: (identity ?? fail('containerApp.bicep: registry requires identity (it reads the password from Key Vault).')).id
+      }
+    ]
+
+var registries = registry == null
+  ? []
+  : [
+      {
+        server: registry!.server
+        username: registry!.username
+        passwordSecretRef: registrySecretName
+      }
+    ]
+
 resource app 'Microsoft.App/containerApps@2026-01-01' = {
   name: name
   location: location
@@ -166,6 +209,8 @@ resource app 'Microsoft.App/containerApps@2026-01-01' = {
       // One revision takes all traffic; a new deploy replaces it. Blue/green
       // via multiple revisions is a later CI/CD concern (P0-084+).
       activeRevisionsMode: 'Single'
+      secrets: registrySecrets
+      registries: registries
       ingress: {
         external: externalIngress
         targetPort: targetPort

@@ -1303,6 +1303,19 @@ The two `EE_PG_ADMIN_*` variables have no default: if either is missing, Bicep s
 before anything is sent to Azure. The operator IP is optional. Without it Postgres has no
 firewall rules, which is fine until you want to `psql` in from your machine.
 
+Three more optional variables, in every environment's param file (added with P0-063), cover the
+values that change per deploy rather than per person:
+
+| Variable | Default | For |
+|---|---|---|
+| `EE_API_IMAGE` | the public placeholder | the real image, e.g. `ghcr.io/razibur/early-eagles-api:<tag>` (CI sets it, P0-084) |
+| `EE_API_PORT` | `80` | the port that image listens on |
+| `EE_PG_ALLOW_AZURE_SERVICES` | `false` | opens Postgres to Azure-hosted services once the API really connects |
+
+They're environment variables rather than edits to the committed files, so a deploy never
+leaves a diff behind. The full order of operations, from first deploy to the real image, is the
+[deploy-infra runbook](./runbooks/deploy-infra.md).
+
 ▶ Reference: [`infra/main.dev.bicepparam`](../infra/main.dev.bicepparam)
 
 ⚠ **Gotcha — a guest account's UPN isn't its email.** A Microsoft account (e.g. an outlook.com
@@ -1554,6 +1567,62 @@ truth is Microsoft's built-in roles reference, or `az role definition list --nam
 ⚠ **Gotcha — Redis data access isn't RBAC.** Azure RBAC on `redisEnterprise` covers the control
 plane only. Data access is a `databases/accessPolicyAssignments` child. The client signs in with
 the identity's **object ID as the user name** and an Entra token as the password.
+
+### 12.21 Pulling the private `ghcr.io` image (P0-062.4)
+
+Images live on GitHub Container Registry ([ADR-0010](./adr/0010-ghcr-instead-of-acr.md)), and
+they're private. Container Apps can use a managed identity only with ACR, so for GHCR the app
+pulls with a **GitHub token scoped to `read:packages` only**. The token sits in Key Vault, and
+the app reads it **as its managed identity**:
+
+```bicep
+// containerApp.bicep (with `registry` set)
+secrets: [
+  { name: 'registry-password', keyVaultUrl: registry.passwordKeyVaultSecretUrl, identity: identity.id }
+]
+registries: [
+  { server: 'ghcr.io', username: 'razibur', passwordSecretRef: 'registry-password' }
+]
+```
+
+`environment.bicep` attaches the registry **only when `apiImage` starts with `ghcr.io/`**. The
+public placeholder image needs none, and referencing a secret that doesn't exist yet would fail
+the deploy. Because the secret URL comes from `kv.outputs.uri`, the app deploys after the vault,
+and so after the identity's Secrets User grant (§12.20).
+
+**Before the first `ghcr.io` deploy of an environment** (operator, once):
+
+1. Create a GitHub **classic** personal access token with **only `read:packages`**, and give it
+   an expiry. GitHub Packages doesn't accept fine-grained tokens.
+2. Give yourself permission to write secrets. The vault uses RBAC, and Owner/Contributor
+   include **no data access**:
+   ```pwsh
+   $kv = az keyvault show -g rg-ee-dev-eus -n <vault> --query id -o tsv
+   az role assignment create --role "Key Vault Secrets Officer" --scope $kv `
+     --assignee (az ad signed-in-user show --query id -o tsv)
+   ```
+3. Store the token. Read it from a file so it doesn't land in your shell history, and record the
+   expiry so it shows up in the portal:
+   ```pwsh
+   az keyvault secret set --vault-name <vault> --name ghcr-pull-token `
+     --file token.txt --expires 2027-10-26T00:00:00Z
+   Remove-Item token.txt
+   ```
+4. Deploy with `apiImage = 'ghcr.io/razibur/early-eagles-api:<tag>'`.
+
+**Rotating** means `az keyvault secret set` with a new token. The app's reference has **no
+version**, so Container Apps picks up the new value (it re-reads Key Vault references
+periodically, and a new revision always reads the latest). No redeploy is needed. Rotation goes
+in the infra runbook (P0-063).
+
+⚠ **Gotcha — a registry without an identity can't read the password.** The module calls
+`fail('… registry requires identity …')` in that case, inside `identity ?? fail(…)`, so the
+deployment fails validation with that message. `??` short-circuits, so `fail` only runs when the
+identity really is missing.
+
+⚠ **Gotcha — first deploy right after the grant can still fail the pull.** An RBAC assignment can
+take a few minutes to take effect. If the first revision reports it can't read the Key Vault
+secret, wait and redeploy; nothing needs changing.
 
 ---
 

@@ -4,8 +4,9 @@
 // code and §7 sizing. Extracted from main.dev.bicep so the environments
 // cannot drift apart in wiring — only in the values they pass.
 //
-// Not here: a container registry (images live on ghcr.io, ADR-0010), Service
-// Bus topics (passed in by P0-051). The API identity's data access is granted
+// Not here: a container registry (images live on ghcr.io, ADR-0010, pulled
+// with a token held in Key Vault, P0-062.4), Service Bus topics (passed in
+// by P0-051). The API identity's data access is granted
 // inside each resource's module (P0-062.3): Key Vault secrets, Service Bus
 // send + receive, Redis. Postgres is SQL, not ARM (infra/sql/api-role/).
 //
@@ -122,6 +123,15 @@ var resourceGroupName = sandbox ? 'rg-ee-sandbox-${regionCode}' : 'rg-ee-${envir
 // Postgres server names are DNS names with no suffix (§3), so the sandbox
 // marks its own.
 var postgresName = 'psql-ee-${environment}-${regionCode}-001${sandbox ? '-sbx' : ''}'
+
+// Private images on ghcr.io (ADR-0010) are pulled with a read:packages token
+// kept in this environment's Key Vault under this name. The operator stores
+// it before the first ghcr.io deploy (walkthrough §12.21); rotating it is
+// setting a new value — the reference has no version.
+var ghcrPullTokenSecretName = 'ghcr-pull-token'
+
+// The token owner's GitHub login. ADR-0010 publishes under this account.
+var ghcrPullUsername = 'razibur'
 
 var tags requiredTags = {
   env: environment
@@ -279,6 +289,18 @@ module api 'modules/containerApp.bicep' = {
       id: apiIdentity.outputs.id
       clientId: apiIdentity.outputs.clientId
     }
+    // Only for a ghcr.io image (P0-062.4): the public placeholder needs no
+    // registry, and a reference to a secret that doesn't exist yet would
+    // fail the deploy. Reading the token needs the identity's Key Vault
+    // Secrets User grant, which lives in the kv module, so referencing
+    // kv.outputs here also orders the app after the grant.
+    registry: startsWith(apiImage, 'ghcr.io/')
+      ? {
+          server: 'ghcr.io'
+          username: ghcrPullUsername
+          passwordKeyVaultSecretUrl: '${kv.outputs.uri}secrets/${ghcrPullTokenSecretName}'
+        }
+      : null
     // Password-less Postgres (P0-062.2.3): the API signs in with an Entra
     // token for its identity (P0-062.2.1). Username is the identity's name,
     // which is also the role infra/sql/api-role/ creates, so the two can't
@@ -305,6 +327,9 @@ output resourceGroupName string = resourceGroupName
 
 @description('Key Vault URI.')
 output keyVaultUri string = kv.outputs.uri
+
+@description('Key Vault secret that must hold the ghcr.io read:packages token before a ghcr.io image is deployed.')
+output ghcrPullTokenSecretName string = ghcrPullTokenSecretName
 
 @description('Postgres server FQDN.')
 output postgresFqdn string = psql.outputs.fqdn

@@ -47,7 +47,7 @@ param postgresAllowAzureServices bool = false
 @description('Service Bus topics and subscriptions. Chosen by P0-051.')
 param serviceBusTopics topic[] = []
 
-@description('API image. Must be publicly pullable until P0-062.4 wires the ghcr.io pull token (ADR-0010); CI deploys the digest dev ran (P0-086).')
+@description('API image. A ghcr.io image is pulled with the Key Vault-held token (P0-062.4, ADR-0010); anything else must be public. CI deploys the digest dev ran (P0-086).')
 param apiImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 
 @description('Port the API image listens on. The placeholder serves 80.')
@@ -125,6 +125,9 @@ output apiIdentityName string = env.outputs.apiIdentityName
 
 @description('Client ID of the API managed identity (AZURE_CLIENT_ID on the app).')
 output apiIdentityClientId string = env.outputs.apiIdentityClientId
+
+@description('Key Vault secret that must hold the ghcr.io pull token before a ghcr.io image is deployed (runbook deploy-infra §6.4).')
+output ghcrPullTokenSecretName string = env.outputs.ghcrPullTokenSecretName
 
 @description('App Insights resource name.')
 output appInsightsName string = env.outputs.appInsightsName
