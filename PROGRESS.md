@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~52% (104 / ~201 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~52% (105 / ~201 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -75,8 +75,8 @@ External account / billing tasks. Mostly off the laptop; you confirm by logging 
   ↳ verify: direct push to `main` blocked
 - `[ ]` **P0-016** Add `CODEOWNERS` file
   ↳ verify: test PR auto-requests you as reviewer
-- `[ ]` **P0-017** Add `docs/adr/0000-template.md` ADR template
-  ↳ verify: file exists with template scaffold
+- `[x]` **P0-017** Add `docs/adr/0000-template.md` ADR template
+  ↳ verify: file exists with template scaffold. [`0000-template.md`](./docs/adr/0000-template.md) mirrors the sections ADR-0001–0011 actually use (Status / Date / Deciders / Related docs, Context, Decision, Consequences, Alternatives considered, Revisit triggers), plus a how-to comment covering numbering, immutability and supersession.
 - `[x]` **P0-018** Move existing planning docs into repo
   ↳ verify: all cross-references resolve
 - `[x]` **P0-019** Monorepo layout (`apps/web`, `apps/api`, `infra`, `docs`) + workspace config
