@@ -306,6 +306,28 @@ trigger becomes the avatar and the label the member's name. The shape stays the 
 wrote `import { cn } from "cn"` and added the unrelated npm package **`cn`** to `package.json`.
 Fix the import to `@/lib/utils` and `npm uninstall cn --workspace web`. Always diff
 `package.json` after a `shadcn add`.
+
+### 4.4 Navigation — bottom bar and section links (P0-070.2)
+
+One list, [`lib/navigation.ts`](../apps/web/lib/navigation.ts), defines the six sections (Home,
+Wall, Roster, Events, Chat, Settings) with their icons and, for sections not built yet, the phase
+that delivers them. Two Client Components read it with `usePathname()`:
+
+- [`bottom-nav.tsx`](../apps/web/components/shell/bottom-nav.tsx): a fixed tab bar **below 768px**
+  (`md:hidden`). The active section turns brand green with a court-line marker on its top edge. It
+  pads by `env(safe-area-inset-bottom)` so an installed app clears the home indicator, and the body
+  pads by the bar's height on phones so the last content isn't hidden under it.
+- [`desktop-nav.tsx`](../apps/web/components/shell/desktop-nav.tsx): the same links in the top bar
+  **from 768px up**. Settings is left out there because it sits in the account menu.
+
+`aria-current="page"` marks the active link in both. Unbuilt sections route to
+[`ComingSoon`](../apps/web/components/shell/coming-soon.tsx) pages (`app/{wall,roster,events,chat,settings}/page.tsx`),
+which say which phase delivers them. The navigation never leads to a 404, and each placeholder is
+replaced by its real page when that phase lands.
+
+⚠ **Gotcha — the dev indicator sits on the Home tab.** In `next dev`, the "N" bubble floats over
+the bottom-left of the viewport, covering the first tab on phones. It doesn't exist in production
+builds.
 ---
 
 ## 5. Backend — Clean Architecture solution
