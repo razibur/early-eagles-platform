@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~54% (110 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~55% (111 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -275,7 +275,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   10 new unit tests on the row's state machine + 3 new integration tests (published row stamped and gone from the queue; failed row pending with attempt counted, retried next tick; one bad message doesn't block the batch); the 4 existing query tests now drive `DrainOnceAsync` through a recording publisher. 214 unit + 84 integration pass.
 - `[ ]` **P0-050.2.2** `ServiceBusOutboxPublisher` — real Azure Service Bus implementation (blocked on `P0-051`). **Must set `MessageId` to the outbox row id** — topics have duplicate detection on (P0-058.4), which only dedupes re-sends if the id is stable. Authenticate with Entra (`DefaultAzureCredential`); the namespace has SAS keys disabled.
 - `[ ]` **P0-050.3** Integration test: outbox row → Service Bus message received
-- `[ ]` **P0-051** Service Bus topic + subscriptions provisioned (P0-058.4) — first in the local emulator config (P0-059.5), per ADR-0009
+- `[x]` **P0-051** Service Bus topic + subscriptions provisioned (P0-058.4) — first in the local emulator config (P0-059.5), per ADR-0009
+  ↳ verify: topics decided: one `domain-events` topic for every domain event, one subscription per consumer, routed by a correlation filter on `Subject` (the short event name). First subscription: `payments` (`Subject = PaymentConfirmed`, for P0-052); the provisional `smoke` subscription is gone. Declared in [`infra/local/servicebus/Config.json`](./infra/local/servicebus/Config.json) (valid JSON; emulator `Correlation`/`Label` rule) and as the `serviceBusTopics` default in [`main.dev.bicep`](./infra/main.dev.bicep); staging/prod stay `[]` until they get Service Bus (P0-086/087). [`serviceBus.bicep`](./infra/modules/serviceBus.bicep) gains an optional `subject` per subscription, written as the subscription's **`$Default`** rule (a second rule would be OR-ed with the match-all). `az bicep build` + lint clean on all three `main.<env>.bicep`; the compiled dev template has the topic, the subscription and a conditional `$Default` `CorrelationFilter` rule with `label: PaymentConfirmed`. Message contract (MessageId = outbox id, Subject, `EventType`/`TenantId` properties, JSON body) documented in walkthrough §12.9 for P0-050.2.2. **Live checks carried:** emulator run needs `ACCEPT_EULA=Y` in your `.env` (P0-059.5); `az servicebus topic show` needs the subscription (P0-059.3).
 - `[ ]` **P0-052.1** `PaymentConfirmedHandler` subscribes to topic
 - `[ ]` **P0-052.2** Handler logs the event; integration test verifies firing
 

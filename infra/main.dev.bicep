@@ -46,8 +46,17 @@ param postgresFirewallRules firewallRule[] = []
 @description('Allow every Azure-hosted service through the Postgres firewall (the 0.0.0.0 rule). Needed once the API connects to Postgres — Consumption Container Apps have no fixed outbound IP — and only until private networking (infra-conventions §9).')
 param postgresAllowAzureServices bool = false
 
-@description('Service Bus topics and subscriptions. Chosen by P0-051.')
-param serviceBusTopics topic[] = []
+@description('Service Bus topics and subscriptions (P0-051). Mirrors infra/local/servicebus/Config.json, so a sandbox deploy matches the local emulator.')
+param serviceBusTopics topic[] = [
+  {
+    // Every domain event, published by the outbox drain (P0-050.2.2).
+    name: 'domain-events'
+    subscriptions: [
+      // PaymentConfirmedHandler (P0-052).
+      { name: 'payments', subject: 'PaymentConfirmed' }
+    ]
+  }
+]
 
 @description('API image. A ghcr.io image is pulled with the Key Vault-held token (P0-062.4, ADR-0010); anything else must be public.')
 param apiImage string = 'mcr.microsoft.com/k8se/quickstart:latest'

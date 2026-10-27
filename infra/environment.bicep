@@ -34,6 +34,7 @@ type topic = {
   subscriptions: {
     name: string
     maxDeliveryCount: int?
+    subject: string?
   }[]
 }
 

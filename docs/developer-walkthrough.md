@@ -1020,8 +1020,8 @@ curl http://localhost:5300/health     # emulator management/health port
 `.env.example`), so it isn't set for you. Connect from the host with
 `Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;`.
 Entities are declared in [`infra/local/servicebus/Config.json`](../infra/local/servicebus/Config.json):
-today one provisional topic, `domain-events`, with duplicate detection on to mirror the Bicep
-module, plus a `smoke` subscription. P0-051 settles the real topic list.
+the `domain-events` topic (duplicate detection on, as in Bicep) and its `payments` subscription,
+filtered to `Subject = PaymentConfirmed`. The list and the message contract are in §12.9 (P0-051).
 
 ⚠ **Gotcha — the emulator exits right after starting.** Usually `ACCEPT_EULA` isn't `Y`, or
 `MSSQL_SA_PASSWORD` is empty or too weak. SQL Server needs 8+ characters with upper case, lower
@@ -1363,6 +1363,36 @@ client is constructed with.
 only accepts `requiresDuplicateDetection` when a topic is created; changing it later
 means deleting and recreating the topic (and losing its messages and subscriptions). That's
 why it's on from the first deploy even though nothing publishes yet.
+
+**The topic list and the message contract (P0-051).** There is **one topic, `domain-events`**,
+for every domain event, and one subscription per consumer. A subscription that names a
+`subject` only receives messages whose `Subject` matches. Today that's one subscription,
+`payments` (`subject: 'PaymentConfirmed'`) for the P0-052 handler. The same list is declared
+twice and must stay in step:
+
+| Where | Used by |
+|---|---|
+| [`infra/local/servicebus/Config.json`](../infra/local/servicebus/Config.json) | the local emulator (`docker compose --profile bus`) |
+| `serviceBusTopics` default in [`main.dev.bicep`](../infra/main.dev.bicep) | sandbox deploys (P0-059.3); staging/prod pass theirs when they get Service Bus (P0-086/087) |
+
+Every message the outbox publishes (P0-050.2.2) carries:
+
+| Property | Value | Why |
+|---|---|---|
+| `MessageId` | outbox row id | duplicate detection drops re-sends |
+| `Subject` | short event name, e.g. `PaymentConfirmed` | subscription routing (correlation filter) |
+| `ApplicationProperties["EventType"]` | full CLR name | consumers that need the exact type |
+| `ApplicationProperties["TenantId"]` | owning tenant | consumers re-establish tenant context |
+| body / `ContentType` | the outbox payload / `application/json` | |
+
+Routing on `Subject` rather than the full type name means moving an event class to another
+namespace doesn't silently break a filter, and a correlation filter is cheaper for the broker
+than a SQL one.
+
+⚠ **Gotcha — a second rule filters nothing.** Every new subscription gets a `$Default` rule
+that matches everything, and a subscription's rules are OR-ed. Adding a rule called `subject`
+next to it would still deliver every message. The module writes the filter **as `$Default`**,
+replacing the match-all.
 
 ⚠ **Gotcha — module paths must be relative.** A `module x 'D:/…/resourceGroup.bicep'`
 reference fails with `BCP189: module reference scheme "D" is not recognized` — Bicep reads

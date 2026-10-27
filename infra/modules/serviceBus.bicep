@@ -17,14 +17,21 @@
 //     Service Bus drops a re-send whose MessageId it has already seen inside
 //     the window. The publisher (P0-050.2.2) must set MessageId to the outbox
 //     row's id. This can only be chosen when a topic is created.
+//
+// Routing (P0-051): every domain event goes to one topic; the publisher sets
+// Subject to the short event name, and a subscription that names a `subject`
+// gets a correlation filter on it (cheaper than SQL, and immune to a class
+// moving namespace).
 
 import { requiredTags } from '../types.bicep'
 
-@description('A subscription on a topic. Filters are added when a consumer needs one (P0-052.1).')
+@description('A subscription on a topic.')
 type subscription = {
   name: string
   @description('Deliveries before a message is dead-lettered. Default 10.')
   maxDeliveryCount: int?
+  @description('Only messages whose Subject equals this (the short event name the outbox publisher sets, e.g. PaymentConfirmed). Omit to receive every message on the topic.')
+  subject: string?
 }
 
 @description('A topic and the subscriptions that read from it.')
@@ -119,6 +126,22 @@ resource subscriptionResources 'Microsoft.ServiceBus/namespaces/topics/subscript
       maxDeliveryCount: row.sub.?maxDeliveryCount ?? 10
       deadLetteringOnMessageExpiration: true
       lockDuration: 'PT1M'
+    }
+  }
+]
+
+// A new subscription gets a `$Default` rule that matches everything, and rules
+// are OR-ed, so adding a second rule would filter nothing. Writing `$Default`
+// itself replaces the match-all filter with the subject filter.
+resource subjectRules 'Microsoft.ServiceBus/namespaces/topics/subscriptions/rules@2024-01-01' = [
+  for (row, i) in subscriptionRows: if (row.sub.?subject != null) {
+    parent: subscriptionResources[i]
+    name: '$Default'
+    properties: {
+      filterType: 'CorrelationFilter'
+      correlationFilter: {
+        label: row.sub.?subject
+      }
     }
   }
 ]

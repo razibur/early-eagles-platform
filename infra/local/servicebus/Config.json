@@ -14,7 +14,7 @@
             },
             "Subscriptions": [
               {
-                "Name": "smoke",
+                "Name": "payments",
                 "Properties": {
                   "DeadLetteringOnMessageExpiration": true,
                   "DefaultMessageTimeToLive": "PT1H",
@@ -23,7 +23,18 @@
                   "ForwardDeadLetteredMessagesTo": "",
                   "ForwardTo": "",
                   "RequiresSession": false
-                }
+                },
+                "Rules": [
+                  {
+                    "Name": "subject",
+                    "Properties": {
+                      "FilterType": "Correlation",
+                      "CorrelationFilter": {
+                        "Label": "PaymentConfirmed"
+                      }
+                    }
+                  }
+                ]
               }
             ]
           }
