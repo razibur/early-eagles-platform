@@ -397,6 +397,14 @@ cross-cutting concerns in `Program.cs`. Build these in this order:
    A down database makes `/ready` return **503** while `/health` stays 200, so the platform stops
    routing traffic to the replica but doesn't restart it.
 
+   Where a bus is configured, a second check joins it (P0-026.2.2):
+   [`ServiceBusHealthCheck`](../apps/api/src/EarlyEagles.Infrastructure/Messaging/ServiceBusHealthCheck.cs)
+   calls `CreateMessageBatchAsync` on the outbox's own sender. That opens the AMQP link to the
+   topic with the app's credentials and sends nothing, so a wrong namespace, a missing topic, a
+   revoked *Data Sender* role or a dead broker each fail it. `Program.cs` adds it only when
+   `DependencyInjection.IsMessageBusConfigured(configuration)` is true. Without a bus there's
+   nothing to check; the outbox just logs.
+
    ⚠ **Gotcha — `/ready` is public.** Health-check descriptions are written to the response, and
    the endpoint has no auth. Return fixed text (`"Database unreachable."`) and attach the exception
    to the result for logs. An exception message would leak host names and auth errors.

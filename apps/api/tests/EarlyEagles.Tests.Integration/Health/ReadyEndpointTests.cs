@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
+using EarlyEagles.Tests.Integration.Messaging;
 using EarlyEagles.Tests.Integration.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -69,6 +70,41 @@ public class ReadyEndpointTests
         Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"took {stopwatch.Elapsed}");
     }
 
+    [Fact]
+    public async Task Get_Ready_With_A_Configured_But_Unreachable_Bus_Returns_503_On_The_Bus_Check()
+    {
+        // P0-026.2.2 — nothing listens on port 1, so the AMQP link never opens.
+        using var factory = new DatabaseFactory(
+            fixture.ConnectionString,
+            "Endpoint=sb://localhost:1;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;");
+        var client = factory.CreateClient();
+        var stopwatch = Stopwatch.StartNew();
+
+        var response = await client.GetAsync(new Uri("/ready", UriKind.Relative));
+
+        stopwatch.Stop();
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ReadyResponseDto>();
+        Assert.NotNull(body);
+        Assert.Contains(body!.Checks, c => c.Name == "postgres" && c.Status == "Healthy");
+        var bus = Assert.Single(body.Checks, c => c.Name == "servicebus");
+        Assert.Equal("Unhealthy", bus.Status);
+        Assert.Equal("Message bus unreachable.", bus.Description);
+        Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(10), $"took {stopwatch.Elapsed}");
+    }
+
+    [ServiceBusEmulatorFact]
+    public async Task Get_Ready_With_The_Emulator_Reports_The_Bus_Healthy()
+    {
+        using var factory = new DatabaseFactory(fixture.ConnectionString, ServiceBusEmulatorFactAttribute.ConnectionString);
+
+        var response = await factory.CreateClient().GetAsync(new Uri("/ready", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ReadyResponseDto>();
+        Assert.Contains(body!.Checks, c => c.Name == "servicebus" && c.Status == "Healthy");
+    }
+
     private sealed record ReadyResponseDto(string Status, IReadOnlyList<ReadyCheckDto> Checks, long TotalDurationMs);
 
     private sealed record ReadyCheckDto(string Name, string Status, string? Description, long DurationMs);
@@ -77,14 +113,21 @@ public class ReadyEndpointTests
     private sealed class DatabaseFactory : WebApplicationFactory<Program>
     {
         private readonly string connectionString;
+        private readonly string? serviceBusConnectionString;
 
-        public DatabaseFactory(string connectionString)
+        public DatabaseFactory(string connectionString, string? serviceBusConnectionString = null)
         {
             this.connectionString = connectionString;
+            this.serviceBusConnectionString = serviceBusConnectionString;
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            if (serviceBusConnectionString is not null)
+            {
+                builder.UseSetting("ConnectionStrings:ServiceBus", serviceBusConnectionString);
+            }
+
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<NpgsqlDataSource>();

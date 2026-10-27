@@ -5,6 +5,7 @@ using EarlyEagles.Api.OpenApi;
 using EarlyEagles.Api.Tenancy;
 using EarlyEagles.Application;
 using EarlyEagles.Infrastructure;
+using EarlyEagles.Infrastructure.Messaging;
 using EarlyEagles.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,10 +22,14 @@ builder.Services.AddExceptionHandling();
 builder.Services.AddTransient<TenantResolutionMiddleware>();
 
 // Readiness checks behind /ready (P0-026.2). Each has its own timeout so one
-// slow dependency fails the probe quickly instead of hanging it. Service Bus
-// joins when the real publisher does (P0-050.2.2).
-builder.Services.AddHealthChecks()
+// slow dependency fails the probe quickly instead of hanging it. The bus is
+// checked only where one is configured; without it the outbox just logs.
+var healthChecks = builder.Services.AddHealthChecks()
     .AddCheck<PostgresHealthCheck>(PostgresHealthCheck.Name, timeout: TimeSpan.FromSeconds(5));
+if (EarlyEagles.Infrastructure.DependencyInjection.IsMessageBusConfigured(builder.Configuration))
+{
+    healthChecks.AddCheck<ServiceBusHealthCheck>(ServiceBusHealthCheck.Name, timeout: TimeSpan.FromSeconds(5));
+}
 
 var app = builder.Build();
 

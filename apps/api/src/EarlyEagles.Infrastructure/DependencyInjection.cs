@@ -110,6 +110,18 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>
+    /// True when configuration names a Service Bus (Azure namespace or emulator
+    /// connection string). The API uses it to add the bus readiness check only
+    /// where there is a bus to check (P0-026.2.2).
+    /// </summary>
+    public static bool IsMessageBusConfigured(IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        return !string.IsNullOrWhiteSpace(configuration.GetConnectionString(ServiceBusOptions.ConnectionStringName))
+            || !string.IsNullOrWhiteSpace(configuration[$"{ServiceBusOptions.SectionName}:{nameof(ServiceBusOptions.FullyQualifiedNamespace)}"]);
+    }
+
     // Where outbox rows go (P0-050.2.2), and who listens (P0-052). Azure: the namespace from config,
     // signed in with the app's TokenCredential (the namespace has SAS keys
     // disabled). Emulator: a connection string. Neither: the logging
@@ -120,7 +132,7 @@ public static class DependencyInjection
         var options = configuration.GetSection(ServiceBusOptions.SectionName).Get<ServiceBusOptions>() ?? new ServiceBusOptions();
         var connectionString = configuration.GetConnectionString(ServiceBusOptions.ConnectionStringName);
 
-        if (string.IsNullOrWhiteSpace(connectionString) && string.IsNullOrWhiteSpace(options.FullyQualifiedNamespace))
+        if (!IsMessageBusConfigured(configuration))
         {
             services.AddScoped<IOutboxPublisher, LoggingOutboxPublisher>();
             return;
