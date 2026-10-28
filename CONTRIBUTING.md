@@ -30,6 +30,12 @@ fix/p0-067.2-maskable-icon-padding
 Lowercase, task ID first, then a few words. Rebase on `main` before opening a PR. Don't merge
 `main` into your branch.
 
+`main` is protected ([ADR-0013](./docs/adr/0013-public-repo-native-github-security.md)): no direct
+pushes (admins included), no force pushes, and a PR merges only when it's up to date with `main` and
+these checks are green: `build + unit tests`, `integration tests (tenant-isolation gate)`,
+`lint + build`, `browser tests (Playwright)`, `secrets (gitleaks)` and `sast (semgrep)`. CodeQL also runs
+on every PR but is advisory. Merge with **rebase**, so each task's commit lands on `main` as-is.
+
 ## Commits
 
 ```text

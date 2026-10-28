@@ -2210,6 +2210,24 @@ Always re-run the planted-secret check after editing the file.
 ⚠ **Gotcha — gitleaks ignores placeholder-looking keys.** A test value like `sk_live_…abcd0123456789`
 isn't reported. Plant a random string when testing the rules.
 
+**Public repo: branch protection, push protection, CodeQL (P0-015, ADR-0013).** On 2026-10-28 the
+repo was made public, where these are free:
+
+- **Branch protection on `main`**, enforced for admins too. Every change needs a PR, which must be up
+  to date with `main` and green on the six required checks: both `backend` jobs, both `web` jobs,
+  `secrets (gitleaks)` and `sast (semgrep)`.
+- **GitHub secret scanning with push protection.**
+- **Dependabot alerts and security updates.**
+- **CodeQL** ([`codeql.yml`](../.github/workflows/codeql.yml)) for C# (build mode `none`, so no SDK
+  setup), JavaScript/TypeScript and the workflows themselves. It's advisory for now.
+
+Branch protection was set through the REST API (`PUT /repos/{owner}/{repo}/branches/main/protection`),
+and checked by pushing an empty commit straight to `main`, which GitHub rejected (*protected branch
+hook declined*). Merge PRs with rebase (CONTRIBUTING.md).
+
+⚠ **Gotcha — branch protection on a private repo needs a paid plan.** On GitHub Free, both the
+protection and rulesets APIs return `403 Upgrade to GitHub Pro or make this repository public`.
+
 **First Dependabot alerts (2026-10-28).** Turning on alerts showed Next.js 16.2.6 with several
 critical remote-code-execution advisories (image optimization, `use cache`, `next/og`). It was upgraded
 to **16.4.1**, which fixes all of them and was exactly 14 days old. `npm audit fix` (no `--force`)
