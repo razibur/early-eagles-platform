@@ -7,11 +7,13 @@
   <ItemGroup>
     <!-- EF Core 10 (LTS, per ADR-0006) + the Npgsql provider. The provider pins
          EF Core to [10.0.4, 11.0.0); 10.0.11 is the latest compatible patch. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+    <PackageReference Include="FluentValidation" Version="12.2.0" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.2.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.13" />
     <!-- Pin Relational to match: the Npgsql 10.0.3 provider references 10.0.4,
          which otherwise wins assembly resolution and trips MSB3277. -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -23,11 +25,11 @@
     <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.21.0" />
     <!-- BackgroundService + AddHostedService for the outbox drain (P0-050.1),
          and options binding/validation for its configuration section. -->
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.11" />
-    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.13" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.13" />
     <!-- IHealthCheck for the database readiness check (P0-026.2). The API
          registers it; the full HealthChecks package comes with ASP.NET Core. -->
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.13" />
   </ItemGroup>
 
   <PropertyGroup>
