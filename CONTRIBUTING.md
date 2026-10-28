@@ -50,7 +50,8 @@ skipped, a follow-up task that was created).
 ## Pull requests
 
 **Title:** same format as the commit subject. **Description:** what changed, how you verified
-it, and anything skipped. Before asking for review:
+it, and anything skipped. GitHub pre-fills both from
+[`.github/pull_request_template.md`](./.github/pull_request_template.md). Before asking for review:
 
 - [ ] The task's `verify:` step passes, and its row in `PROGRESS.md` is ticked with the verify
       line updated to say what you actually checked.
@@ -58,7 +59,8 @@ it, and anything skipped. Before asking for review:
       pin and gotcha appendices if they're affected).
 - [ ] Backend: `dotnet build` (warnings are errors) and both test projects pass, including the
       **tenant-isolation gate** (`EarlyEagles.Tests.Integration`).
-- [ ] Frontend: `npm run lint` and `npm run build` pass.
+- [ ] Frontend: `npm run lint`, `npm run build` and `npm run test:e2e` pass.
+- [ ] New cookies or storage keys are added to `docs/cookie-policy.md` and the `/cookies` page.
 - [ ] Bicep: `az bicep build` and lint are clean for every `main.<env>.bicep` you touched.
 - [ ] New domain entities have a `TenantId` and are covered by the global query filter.
 - [ ] State changes go through Mediator so `AuditBehavior` records them.

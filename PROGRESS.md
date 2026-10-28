@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~66% (133 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~66% (134 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -446,7 +446,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-097.2** Runbook: `docs/runbooks/rollback.md`
 - `[ ]` **P0-097.3** Runbook: `docs/runbooks/db-migrate.md`
 - `[ ]` **P0-097.4** Runbook: `docs/runbooks/incident-response.md`
-- `[ ]` **P0-098** Contribution guide + commit format + PR template
+- `[x]` **P0-098** Contribution guide + commit format + PR template
+  ↳ verify: guide + commit format were [`CONTRIBUTING.md`](./CONTRIBUTING.md) (P0-014.6); this adds [`.github/pull_request_template.md`](./.github/pull_request_template.md) — task ID title format, What / How it was verified (including what could *not* be checked) / a checklist mirroring CONTRIBUTING (verify line, walkthrough, isolation gate, lint/build/e2e, Bicep, TenantId + query filter, AuditBehavior, feature flag, cookie inventory, no secrets, ADR not edit) — and links it from CONTRIBUTING, whose checklist gains the e2e and cookie-inventory items. Template takes effect on the first PR after push.
 - `[ ]` **P0-099** Glossary `docs/glossary.md`
 
 ### Bonus / out-of-plan work done so far
