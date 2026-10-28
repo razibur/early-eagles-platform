@@ -1,0 +1,61 @@
+# P0-080 — dependency update PRs (security advisories arrive regardless of
+# this schedule; this file governs routine version updates).
+#
+# - Weekly, Monday morning US Eastern, so updates land at the start of a week.
+# - Minor + patch bumps are grouped into one PR per ecosystem; majors come one
+#   per PR because they're the ones that need reading.
+# - cooldown: a release must be 14 days old before Dependabot proposes it,
+#   the same rule used by hand (a fresh release is the riskiest one).
+# - Commit messages start with "deps", matching CONTRIBUTING.md's
+#   non-task prefix style.
+
+version: 2
+
+updates:
+  - package-ecosystem: nuget
+    directory: /apps/api
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    cooldown:
+      default-days: 14
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(api)"
+    groups:
+      api-minor-and-patch:
+        update-types: [minor, patch]
+
+  # One lockfile at the repo root covers every npm workspace (apps/web today).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    cooldown:
+      default-days: 14
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(web)"
+    groups:
+      web-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: "deps(ci)"
+    groups:
+      actions:
+        patterns: ["*"]

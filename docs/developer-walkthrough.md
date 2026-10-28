@@ -2139,6 +2139,14 @@ Validate workflow files locally before pushing; the image bundles shellcheck for
 MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -no-color
 ```
 
+**Dependency updates (P0-080).** [`.github/dependabot.yml`](../.github/dependabot.yml) covers NuGet
+(`/apps/api`), npm (the root lockfile, every workspace) and GitHub Actions. It runs weekly on Monday
+06:00 US Eastern, groups minor and patch bumps into one PR per ecosystem (majors stay separate), and
+uses **`cooldown: default-days: 14`**, so a release must be two weeks old before it's proposed: the
+same rule used by hand. Commit prefixes are `deps(api)`, `deps(web)` and `deps(ci)`. Security
+advisories are not delayed by the schedule. The file validates against SchemaStore's
+`dependabot-2.0` schema.
+
 ⚠ **Gotcha — Git Bash rewrites `/repo` into a Windows path.** Without `MSYS_NO_PATHCONV=1`, Docker
 receives `-w C:/Program Files/Git/repo` and refuses to start.
 

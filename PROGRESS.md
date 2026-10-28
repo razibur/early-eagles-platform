@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~63% (127 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~63% (128 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -411,7 +411,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`.github/workflows/web.yml`](./.github/workflows/web.yml): `lint + build` (root `npm ci` → `npm run lint` → `npm run build`) and `browser tests (Playwright)` (`npm run test:e2e` on the runner's Google Chrome, HTML report uploaded 14 days); no `paths:` filter, same concurrency/permissions shape as `backend.yml`. `actionlint` 1.7.7 (with shellcheck) → 0 errors across both workflows. The same commands pass locally (lint clean, build OK, e2e 68 passed). **Live check carried:** first run on GitHub needs the repo pushed.
 - `[x]` **P0-079** GH Actions: integration tests against ephemeral Postgres
   ↳ verify: already in place: [`backend.yml`](./.github/workflows/backend.yml)'s `integration tests (tenant-isolation gate)` job runs the Integration project against Testcontainers `postgres:17` on `ubuntu-latest` (Docker preinstalled), Release build, warnings-as-errors; the emulator-gated Service Bus tests skip without `EE_SERVICEBUS_EMULATOR`. Locally the same command passes: 94 passed, 5 skipped. `actionlint` clean. **Live check carried:** green run on the first push.
-- `[ ]` **P0-080** Dependabot config for NuGet + npm
+- `[x]` **P0-080** Dependabot config for NuGet + npm
+  ↳ verify: [`.github/dependabot.yml`](./.github/dependabot.yml): NuGet (`/apps/api`), npm (root lockfile), GitHub Actions; weekly Mon 06:00 America/New_York; minor+patch grouped per ecosystem; `cooldown.default-days: 14` (same two-week rule used by hand); `deps(api|web|ci)` commit prefixes. Validates against SchemaStore `dependabot-2.0` with 0 errors. **Live check carried:** Dependabot only runs once the repo is on GitHub.
 - `[ ]` **P0-081** GitHub secret scanning + push protection enabled
 - `[ ]` **P0-082** CodeQL workflow for C# + TypeScript
 - `[ ]` **P0-083** SBOM (CycloneDX) generated on release
