@@ -2243,6 +2243,15 @@ same rule used by hand. Commit prefixes are `deps(api)`, `deps(web)` and `deps(c
 advisories are not delayed by the schedule. The file validates against SchemaStore's
 `dependabot-2.0` schema.
 
+The first batch of PRs (2026-10-28) showed three major upgrades that can't land yet. Each is now an
+`ignore` entry with the reason and the condition for revisiting it:
+
+| Package | Why it fails | Revisit when |
+|---|---|---|
+| `typescript` 7 | `next build` fails on the native compiler | Next.js supports TS 7 |
+| `eslint` 10 | `eslint-plugin-react` (via `eslint-config-next`) calls the removed `context.getFilename()` | `eslint-config-next` supports ESLint 10 |
+| `Microsoft.OpenApi` 3 | ASP.NET Core 10's OpenAPI source generator emits code that only compiles against 2.x (`CS0200` on `IOpenApiMediaType.Example`) | .NET 11 |
+
 **The API image (P0-084).** [`apps/api/Dockerfile`](../apps/api/Dockerfile) is a two-stage build: the
 .NET 10 SDK restores (project files first, so the layer is cached) and publishes, then the result is
 copied into **`mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled`**. That image has no shell and no
@@ -2421,6 +2430,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Migrations / `psql` "succeed" but the container DB is empty | a native Windows Postgres owns `localhost:5432` and took the connection | use the compose port 55432 + `ConnectionStrings__Postgres` (§11) |
 | `dotnet ef`: startup project doesn't reference `Microsoft.EntityFrameworkCore.Design` | Api project used as startup | `--startup-project apps/api/src/EarlyEagles.Infrastructure` |
 | Service Bus emulator container exits immediately | `ACCEPT_EULA` not `Y`, or `MSSQL_SA_PASSWORD` empty/weak, so SQL Server never starts | set both in `.env` (§11); `docker compose --profile bus logs mssql` |
+| Telemetry test fails now and then in CI: `Assert.Single() … did not contain any matching items` for the request span | the client gets the response before ASP.NET Core stops the request activity (on `HttpContext` dispose) | wait for the span (`WaitForSpanAsync`, 5 s) instead of asserting straight after the call |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 | gitleaks misses a planted secret | an allowlist with `paths` + `regexes` (OR'd), or a placeholder-looking test value | `condition = "AND"` or regex only; plant a random value (§12A) |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
