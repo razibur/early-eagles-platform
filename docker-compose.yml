@@ -2,6 +2,7 @@
 #
 #   docker compose up -d                  # Postgres only — enough for the API today
 #   docker compose --profile bus up -d    # + Azure Service Bus emulator (outbox work, P0-051)
+#   docker compose --profile otel up -d   # + Jaeger for traces (P0-089.1), UI on http://localhost:16686
 #   docker compose down                   # stop (data kept in the pgdata volume)
 #   docker compose down -v                # stop and wipe the database
 #
@@ -60,6 +61,17 @@ services:
       EMULATOR_HTTP_PORT: "5300"
     depends_on:
       - mssql
+
+  # Local trace viewer (P0-089.1). Run the API with
+  #   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+  # and open http://localhost:16686. In-memory only; nothing persists.
+  jaeger:
+    profiles: ["otel"]
+    image: jaegertracing/all-in-one:1.65.0
+    ports:
+      - "16686:16686" # UI + query API
+      - "4317:4317"   # OTLP gRPC (what the API's exporter uses)
+      - "4318:4318"   # OTLP HTTP
 
 volumes:
   pgdata:

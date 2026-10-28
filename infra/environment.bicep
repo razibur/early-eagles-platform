@@ -323,6 +323,13 @@ module api 'modules/containerApp.bicep' = {
           name: 'ConnectionStrings__Postgres'
           value: 'Host=${psql.outputs.fqdn};Database=${psql.outputs.databaseName};Username=${apiIdentity.outputs.name};SslMode=VerifyFull'
         }
+        // Telemetry (P0-089.1): with this set the API exports traces, metrics
+        // and logs through the Azure Monitor OpenTelemetry distro. It's an
+        // ingestion endpoint + key, not an access credential.
+        {
+          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+          value: appi.outputs.connectionString
+        }
       ],
       sizing.?serviceBus == null
         ? []

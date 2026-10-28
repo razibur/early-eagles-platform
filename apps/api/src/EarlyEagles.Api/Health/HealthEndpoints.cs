@@ -1,5 +1,4 @@
 using System.Net.Mime;
-using System.Reflection;
 using System.Text.Json;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -25,8 +24,6 @@ public static class HealthEndpoints
     // to be meaningful without reaching into Process.GetCurrentProcess.
     private static readonly DateTimeOffset ApplicationStarted = DateTimeOffset.UtcNow;
 
-    private static readonly string ApplicationVersion = ResolveVersion();
-
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder routes)
@@ -38,7 +35,7 @@ public static class HealthEndpoints
                 "/health",
                 () => new HealthResponse(
                     Status: "Healthy",
-                    Version: ApplicationVersion,
+                    Version: ApplicationInfo.Version,
                     UptimeSeconds: (long)(DateTimeOffset.UtcNow - ApplicationStarted).TotalSeconds))
             .WithName("Health")
             .WithTags("Diagnostics");
@@ -70,13 +67,5 @@ public static class HealthEndpoints
         return context.Response.WriteAsync(
             JsonSerializer.Serialize(response, JsonOptions),
             context.RequestAborted);
-    }
-
-    private static string ResolveVersion()
-    {
-        var assembly = typeof(HealthEndpoints).Assembly;
-        return assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
-            ?? assembly.GetName().Version?.ToString()
-            ?? "unknown";
     }
 }

@@ -636,6 +636,29 @@ cross-cutting concerns in `Program.cs`. Build these in this order:
 
    ⚠ **Gotcha — Npgsql's connect timeout is 15 s.** Without the registration timeout, a probe
    against an unresponsive host hangs past the platform's probe deadline.
+   **Telemetry (P0-089.1).** `builder.AddTelemetry()` ([`Observability/TelemetryExtensions.cs`](../apps/api/src/EarlyEagles.Api/Observability/TelemetryExtensions.cs))
+   sets up OpenTelemetry with service name `early-eagles-api` and the same `1.0.0+<commit>` version
+   `/health` reports (shared through `ApplicationInfo`). Where telemetry goes depends on configuration:
+
+   | Setting | Exporter | Where |
+   |---|---|---|
+   | `APPLICATIONINSIGHTS_CONNECTION_STRING` (`environment.bicep` passes `appi.outputs.connectionString`) | Azure Monitor distro (traces, metrics, `ILogger` logs) | Azure |
+   | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP | local: `docker compose --profile otel up -d` → Jaeger on http://localhost:16686 |
+   | neither | none (collected and dropped) | tests, plain `dotnet run` |
+
+   Traces cover incoming requests, outgoing HttpClient calls and **Npgsql commands** (`AddNpgsql()`).
+   `/health` and `/ready` are filtered out, because the platform probes them every few seconds. The
+   database check under a filtered `/ready` isn't sampled either, since a filtered request still
+   creates an unrecorded parent span. Verified against Jaeger: request spans, the outbox poller's
+   `postgresql` spans with `db.query.text`, and the service version. The `db.npgsql.data_source` tag
+   carries the connection string **without the password**.
+
+   ⚠ **Gotcha — the distro already instruments ASP.NET Core and HttpClient.** Adding them again
+   alongside `UseAzureMonitor()` would double-count. `AddTelemetry` adds them by hand only when the
+   distro is off, and applies the probe filter to the distro's instrumentation through
+   `Configure<AspNetCoreTraceInstrumentationOptions>`. The OTLP exporter and Npgsql instrumentation
+   are pinned to the distro's OpenTelemetry 1.15 line.
+
 2. **OpenAPI + Swagger UI** — `Microsoft.AspNetCore.OpenApi` generates the doc;
    `Swashbuckle.AspNetCore.SwaggerUI` renders it. Gated to non-Production. Document
    transformers advertise the Clerk bearer scheme and the tenant subdomain contract.
@@ -2244,6 +2267,8 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Npgsql.EntityFrameworkCore.PostgreSQL | 10.0.3 |
 | Azure.Identity | 1.21.0 |
 | Azure.Messaging.ServiceBus | 7.21.0 |
+| Azure.Monitor.OpenTelemetry.AspNetCore (OpenTelemetry 1.15.x) | 1.6.0 |
+| OpenTelemetry.Exporter.OpenTelemetryProtocol · Npgsql.OpenTelemetry | 1.15.3 · 10.0.3 |
 | Microsoft.Extensions.Hosting.Abstractions / Options.ConfigurationExtensions | 10.0.11 |
 | Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions | 10.0.11 |
 | dotnet-ef (local tool) | 10.0.11 |

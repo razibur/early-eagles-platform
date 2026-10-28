@@ -1,6 +1,7 @@
 using EarlyEagles.Api.Auditing;
 using EarlyEagles.Api.ExceptionHandling;
 using EarlyEagles.Api.Health;
+using EarlyEagles.Api.Observability;
 using EarlyEagles.Api.OpenApi;
 using EarlyEagles.Api.Tenancy;
 using EarlyEagles.Application;
@@ -9,6 +10,8 @@ using EarlyEagles.Infrastructure.Messaging;
 using EarlyEagles.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.AddTelemetry();
 
 builder.Services.AddOpenApi(options =>
 {
