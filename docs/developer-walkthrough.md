@@ -653,6 +653,14 @@ cross-cutting concerns in `Program.cs`. Build these in this order:
    `postgresql` spans with `db.query.text`, and the service version. The `db.npgsql.data_source` tag
    carries the connection string **without the password**.
 
+   **Who a request was for (P0-089.2).** [`TelemetryEnrichmentMiddleware`](../apps/api/src/EarlyEagles.Api/Observability/TelemetryEnrichmentMiddleware.cs)
+   runs straight after tenant resolution and tags the request span with `tenant.id` and
+   `tenant.slug`, plus `user.id` from the principal's `sub` claim once Clerk signs requests in
+   (P0-035). Only identifiers are tagged, never names or emails. In App Insights that makes "every
+   slow request for one club" a single filter. [`TelemetryEnrichmentTests`](../apps/api/tests/EarlyEagles.Tests.Integration/Observability/TelemetryEnrichmentTests.cs)
+   listen to the `Microsoft.AspNetCore` activity source directly, and a test-only `IStartupFilter`
+   signs a request in with a `sub` claim. With the middleware removed, the two positive tests fail.
+
    ⚠ **Gotcha — the distro already instruments ASP.NET Core and HttpClient.** Adding them again
    alongside `UseAzureMonitor()` would double-count. `AddTelemetry` adds them by hand only when the
    distro is off, and applies the probe filter to the distro's instrumentation through

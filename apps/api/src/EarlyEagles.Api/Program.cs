@@ -23,6 +23,7 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddExceptionHandling();
 builder.Services.AddTransient<TenantResolutionMiddleware>();
+builder.Services.AddTransient<TelemetryEnrichmentMiddleware>();
 
 // Readiness checks behind /ready (P0-026.2). Each has its own timeout so one
 // slow dependency fails the probe quickly instead of hanging it. The bus is
@@ -64,6 +65,9 @@ app.UseHttpsRedirection();
 // Production a missing subdomain -> 400 and an unknown slug -> 404 (P0-031.3);
 // outside Production misses pass through unresolved for dev-host convenience.
 app.UseMiddleware<TenantResolutionMiddleware>();
+
+// Tag the request's trace span with tenant (and later user) ids (P0-089.2).
+app.UseMiddleware<TelemetryEnrichmentMiddleware>();
 
 app.MapHealthEndpoints();
 app.MapTenancyEndpoints();
