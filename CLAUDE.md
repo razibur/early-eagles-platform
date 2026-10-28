@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status — Phase 0 in progress (web app scaffolded)
 
-Phase 0 has started. The web app is scaffolded under [`apps/web`](./apps/web) (Next.js 16.2 + React 19.2 + Tailwind v4 + TypeScript) with shadcn/ui (Base UI variant) and Recharts wired up. A sample dashboard with three charts (bar / line / area using fake club data) is on `/`.
+Phase 0 has started. The web app is scaffolded under [`apps/web`](./apps/web) (Next.js 16.4 + React 19.2 + Tailwind v4 + TypeScript) with shadcn/ui (Base UI variant) and Recharts wired up. A sample dashboard with three charts (bar / line / area using fake club data) is on `/`.
 
 **Not yet started:** `infra/` (Bicep), Clerk auth, next-intl i18n, the PWA manifest + push (the service worker is in, per ADR-0011), Sentry, GitHub Actions, the tenant-isolation test gate (P0-034). The backend solution is scaffolded under [`apps/api`](./apps/api) on **ASP.NET Core 10** ([ADR-0006](./docs/adr/0006-target-dotnet-10-lts.md) supersedes the .NET 9 pick from ADR-0002) but has no domain entities, no DbContext, and no Clerk integration yet — only Clean Architecture project skeletons plus a NetArchTest dependency-direction gate. Treat the chart work as one Phase 0 task ("scaffold web + pick chart library"), not a sign that the full phase is done.
 
