@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~67% (136 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~67% (137 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -444,7 +444,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[x]` **P0-096** Architecture diagram (mermaid) in README
   ↳ verify: README "Architecture" section with a Mermaid flowchart (browser → `proxy.ts` → pages → API tenant resolution/enrichment → endpoints → Mediator pipeline → EF Core query filter → Postgres; outbox → `domain-events` → `payments` → PaymentConfirmedHandler; Key Vault via managed identity; OpenTelemetry → App Insights; ghcr image from CI; Clerk and Stripe marked planned). The block extracted from the README parses and renders with mermaid 11.17.2 in Chrome (`mermaid.parse` + `render` OK, screenshot reviewed), so GitHub will render it.
 - `[ ]` **P0-097.1** Runbook: `docs/runbooks/deploy.md`
-- `[ ]` **P0-097.2** Runbook: `docs/runbooks/rollback.md`
+- `[x]` **P0-097.2** Runbook: `docs/runbooks/rollback.md`
+  ↳ verify: previous-image rollback via `az containerapp update --image ...:sha-<commit>` then make durable with `EE_API_IMAGE`; data: PITR to a new server, audit rows never rolled back. az flags checked against `--help`; live run needs Azure (P0-059.3).
 - `[x]` **P0-097.3** Runbook: `docs/runbooks/db-migrate.md`
   ↳ verify: [`docs/runbooks/db-migrate.md`](./docs/runbooks/db-migrate.md): expand/contract rules, local check, reviewed idempotent script applied as the Entra admin (no `-1`), verify, failure table. Verified locally: the idempotent script applies 3 migrations to an empty DB and re-runs as a no-op with both audit triggers present. Also fixed deploy-infra §6.1 (`dotnet ef` must run from `apps/api`).
 - `[ ]` **P0-097.4** Runbook: `docs/runbooks/incident-response.md`
