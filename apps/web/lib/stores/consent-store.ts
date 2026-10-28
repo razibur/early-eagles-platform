@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
@@ -13,6 +14,11 @@ import { cookieStorage } from "@/lib/stores/cookie-storage"
 // view. `skipHydration`: the store starts at the defaults on server and
 // client alike, and ConsentHydrator rehydrates after mount, so the first
 // client render matches the static HTML.
+//
+// Hydration is tracked through persist's own hasHydrated/onFinishHydration
+// (useConsentHydrated), never as store state: every set() on a persisted
+// store writes the cookie, and a "hydrated" flag would write an undecided
+// record on a first visit, before the visitor chose anything.
 export const CONSENT_COOKIE = "ee_consent"
 
 export type ConsentState = {
@@ -20,8 +26,6 @@ export type ConsentState = {
   analytics: boolean | null
   /** ISO timestamp of the decision. */
   decidedAt: string | null
-  /** True once the cookie has been read on this page view. */
-  hydrated: boolean
   /** The banner's preferences view, reopened from "Cookie settings". */
   preferencesOpen: boolean
   acceptAll: () => void
@@ -36,7 +40,6 @@ export const useConsentStore = create<ConsentState>()(
     (set) => ({
       analytics: null,
       decidedAt: null,
-      hydrated: false,
       preferencesOpen: false,
       acceptAll: () => set({ analytics: true, decidedAt: new Date().toISOString(), preferencesOpen: false }),
       rejectOptional: () => set({ analytics: false, decidedAt: new Date().toISOString(), preferencesOpen: false }),
@@ -50,9 +53,15 @@ export const useConsentStore = create<ConsentState>()(
       storage: createJSONStorage(() => cookieStorage({ maxAgeDays: 365 })),
       partialize: (state) => ({ analytics: state.analytics, decidedAt: state.decidedAt }),
       skipHydration: true,
-      onRehydrateStorage: () => () => {
-        useConsentStore.setState({ hydrated: true })
-      },
     },
   ),
 )
+
+/** True once the consent cookie has been read on this page view; false on the server. */
+export function useConsentHydrated() {
+  return useSyncExternalStore(
+    (onChange) => useConsentStore.persist.onFinishHydration(onChange),
+    () => useConsentStore.persist.hasHydrated(),
+    () => false,
+  )
+}

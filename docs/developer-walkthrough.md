@@ -430,8 +430,9 @@ The P0-076.1 banner writes it, a footer link reopens it, and analytics (P0-074) 
   preferences panel is open is per page view.
 - **`skipHydration: true`** + [`ConsentHydrator`](../apps/web/components/providers/consent-hydrator.tsx),
   which calls `persist.rehydrate()` after mount. Server and first client render both start from the
-  defaults, so there's no hydration mismatch and pages stay static. `hydrated` flips to `true` once the
-  cookie has been read, which the banner waits for so it never flashes at someone who already
+  defaults, so there's no hydration mismatch and pages stay static. `useConsentHydrated()` (a
+  `useSyncExternalStore` over `persist.hasHydrated()` / `onFinishHydration`) turns true once the
+  cookie has been read, and the banner waits for it so it never flashes at someone who already
   decided.
 
 Verified with a throwaway page (two components, one writing, one reading) under a production build:
@@ -441,6 +442,32 @@ accept and reject survive a reload.
 ⚠ **Gotcha — `persist` reads storage while the store is created.** Without `skipHydration`, the
 browser's first render already has the cookie's value while the server HTML has the default, which
 is a hydration mismatch on anything that renders consent. Rehydrate in an effect instead.
+
+⚠ **Gotcha — every `set()` on a persisted store writes storage.** A first version kept a
+`hydrated` flag in the store and set it after rehydrating. That `set` wrote an *undecided* consent
+cookie on every first visit, before the visitor chose anything. The P0-076.1 browser test caught
+it. Track hydration through the `persist` API, never as persisted state.
+
+### 4.9 Cookie consent and policy (P0-076.1, P0-076.2)
+
+[`components/consent/cookie-banner.tsx`](../apps/web/components/consent/cookie-banner.tsx) appears
+for a visitor who hasn't decided, and whenever the footer's **Cookie settings** reopens it.
+**Necessary only** has the same weight as **Accept analytics**: refusing must be as easy as
+agreeing. **Preferences** shows Necessary (always on) and an Analytics switch (`role="switch"`). On
+phones it floats above the bottom bar, and from `md` up it sits bottom-centre.
+
+The new [`SiteFooter`](../apps/web/components/shell/site-footer.tsx) carries the policy link and
+*Cookie settings*. The policy itself is served at **`/cookies`**
+([`app/cookies/page.tsx`](../apps/web/app/cookies/page.tsx)) and is backed by the maintained
+inventory in [`docs/cookie-policy.md`](./cookie-policy.md): every cookie or storage key, its category
+and lifetime, the planned ones (Clerk, PostHog) and open questions for legal review. **Rule: a new
+cookie or storage key goes into both, in the same change**, and anything optional checks
+`useConsentStore().analytics === true` before it loads.
+
+[`e2e/cookie-consent.spec.ts`](../apps/web/e2e/cookie-consent.spec.ts) (×3 widths): first visit shows
+both choices and **sets no cookie**; *Necessary only* is remembered across a reload; *Cookie settings*
+reopens the preferences with the current state and saves a change; the banner links to the policy,
+which lists `ee_consent` and `ee-theme`.
 ---
 
 ## 5. Backend — Clean Architecture solution

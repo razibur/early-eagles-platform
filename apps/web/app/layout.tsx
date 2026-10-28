@@ -5,6 +5,8 @@ import { QueryProvider } from "@/components/providers/query-provider"
 import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration"
 import { AppTopBar } from "@/components/shell/app-top-bar"
 import { BottomNav } from "@/components/shell/bottom-nav"
+import { SiteFooter } from "@/components/shell/site-footer"
+import { CookieBanner } from "@/components/consent/cookie-banner"
 import { themeBootScript } from "@/lib/theme"
 import "./globals.css"
 
@@ -61,9 +63,11 @@ export default function RootLayout({
         <QueryProvider>
           <AppTopBar />
           {children}
+          <SiteFooter />
           <BottomNav />
         </QueryProvider>
         <ConsentHydrator />
+        <CookieBanner />
         <ServiceWorkerRegistration />
       </body>
     </html>

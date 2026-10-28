@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Playwright output (P0-070.4): generated, and linting it mid-run floods the report.
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 

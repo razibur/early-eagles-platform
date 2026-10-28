@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~59% (119 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~60% (121 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -392,8 +392,10 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-073.2** Test error in dev appears in Sentry within 1 min
 - `[ ]` **P0-074** PostHog SDK installed + page-view tracking
 - `[ ]` **P0-075** Flagsmith SDK installed + sample flag toggle
-- `[ ]` **P0-076.1** Cookie consent banner + cookie state persistence
-- `[ ]` **P0-076.2** `docs/cookie-policy.md` stub
+- `[x]` **P0-076.1** Cookie consent banner + cookie state persistence
+  ↳ verify: [`CookieBanner`](./apps/web/components/consent/cookie-banner.tsx) (equal-weight *Accept analytics* / *Necessary only*, Preferences with an always-on Necessary row and an Analytics `role="switch"`) on the P0-072 consent store; [`SiteFooter`](./apps/web/components/shell/site-footer.tsx) reopens it via *Cookie settings*. `e2e/cookie-consent.spec.ts` ×3 widths, all green: first visit shows the banner and **sets no cookie**; *Necessary only* persists across reload with the banner gone; *Cookie settings* reopens with the current choice and saves a change to the cookie. The first run caught a real bug — a `hydrated` flag set in the persisted store wrote an undecided cookie on first visit — fixed by tracking hydration through the `persist` API. Full e2e suite 33/33; lint + `tsc` clean.
+- `[x]` **P0-076.2** `docs/cookie-policy.md` stub
+  ↳ verify: [`docs/cookie-policy.md`](./docs/cookie-policy.md): rules (necessary vs optional, refusing as easy as accepting, update-both-in-one-change), inventory (`ee_consent` cookie 365 d, `ee-theme` localStorage), planned entries (Clerk, PostHog, Sentry) and open questions for legal review. Published at **`/cookies`** ([`app/cookies/page.tsx`](./apps/web/app/cookies/page.tsx)), linked from the banner and the footer; the e2e test follows the banner link and finds both entries.
 - `[ ]` **P0-077.1** Next.js middleware extracts subdomain from host
 - `[ ]` **P0-077.2** Pass tenant context to pages via React Context
 - `[ ]` **P0-077.3** Dev hosts file note in README; `<slug>.localhost:3000` resolves
