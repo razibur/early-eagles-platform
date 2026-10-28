@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~69% (140 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~69% (141 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -435,7 +435,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-091** App Insights dashboard (RPS, p95, errors, DB calls)
 - `[ ]` **P0-092** Better Stack uptime checks → `/health` on dev/staging/prod
 - `[ ]` **P0-093** Better Stack public status page at `status.earlyeagles.club`
-- `[ ]` **P0-094** Error-budget + alerting thresholds doc
+- `[x]` **P0-094** Error-budget + alerting thresholds doc
+  ↳ verify: [`docs/runbooks/error-budgets.md`](./docs/runbooks/error-budgets.md): prod SLOs (99.5% availability ≈ 3 h 36 min/30 d, 99.5% request success, p95 reads < 500 ms, 99.9% in the Sunday 06:00–11:00 ET window, 99% events published < 5 min) justified by the minimum-cost architecture; budget-spending policy; page vs ticket alert table with thresholds and sources (uptime, multi-window burn rates, 5xx, latency, outbox age, cross-tenant write exceptions, Postgres CPU/storage, Log Analytics cap, ghcr token expiry); alert cost note; monthly review. All referenced runbook sections and code types exist. Building the rules is P0-091/P0-092 (need Azure / Better Stack).
 
 ### Documentation
 
