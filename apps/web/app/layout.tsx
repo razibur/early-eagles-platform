@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { Big_Shoulders, Hanken_Grotesk } from "next/font/google"
+import { QueryProvider } from "@/components/providers/query-provider"
 import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration"
 import { AppTopBar } from "@/components/shell/app-top-bar"
 import { BottomNav } from "@/components/shell/bottom-nav"
@@ -56,9 +57,11 @@ export default function RootLayout({
       </head>
       {/* Bottom padding on phones = BottomNav height (4rem of tabs + 1px border + safe area), so the page end stays clear of it. */}
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-primary/30 selection:text-foreground pb-[calc(4rem+1px+env(safe-area-inset-bottom))] md:pb-0">
-        <AppTopBar />
-        {children}
-        <BottomNav />
+        <QueryProvider>
+          <AppTopBar />
+          {children}
+          <BottomNav />
+        </QueryProvider>
         <ServiceWorkerRegistration />
       </body>
     </html>

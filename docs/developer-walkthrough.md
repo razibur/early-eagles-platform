@@ -392,6 +392,27 @@ structure and attach screenshots for humans instead.
 ⚠ **Gotcha — the bottom bar is 65px, not 64.** `h-16` tabs plus the 1px `border-t`. The first run
 caught the body padding at `4rem`, leaving the last pixel of every phone page under the bar. It's
 now `calc(4rem + 1px + env(safe-area-inset-bottom))`.
+
+### 4.7 Server state — TanStack Query (P0-071.1)
+
+`@tanstack/react-query` 5.104.2 caches data fetched from the API on the client.
+[`components/providers/query-provider.tsx`](../apps/web/components/providers/query-provider.tsx)
+wraps the whole layout in `QueryClientProvider`, creating the `QueryClient` the way TanStack's App
+Router guide prescribes:
+
+- **on the server, a new client per request** (`isServer`). A module-level client would be shared
+  by every request the server handles, so one member's cached data, or another tenant's, could be
+  rendered into someone else's page.
+- **in the browser, one client for the tab's lifetime.** It is created lazily, so a re-render or a
+  suspense boundary never drops the cache.
+- `staleTime: 60s`, so data the server already fetched isn't refetched the moment the page hydrates.
+
+The authenticated fetch wrapper (P0-071.2) and the first real query (P0-071.3) need Clerk. Until
+then, nothing calls `useQuery` in committed code. The provider was checked with a throwaway page
+that called `useQueryClient` and ran a query in a production build, then deleted.
+
+⚠ **Gotcha — `app/_anything` is not a route.** Folders starting with `_` are private in the App
+Router, so a test page at `app/__probe/page.tsx` silently 404s. Use a plain name.
 ---
 
 ## 5. Backend — Clean Architecture solution
@@ -2046,6 +2067,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Testcontainers.PostgreSql | 4.14.0 |
 | Next.js / React | 16.2.6 / 19.2.4 |
 | @playwright/test (web e2e, uses installed Chrome) | 1.64.0 |
+| @tanstack/react-query | 5.104.2 |
 | Tailwind CSS | v4 |
 | Node.js | ≥ 22 · npm 11 |
 | Postgres (dev/test image) | postgres:17 |
