@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~60% (122 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~61% (123 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -398,7 +398,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`docs/cookie-policy.md`](./docs/cookie-policy.md): rules (necessary vs optional, refusing as easy as accepting, update-both-in-one-change), inventory (`ee_consent` cookie 365 d, `ee-theme` localStorage), planned entries (Clerk, PostHog, Sentry) and open questions for legal review. Published at **`/cookies`** ([`app/cookies/page.tsx`](./apps/web/app/cookies/page.tsx)), linked from the banner and the footer; the e2e test follows the banner link and finds both entries.
 - `[x]` **P0-077.1** Next.js middleware extracts subdomain from host
   ↳ verify: [`proxy.ts`](./apps/web/proxy.ts) (Next 16's renamed middleware) sets `x-ee-tenant-slug` from the host via [`extractTenantSlug`](./apps/web/lib/tenancy/subdomain.ts), deleting any client-sent copy first; matcher skips static assets. Parity: [`e2e/tenant-subdomain.spec.ts`](./apps/web/e2e/tenant-subdomain.spec.ts) runs every case from the API's `SubdomainExtractorTests` — 29/29. Live under `next start` with a throwaway echo route (deleted): `alpha.localhost` → `alpha`, `ALPHA.EarlyEagles.club` → `alpha`, `localhost` → none, `a.b.localhost` → none, spoofed header dropped on both bare and tenant hosts, `/icon.svg` still 200.
-- `[ ]` **P0-077.2** Pass tenant context to pages via React Context
+- `[x]` **P0-077.2** Pass tenant context to pages via React Context
+  ↳ verify: root layout reads the proxy's `x-ee-tenant-slug` and wraps the app in [`TenantProvider`](./apps/web/components/providers/tenant-provider.tsx) (`useTenant()` → `{ slug }`, `null` on a bare host); [`TenantLabel`](./apps/web/components/shell/tenant-label.tsx) under the wordmark reads it. E2E ×3 widths: `http://alpha.localhost:3200/` shows `alpha` (`data-tenant-slug="alpha"`), `localhost` shows "Club HQ" and no slug. Pages are now rendered per request (reading headers), as expected for per-tenant pages. Full e2e suite 68 passed (58 skipped = parity cases run once).
 - `[ ]` **P0-077.3** Dev hosts file note in README; `<slug>.localhost:3000` resolves
 
 ### CI/CD

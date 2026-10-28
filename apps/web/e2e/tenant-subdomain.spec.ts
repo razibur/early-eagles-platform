@@ -60,3 +60,22 @@ test.describe("extractTenantSlug matches the API's SubdomainExtractor", () => {
     expect(SUPPORTED_BASE_DOMAINS).toContain("localhost")
   })
 })
+
+// P0-077.2 — the slug reaches the page through TenantProvider. Chrome resolves
+// any *.localhost name to loopback itself, so no hosts-file edit is needed.
+test.describe("tenant context", () => {
+  // Same port as playwright.config.ts's baseURL.
+  const port = 3200
+
+  test("a tenant subdomain renders its slug in the top bar", async ({ page }) => {
+    await page.goto(`http://alpha.localhost:${port}/`)
+    await expect(page.locator("header [data-tenant-slug]")).toHaveAttribute("data-tenant-slug", "alpha")
+    await expect(page.locator("header [data-tenant-slug]")).toHaveText("alpha")
+  })
+
+  test("the bare host has no tenant", async ({ page }) => {
+    await page.goto("/")
+    await expect(page.locator("header [data-tenant-slug]")).toHaveCount(0)
+    await expect(page.locator("header").getByText("Club HQ", { exact: true })).toBeVisible()
+  })
+})

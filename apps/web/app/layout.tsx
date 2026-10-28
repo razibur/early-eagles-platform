@@ -1,12 +1,15 @@
 import type { Metadata, Viewport } from "next"
+import { headers } from "next/headers"
 import { Big_Shoulders, Hanken_Grotesk } from "next/font/google"
 import { ConsentHydrator } from "@/components/providers/consent-hydrator"
 import { QueryProvider } from "@/components/providers/query-provider"
+import { TenantProvider } from "@/components/providers/tenant-provider"
 import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration"
 import { AppTopBar } from "@/components/shell/app-top-bar"
 import { BottomNav } from "@/components/shell/bottom-nav"
 import { SiteFooter } from "@/components/shell/site-footer"
 import { CookieBanner } from "@/components/consent/cookie-banner"
+import { TENANT_SLUG_HEADER } from "@/lib/tenancy/subdomain"
 import { themeBootScript } from "@/lib/theme"
 import "./globals.css"
 
@@ -42,11 +45,16 @@ export const viewport: Viewport = {
   themeColor: "#080d11",
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // The slug proxy.ts resolved from the subdomain (P0-077.2). Reading request
+  // headers makes every page render per request rather than at build time;
+  // that's expected for a multi-tenant app whose pages are per tenant.
+  const tenantSlug = (await headers()).get(TENANT_SLUG_HEADER)
+
   return (
     // suppressHydrationWarning: the boot script may add `.light` and a
     // color-scheme style before React hydrates (P0-070.3).
@@ -60,12 +68,14 @@ export default function RootLayout({
       </head>
       {/* Bottom padding on phones = BottomNav height (4rem of tabs + 1px border + safe area), so the page end stays clear of it. */}
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-primary/30 selection:text-foreground pb-[calc(4rem+1px+env(safe-area-inset-bottom))] md:pb-0">
-        <QueryProvider>
-          <AppTopBar />
-          {children}
-          <SiteFooter />
-          <BottomNav />
-        </QueryProvider>
+        <TenantProvider slug={tenantSlug}>
+          <QueryProvider>
+            <AppTopBar />
+            {children}
+            <SiteFooter />
+            <BottomNav />
+          </QueryProvider>
+        </TenantProvider>
         <ConsentHydrator />
         <CookieBanner />
         <ServiceWorkerRegistration />

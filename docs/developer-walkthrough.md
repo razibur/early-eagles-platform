@@ -492,6 +492,20 @@ Verified with a throwaway route handler (deleted) that echoed the header under `
 `alpha.localhost` → `alpha`, `ALPHA.EarlyEagles.club` → `alpha`, `localhost` → none, nested
 `a.b.localhost` → none, spoofed header stripped, `/icon.svg` still served.
 
+**Into React (P0-077.2).** The root layout is now `async`: it reads the header with
+`(await headers()).get(TENANT_SLUG_HEADER)` and wraps the app in
+[`TenantProvider`](../apps/web/components/providers/tenant-provider.tsx). Client components call
+`useTenant()` to get `{ slug }`, which is `null` on a bare host. The first consumer is
+[`TenantLabel`](../apps/web/components/shell/tenant-label.tsx), the line under the wordmark: it shows
+the slug on a tenant subdomain and "Club HQ" otherwise. It's the slug, not a display name, because
+names need a lookup against the API (P0-071.2). E2E: `http://alpha.localhost:3200/` renders `alpha`
+in the top bar, and plain `localhost` renders "Club HQ".
+
+⚠ **Gotcha — reading `headers()` in the root layout makes every page dynamic.** The build's route
+list switches from `○ (Static)` to `ƒ (Dynamic)`, and pages render per request. For a multi-tenant
+app whose pages are per tenant, that's the right trade. If a page ever needs to be static
+(marketing), give it its own root layout that doesn't read headers.
+
 ⚠ **Gotcha — `middleware.ts` is deprecated in Next 16.** The build lists the file as
 `ƒ Proxy (Middleware)`. New code uses `proxy.ts` and an exported `proxy` function.
 ---

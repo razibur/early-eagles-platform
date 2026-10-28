@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { DesktopNav } from "@/components/shell/desktop-nav"
+import { TenantLabel } from "@/components/shell/tenant-label"
 import { ThemeSwitcher } from "@/components/shell/theme-switcher"
 import { UserMenu } from "@/components/shell/user-menu"
 
@@ -27,7 +28,7 @@ export function AppTopBar({ children }: { children?: React.ReactNode }) {
                 <span className="flex-2 bg-primary" />
                 <span className="flex-1 bg-destructive" />
               </span>
-              <span className="text-[0.5625rem] font-bold uppercase tracking-[0.24em] text-muted-foreground">Club HQ</span>
+              <TenantLabel />
             </span>
           </span>
         </Link>
