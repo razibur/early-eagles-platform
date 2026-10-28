@@ -1,0 +1,80 @@
+# SBOM on release (P0-083) — a CycloneDX software bill of materials for each
+# deployable, attached to the GitHub release that ships it. Enterprise
+# customers ask for these in security reviews; generating them from the
+# release commit means the list matches what actually shipped.
+#
+#   api.cdx.json — the API and every NuGet package it pulls in (test
+#                  projects excluded), via the CycloneDX .NET tool.
+#   web.cdx.json — the web app's runtime npm dependencies (dev tooling such
+#                  as Playwright and ESLint omitted), via cyclonedx-npm.
+#
+# Tool versions are pinned and were at least two weeks old when chosen.
+
+name: sbom
+
+on:
+  release:
+    types: [published]
+  # Manual run against any ref, e.g. to check the output before a release.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    name: generate + attach SBOMs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # Upload assets to the release.
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install npm dependencies (clean, from the lockfile)
+        run: npm ci
+
+      - name: API SBOM (CycloneDX .NET)
+        run: |
+          dotnet tool install --global CycloneDX --version 6.3.1
+          dotnet CycloneDX apps/api/src/EarlyEagles.Api/EarlyEagles.Api.csproj \
+            --recursive --exclude-test-projects \
+            --output sbom --filename api.cdx.json --output-format Json \
+            --set-name early-eagles-api --set-version "${VERSION}"
+        env:
+          VERSION: ${{ github.event.release.tag_name || github.sha }}
+
+      - name: Web SBOM (cyclonedx-npm)
+        # --ignore-npm-errors: `npm ls` reports platform-specific optional
+        # packages (other OSes' native binaries) as unmet; they are not errors.
+        run: |
+          npx --yes @cyclonedx/cyclonedx-npm@6.0.1 \
+            --workspace web --omit dev --ignore-npm-errors \
+            --output-format JSON --output-file sbom/web.cdx.json
+
+      - name: Keep as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom/
+          retention-days: 90
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        run: gh release upload "${TAG}" sbom/api.cdx.json sbom/web.cdx.json --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}

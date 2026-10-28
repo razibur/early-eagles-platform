@@ -2147,6 +2147,21 @@ same rule used by hand. Commit prefixes are `deps(api)`, `deps(web)` and `deps(c
 advisories are not delayed by the schedule. The file validates against SchemaStore's
 `dependabot-2.0` schema.
 
+**SBOM on release (P0-083).** [`sbom.yml`](../.github/workflows/sbom.yml) runs when a GitHub release
+is published, or by hand with `workflow_dispatch`. It attaches two CycloneDX files to the release
+and keeps them as a 90-day artifact:
+
+| File | Tool | Scope |
+|---|---|---|
+| `api.cdx.json` | CycloneDX .NET 6.3.1 (`--recursive --exclude-test-projects`) | the API and every NuGet package it pulls in (66 components today) |
+| `web.cdx.json` | `@cyclonedx/cyclonedx-npm` 6.0.1 (`--workspace web --omit dev`) | the web app's runtime npm tree (376 today; Playwright, ESLint and the like omitted) |
+
+Both were generated locally with the same flags before the workflow was written.
+
+⚠ **Gotcha — `cyclonedx-npm` fails on `npm ls` noise.** `npm ls` reports other operating systems'
+optional native packages as "unmet" and exits non-zero. `--ignore-npm-errors` is the tool's switch
+for that. CI starts from `npm ci`, so there's no extraneous local clutter either.
+
 ⚠ **Gotcha — Git Bash rewrites `/repo` into a Windows path.** Without `MSYS_NO_PATHCONV=1`, Docker
 receives `-w C:/Program Files/Git/repo` and refuses to start.
 

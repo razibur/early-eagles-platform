@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~63% (128 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~64% (129 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -415,7 +415,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`.github/dependabot.yml`](./.github/dependabot.yml): NuGet (`/apps/api`), npm (root lockfile), GitHub Actions; weekly Mon 06:00 America/New_York; minor+patch grouped per ecosystem; `cooldown.default-days: 14` (same two-week rule used by hand); `deps(api|web|ci)` commit prefixes. Validates against SchemaStore `dependabot-2.0` with 0 errors. **Live check carried:** Dependabot only runs once the repo is on GitHub.
 - `[ ]` **P0-081** GitHub secret scanning + push protection enabled
 - `[ ]` **P0-082** CodeQL workflow for C# + TypeScript
-- `[ ]` **P0-083** SBOM (CycloneDX) generated on release
+- `[x]` **P0-083** SBOM (CycloneDX) generated on release
+  ↳ verify: [`.github/workflows/sbom.yml`](./.github/workflows/sbom.yml) on `release: published` (+ `workflow_dispatch`): CycloneDX .NET 6.3.1 → `api.cdx.json`, `@cyclonedx/cyclonedx-npm` 6.0.1 → `web.cdx.json`, uploaded as a 90-day artifact and attached to the release with `gh release upload` (`contents: write` on that job only). Same commands run locally: API BOM CycloneDX 1.7 with 66 components (Npgsql present, test projects excluded); web BOM CycloneDX 1.6 with 376 runtime components (next/react/zustand present, `@playwright/test` absent). `actionlint` clean. **Live check carried:** first published release.
 - `[ ]` **P0-084** GH Actions: ~~deploy backend to dev~~ build + test + push image to `ghcr.io` (`GITHUB_TOKEN`, `packages: write`) on `main` merge (no cloud dev — ADR-0009)
 - `[ ]` **P0-085** GH Actions: deploy frontend to Vercel preview on PR
 - `[ ]` **P0-086** GH Actions: deploy to staging on tag (`v*-staging`)
