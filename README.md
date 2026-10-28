@@ -26,6 +26,29 @@ Read these in order to get the full picture:
 
 Historical context and rejected alternatives live under [`docs/`](./docs/) — read only if you need to understand why a particular path was not chosen.
 
+## Local development
+
+### Tenant subdomains
+
+Every tenant is a subdomain (`<slug>.earlyeagles.club`); locally the same works under
+`localhost`: **`http://<slug>.localhost:3000`**, e.g. `http://early-eagles.localhost:3000`.
+The web app's `proxy.ts` and the API's tenant middleware both read the slug from the host.
+
+- **Browsers need nothing.** Chrome, Edge and Firefox resolve every `*.localhost` name to your
+  own machine by themselves, and so does `curl`.
+- **Everything else on Windows needs a hosts entry.** The Windows resolver doesn't, so `ping`,
+  .NET's `HttpClient` and other OS-level tools fail with *"No such host is known"*. Add one line
+  per slug you use, from an elevated editor, to `C:\Windows\System32\drivers\etc\hosts`
+  (macOS / Linux: `/etc/hosts`):
+
+  ```text
+  127.0.0.1  early-eagles.localhost
+  127.0.0.1  alpha.localhost
+  ```
+
+A bare `localhost` has no tenant: pages render without one, and the API answers tenant-scoped
+endpoints with `400 Tenant not resolved`.
+
 ## Contributing
 
 Branch, commit and pull-request conventions are in [`CONTRIBUTING.md`](./CONTRIBUTING.md).

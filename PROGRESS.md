@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~61% (123 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~61% (124 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -400,7 +400,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`proxy.ts`](./apps/web/proxy.ts) (Next 16's renamed middleware) sets `x-ee-tenant-slug` from the host via [`extractTenantSlug`](./apps/web/lib/tenancy/subdomain.ts), deleting any client-sent copy first; matcher skips static assets. Parity: [`e2e/tenant-subdomain.spec.ts`](./apps/web/e2e/tenant-subdomain.spec.ts) runs every case from the API's `SubdomainExtractorTests` — 29/29. Live under `next start` with a throwaway echo route (deleted): `alpha.localhost` → `alpha`, `ALPHA.EarlyEagles.club` → `alpha`, `localhost` → none, `a.b.localhost` → none, spoofed header dropped on both bare and tenant hosts, `/icon.svg` still 200.
 - `[x]` **P0-077.2** Pass tenant context to pages via React Context
   ↳ verify: root layout reads the proxy's `x-ee-tenant-slug` and wraps the app in [`TenantProvider`](./apps/web/components/providers/tenant-provider.tsx) (`useTenant()` → `{ slug }`, `null` on a bare host); [`TenantLabel`](./apps/web/components/shell/tenant-label.tsx) under the wordmark reads it. E2E ×3 widths: `http://alpha.localhost:3200/` shows `alpha` (`data-tenant-slug="alpha"`), `localhost` shows "Club HQ" and no slug. Pages are now rendered per request (reading headers), as expected for per-tenant pages. Full e2e suite 68 passed (58 skipped = parity cases run once).
-- `[ ]` **P0-077.3** Dev hosts file note in README; `<slug>.localhost:3000` resolves
+- `[x]` **P0-077.3** Dev hosts file note in README; `<slug>.localhost:3000` resolves
+  ↳ verify: README "Local development → Tenant subdomains": `http://<slug>.localhost:3000`; checked on this machine that Chrome (P0-077.2 e2e browses `alpha.localhost`) and curl 8.21 resolve `*.localhost` themselves, while the Windows resolver does not (`ping alpha.localhost` and .NET `Dns.GetHostAddresses` → "No such host is known"), so the note gives hosts-file lines for those tools (Windows and macOS/Linux paths) and says what a bare `localhost` does.
 
 ### CI/CD
 

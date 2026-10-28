@@ -506,6 +506,11 @@ list switches from `○ (Static)` to `ƒ (Dynamic)`, and pages render per reques
 app whose pages are per tenant, that's the right trade. If a page ever needs to be static
 (marketing), give it its own root layout that doesn't read headers.
 
+⚠ **Gotcha — `*.localhost` resolves in browsers, not in Windows (P0-077.3).** Chrome, Edge, Firefox
+and curl map any `*.localhost` to loopback themselves. The Windows resolver doesn't: `ping`, .NET's
+`HttpClient` and similar tools fail with "No such host is known" until the name is in the hosts file.
+The README's *Local development* section has the lines.
+
 ⚠ **Gotcha — `middleware.ts` is deprecated in Next 16.** The build lists the file as
 `ƒ Proxy (Middleware)`. New code uses `proxy.ts` and an exported `proxy` function.
 ---
