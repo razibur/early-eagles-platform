@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~65% (132 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~66% (133 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -430,7 +430,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`TelemetryExtensions.AddTelemetry`](./apps/api/src/EarlyEagles.Api/Observability/TelemetryExtensions.cs): OpenTelemetry traces + metrics, resource `early-eagles-api` / `1.0.0+<commit>`; Azure Monitor distro 1.6.0 when `APPLICATIONINSIGHTS_CONNECTION_STRING` is set (now passed by [`environment.bicep`](./infra/environment.bicep) from App Insights), OTLP when `OTEL_EXPORTER_OTLP_ENDPOINT` is set; Npgsql instrumentation always; `/health` + `/ready` filtered. **Verified live** against Jaeger 1.65 (`docker compose --profile otel`): `GET /whoami`, `GET /audit-events` request spans and the outbox poller's `postgresql` spans (`db.query.text`, server, namespace) arrived with the service version; probe requests absent; the data-source tag has no password. Bicep: all three envs build, lint clean. Unit 257/257, integration 94 + 5 skipped. Live Azure Monitor ingestion carried to P0-059.3.
 - `[x]` **P0-089.2** Enrich spans with `tenant_id` + `user_id`
   ↳ verify: [`TelemetryEnrichmentMiddleware`](./apps/api/src/EarlyEagles.Api/Observability/TelemetryEnrichmentMiddleware.cs) after tenant resolution tags the request span `tenant.id` + `tenant.slug` (when resolved) and `user.id` (principal's `sub`, once auth exists); identifiers only. [`TelemetryEnrichmentTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Observability/TelemetryEnrichmentTests.cs) (ActivityListener on `Microsoft.AspNetCore`): tenant request carries both tenant tags and no user; a test-signed-in request carries `user.id`; a tenant-less request has no tenant tags. Mutation check: removing the middleware fails the two positive tests. Unit 257/257, integration 97 + 5 skipped.
-- `[ ]` **P0-090** Serilog structured logging with `tenant_id` enricher
+- `[x]` **P0-090** Serilog structured logging with `tenant_id` enricher
+  ↳ verify: built-in `ILogger` instead of Serilog (no ADR picked it; OTel already carries logs — [Implementation-Plan appendix](./Implementation-Plan.md#logging-without-serilog-2026-10-27)). [`TelemetryEnrichmentMiddleware`](./apps/api/src/EarlyEagles.Api/Observability/TelemetryEnrichmentMiddleware.cs) wraps each request in a scope with `TenantId`/`TenantSlug`/`UserId`; outside Development the console is JSON with scopes + UTC timestamps; OTel log exporter `IncludeScopes = true` (and `WithLogging` for OTLP). [`TenantLogScopeTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Observability/TenantLogScopeTests.cs): a real Alpha request through Mediator → the `Handling ListAuditEventsQuery` line carries TenantId + TenantSlug. The Production image writes 6/6 log lines as valid JSON objects with a `Scopes` array. Unit 257/257, integration 98 + 5 skipped. Querying in Log Analytics carried to P0-059.3.
 - `[ ]` **P0-091** App Insights dashboard (RPS, p95, errors, DB calls)
 - `[ ]` **P0-092** Better Stack uptime checks → `/health` on dev/staging/prod
 - `[ ]` **P0-093** Better Stack public status page at `status.earlyeagles.club`

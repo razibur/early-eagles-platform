@@ -5,15 +5,19 @@ using EarlyEagles.Application.Abstractions.Tenancy;
 namespace EarlyEagles.Api.Observability;
 
 /// <summary>
-/// Tags the request's trace span with who it was for (P0-089.2), so traces in
-/// App Insights / Jaeger can be filtered to one club or one member:
+/// Marks everything a request produces with who it was for, so traces and
+/// logs can be filtered to one club or one member:
 /// <list type="bullet">
-///   <item><c>tenant.id</c>, <c>tenant.slug</c>: once tenant resolution has run.</item>
-///   <item><c>user.id</c>: the authenticated principal's <c>sub</c> claim (the Clerk
-///   user id once auth lands, P0-035); absent for anonymous requests.</item>
+///   <item>The request's trace span gets <c>tenant.id</c>, <c>tenant.slug</c> and
+///   <c>user.id</c> tags (P0-089.2).</item>
+///   <item>Every log line written while the request runs is inside a scope with
+///   <c>TenantId</c>, <c>TenantSlug</c> and <c>UserId</c> (P0-090). The JSON console
+///   formatter and the OpenTelemetry log exporter both include scopes, so in Log
+///   Analytics / App Insights they are ordinary queryable fields.</item>
 /// </list>
-/// Runs right after <c>TenantResolutionMiddleware</c>. Identifiers only, never
-/// names, emails or other personal data.
+/// Runs right after <c>TenantResolutionMiddleware</c>. <c>user.id</c> is the
+/// principal's <c>sub</c> claim (the Clerk user id once auth lands, P0-035).
+/// Identifiers only, never names, emails or other personal data.
 /// </summary>
 public sealed class TelemetryEnrichmentMiddleware : IMiddleware
 {
@@ -22,16 +26,20 @@ public sealed class TelemetryEnrichmentMiddleware : IMiddleware
     public const string UserIdTag = "user.id";
 
     private readonly ITenantContext tenant;
+    private readonly ILogger<TelemetryEnrichmentMiddleware> logger;
 
-    public TelemetryEnrichmentMiddleware(ITenantContext tenant)
+    public TelemetryEnrichmentMiddleware(ITenantContext tenant, ILogger<TelemetryEnrichmentMiddleware> logger)
     {
         this.tenant = tenant;
+        this.logger = logger;
     }
 
-    public Task InvokeAsync(HttpContext context, RequestDelegate next)
+    public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(next);
+
+        var userId = context.User.FindFirstValue("sub") ?? context.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         // The ASP.NET Core instrumentation's span for this request. Null when
         // nothing is listening (no exporter), which costs nothing.
@@ -44,13 +52,33 @@ public sealed class TelemetryEnrichmentMiddleware : IMiddleware
                 activity.SetTag(TenantSlugTag, tenant.Slug);
             }
 
-            var userId = context.User.FindFirstValue("sub") ?? context.User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!string.IsNullOrEmpty(userId))
             {
                 activity.SetTag(UserIdTag, userId);
             }
         }
 
-        return next(context);
+        var scope = new Dictionary<string, object?>(capacity: 3);
+        if (tenant.IsResolved)
+        {
+            scope["TenantId"] = tenant.TenantId;
+            scope["TenantSlug"] = tenant.Slug;
+        }
+
+        if (!string.IsNullOrEmpty(userId))
+        {
+            scope["UserId"] = userId;
+        }
+
+        if (scope.Count == 0)
+        {
+            await next(context).ConfigureAwait(false);
+            return;
+        }
+
+        using (logger.BeginScope(scope))
+        {
+            await next(context).ConfigureAwait(false);
+        }
     }
 }

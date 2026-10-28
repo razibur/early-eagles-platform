@@ -828,6 +828,16 @@ blockers: the query and paging need nothing new; the admin restriction needs Cle
 |---|---|---|---|
 | P0-048.1 | `GET /audit-events` via a Mediator `IQuery` + `IAuditLogReader` port; keyset paging on `(occurred_at, id)`; mapped outside Production only | P0-046.1, P0-032.2 | Integration: pages without gaps/duplicates, tenant-isolated, bad input → 400, Production → 404 |
 | P0-048.2 | Tenant-admin authorization policy on the endpoint; map it in every environment | P0-048.1, P0-038 | Tenant-admin can list own audit; member → 403 |
+
+### Logging without Serilog (2026-10-27)
+
+`P0-090` named Serilog. No ADR or stack table picks it, and since P0-089.1 the OpenTelemetry pipeline
+(Azure Monitor distro / OTLP) already exports `ILogger` logs. A second framework would add a sink to
+keep in step without adding a capability. Reworded:
+
+| ID | Change |
+|---|---|
+| P0-090 | **Reworded:** structured logging with tenant context on .NET's built-in `ILogger`: a request logging scope (`TenantId`, `TenantSlug`, `UserId`) from `TelemetryEnrichmentMiddleware`, JSON console output with scopes outside Development (stdout → Log Analytics), `IncludeScopes` on the OpenTelemetry log exporter. Verify unchanged: logs queryable per tenant in Log Analytics. |
 ---
 
 ## Sequencing notes

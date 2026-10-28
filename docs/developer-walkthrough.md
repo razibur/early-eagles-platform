@@ -661,6 +661,18 @@ cross-cutting concerns in `Program.cs`. Build these in this order:
    listen to the `Microsoft.AspNetCore` activity source directly, and a test-only `IStartupFilter`
    signs a request in with a `sub` claim. With the middleware removed, the two positive tests fail.
 
+   **Logs per tenant (P0-090).** The same middleware opens a logging scope around the rest of the
+   request with `TenantId`, `TenantSlug` and `UserId`. Every log line written during the request, from
+   any class, carries them. Outside Development, the console writes **one JSON object per line**
+   (`AddJsonConsole`, `IncludeScopes`, UTC timestamps). Container Apps forwards stdout to Log
+   Analytics, and the OpenTelemetry log exporter has `IncludeScopes = true`, so in both places the
+   tenant is an ordinary queryable field. This uses .NET's built-in logging rather than **Serilog**,
+   which the task named: the OpenTelemetry/App Insights pipeline already carries `ILogger` logs, and
+   a second logging framework would add a sink to keep in step for no new capability (Implementation
+   Plan, "Logging without Serilog"). [`TenantLogScopeTests`](../apps/api/tests/EarlyEagles.Tests.Integration/Observability/TenantLogScopeTests.cs)
+   sends a real tenant request through Mediator and finds `TenantId` / `TenantSlug` on the
+   `LoggingBehavior` line.
+
    ⚠ **Gotcha — the distro already instruments ASP.NET Core and HttpClient.** Adding them again
    alongside `UseAzureMonitor()` would double-count. `AddTelemetry` adds them by hand only when the
    distro is off, and applies the probe filter to the distro's instrumentation through

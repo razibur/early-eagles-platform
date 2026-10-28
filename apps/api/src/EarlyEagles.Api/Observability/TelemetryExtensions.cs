@@ -1,6 +1,7 @@
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Npgsql;
 using OpenTelemetry;
+using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -58,6 +59,10 @@ public static class TelemetryExtensions
                 }
             });
 
+        // Log scopes (TenantId, TenantSlug, UserId from TelemetryEnrichmentMiddleware,
+        // P0-090) become attributes on exported logs, i.e. queryable fields.
+        builder.Services.Configure<OpenTelemetryLoggerOptions>(options => options.IncludeScopes = true);
+
         if (useAzureMonitor)
         {
             telemetry.UseAzureMonitor();
@@ -69,7 +74,27 @@ public static class TelemetryExtensions
 
         if (useOtlp)
         {
+            // The distro registers the log pipeline itself; without it, add one
+            // so OTLP carries logs as well as traces and metrics.
+            if (!useAzureMonitor)
+            {
+                telemetry.WithLogging();
+            }
+
             telemetry.UseOtlpExporter();
+        }
+
+        // Structured stdout everywhere but a developer's console: one JSON object
+        // per line, scopes included. Container Apps forwards stdout to Log
+        // Analytics, where each field is queryable (ContainerAppConsoleLogs_CL).
+        if (!builder.Environment.IsDevelopment())
+        {
+            builder.Logging.AddJsonConsole(options =>
+            {
+                options.IncludeScopes = true;
+                options.UseUtcTimestamp = true;
+                options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
+            });
         }
 
         return builder;
