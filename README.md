@@ -11,6 +11,65 @@ environment, and the web app shell (PWA, navigation, theming, cookie consent, te
 Waiting on accounts: sign-in (Clerk), billing (Stripe), email, observability. See
 [`PROGRESS.md`](./PROGRESS.md) for the live task-by-task status and percentage.
 
+## Architecture
+
+How a request flows today, and where the planned third-party services plug in. Every domain
+table is tenant-scoped through the EF Core query filter. Every command is audited by the Mediator
+pipeline. Domain events leave through the outbox, in the same database transaction as the change
+that raised them.
+
+```mermaid
+flowchart TB
+    member(["Member / admin<br/>phone or desktop"])
+
+    subgraph web["Web app · Next.js 16 PWA"]
+        proxy["proxy.ts<br/>slug from subdomain"]
+        pages["App Router pages<br/>TenantProvider · TanStack Query · Zustand"]
+        sw["Service worker<br/>(push: P0-068)"]
+    end
+
+    subgraph api["API · ASP.NET Core 10 · Container Apps"]
+        tenancy["Tenant resolution<br/>+ trace/log enrichment"]
+        endpoints["Minimal API endpoints"]
+        mediator["Mediator pipeline<br/>Logging → Audit → Validation → Transaction"]
+        ef["EF Core 10<br/>global tenant query filter"]
+        outbox["Outbox processor"]
+        consumer["PaymentConfirmedHandler"]
+    end
+
+    subgraph azure["Azure managed services · Bicep"]
+        pg[("PostgreSQL 17<br/>tenants · members · audit_events · outbox")]
+        sb{{"Service Bus topic<br/>domain-events"}}
+        kv["Key Vault"]
+        obs["App Insights · Log Analytics<br/>(OpenTelemetry)"]
+    end
+
+    ghcr["ghcr.io image<br/>(CI, after green tests)"]
+
+    subgraph saas["Third-party (planned)"]
+        clerk["Clerk · sign-in · P0-035"]
+        stripe["Stripe · subscriptions · P0-041"]
+    end
+
+    member -->|"&lt;club&gt;.earlyeagles.club"| proxy --> pages
+    member -.-> sw
+    pages -->|HTTPS| tenancy --> endpoints --> mediator --> ef --> pg
+    mediator -->|audit rows| pg
+    ef -->|events in the same transaction| pg
+    outbox -->|poll pending| pg
+    outbox -->|"MessageId = row id"| sb
+    sb -->|"payments subscription<br/>Subject = PaymentConfirmed"| consumer
+    api -.->|managed identity| kv
+    api -.-> obs
+    ghcr -.->|pulled by| api
+    pages -.-> clerk
+    api -.-> stripe
+```
+
+Details: [ADR-0002](./docs/adr/0002-enterprise-saas-reframe.md) (the operative stack), the
+[developer walkthrough](./docs/developer-walkthrough.md) (how each piece is built) and
+[`infra/`](./infra/) (the Azure resources, in Bicep).
+
 ## Documents
 
 Read these in order to get the full picture:
