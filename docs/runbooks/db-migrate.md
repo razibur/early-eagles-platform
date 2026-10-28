@@ -106,7 +106,7 @@ Do this **before** deploying the app version that needs the change (expand first
 |---|---|
 | The script failed partway | Each migration is its own transaction, so a failed one rolled back by itself; the history table shows the last one that committed. Fix forward with a new migration and re-run the idempotent script. |
 | It applied, but the app misbehaves | Roll the **app** back first ([`rollback.md`](./rollback.md)); with expand-only changes the old version runs fine on the new schema. Fix forward. |
-| It destroyed or corrupted data | Point-in-time restore to a **new** server at the time noted in step 2, copy the affected rows back, and open an incident (`incident-response.md`, P0-097.4). Restores never overwrite the live server. |
+| It destroyed or corrupted data | Point-in-time restore to a **new** server at the time noted in step 2, copy the affected rows back, and open an incident ([`incident-response.md`](./incident-response.md)). Restores never overwrite the live server. |
 
 ## Verified
 

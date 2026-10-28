@@ -86,7 +86,7 @@ public static class TelemetryExtensions
 
         // Structured stdout everywhere but a developer's console: one JSON object
         // per line, scopes included. Container Apps forwards stdout to Log
-        // Analytics, where each field is queryable (ContainerAppConsoleLogs_CL).
+        // Analytics (ContainerAppConsoleLogs), where each field is queryable.
         if (!builder.Environment.IsDevelopment())
         {
             builder.Logging.AddJsonConsole(options =>
