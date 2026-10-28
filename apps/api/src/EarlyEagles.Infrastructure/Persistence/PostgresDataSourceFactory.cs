@@ -47,6 +47,16 @@ public static class PostgresDataSourceFactory
 
         var builder = new NpgsqlDataSourceBuilder(connectionString);
 
+        // Npgsql prefers GSS (Kerberos) encryption by default, so every new
+        // connection loads libgssapi_krb5. The chiseled runtime image doesn't
+        // ship it and logs an error per connection; nothing here uses
+        // Kerberos (local password, Azure password or Entra token). Off unless
+        // the connection string asks for it explicitly.
+        if (!connectionString.Contains("gss", StringComparison.OrdinalIgnoreCase))
+        {
+            builder.ConnectionStringBuilder.GssEncryptionMode = GssEncryptionMode.Disable;
+        }
+
         if (authentication == PostgresAuthentication.Entra)
         {
             // A password left in the string would be silently ignored in favour of

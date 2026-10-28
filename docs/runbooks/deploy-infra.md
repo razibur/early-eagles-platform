@@ -52,7 +52,7 @@ one fails before anything is sent to Azure.
 | `EE_PG_ADMIN_NAME` | yes | — | That admin's UPN; also the psql user name. |
 | `EE_OPERATOR_IP` | no | none | Your public IP, let through the Postgres firewall for psql and migrations. |
 | `EE_SANDBOX` | no (dev only) | `true` | `false` stands up a real cloud dev environment. Rarely what you want. |
-| `EE_API_IMAGE` | no | public placeholder | The API image, e.g. `ghcr.io/razibur/early-eagles-api:<tag>`. |
+| `EE_API_IMAGE` | no | public placeholder | The API image, e.g. `ghcr.io/razibur/early-eagles-api:sha-<commit>` (tags from `api-image.yml`). |
 | `EE_API_PORT` | no | `80` | Port that image listens on (the placeholder serves 80; .NET images default to 8080). |
 | `EE_PG_ALLOW_AZURE_SERVICES` | no | `false` | `true` opens the Postgres firewall to Azure-hosted services, which the API needs once it really connects (Consumption apps have no fixed outbound IP). Entra auth still gates the database. |
 
@@ -205,11 +205,13 @@ with a token from Key Vault ([ADR-0010](../adr/0010-ghcr-instead-of-acr.md)).
 
 ## 7. Deploy the real API image
 
-Once §6 is done, point the environment at a real image (CI publishes it, P0-084) and open the
-firewall to the app:
+Once §6 is done, point the environment at a real image and open the firewall to the app. CI
+publishes one per green `main` commit (`.github/workflows/api-image.yml`, P0-084), tagged
+`sha-<full commit>`; the run's summary prints the exact reference. Always deploy a `sha-` tag, never
+the moving `main` tag, so the deployed image is the one you tested.
 
 ```pwsh
-$env:EE_API_IMAGE = 'ghcr.io/razibur/early-eagles-api:<tag>'
+$env:EE_API_IMAGE = 'ghcr.io/razibur/early-eagles-api:sha-<commit>'
 $env:EE_API_PORT  = '8080'
 $env:EE_PG_ALLOW_AZURE_SERVICES = 'true'
 ```

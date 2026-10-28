@@ -19,6 +19,29 @@ public class PostgresDataSourceFactoryTests
     private const string PasswordConnectionString =
         "Host=localhost;Port=55432;Database=earlyeagles;Username=postgres;Password=postgres";
 
+    [Theory]
+    [InlineData(PostgresAuthentication.Password, PasswordConnectionString)]
+    [InlineData(PostgresAuthentication.Entra, EntraConnectionString)]
+    public void Gss_Encryption_Is_Off_By_Default(PostgresAuthentication authentication, string connectionString)
+    {
+        // P0-084: the chiseled runtime image has no libgssapi_krb5, and Npgsql's
+        // default (Prefer) loads it on every connection and logs an error.
+        using var dataSource = PostgresDataSourceFactory.Create(connectionString, authentication, () => new FakeCredential());
+
+        Assert.Equal(GssEncryptionMode.Disable, new NpgsqlConnectionStringBuilder(dataSource.ConnectionString).GssEncryptionMode);
+    }
+
+    [Fact]
+    public void An_Explicit_Gss_Setting_In_The_Connection_String_Is_Kept()
+    {
+        using var dataSource = PostgresDataSourceFactory.Create(
+            PasswordConnectionString + ";Gss Encryption Mode=Require",
+            PostgresAuthentication.Password,
+            () => new FakeCredential());
+
+        Assert.Equal(GssEncryptionMode.Require, new NpgsqlConnectionStringBuilder(dataSource.ConnectionString).GssEncryptionMode);
+    }
+
     [Fact]
     public void Password_Mode_Never_Creates_A_Credential()
     {

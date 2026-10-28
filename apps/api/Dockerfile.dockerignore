@@ -1,0 +1,11 @@
+# Build context is the repo root (see Dockerfile); BuildKit reads this file
+# because it sits next to the Dockerfile. Allow-list: send only what the API
+# build needs, never node_modules, tests or local build output.
+*
+!.editorconfig
+!apps/api/.editorconfig
+!apps/api/Directory.Build.props
+!apps/api/stylecop.json
+!apps/api/src/
+apps/api/src/**/bin/
+apps/api/src/**/obj/

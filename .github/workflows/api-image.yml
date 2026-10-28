@@ -1,0 +1,91 @@
+# API image (P0-084) — build apps/api/Dockerfile and push it to
+# ghcr.io/razibur/early-eagles-api (ADR-0010), but only for a main commit
+# whose backend workflow (build, unit tests, tenant-isolation gate) passed.
+# Nothing deploys here: dev runs locally (ADR-0009); staging and prod take an
+# image by tag (P0-086/087, docs/runbooks/deploy-infra.md §7).
+#
+# Tags: sha-<full commit> (what deploys reference) and `main` (moving, for
+# convenience). No `latest`: a deploy should always name an exact image.
+
+name: api-image
+
+on:
+  workflow_run:
+    workflows: [backend]
+    types: [completed]
+    branches: [main]
+  # Manual build of any ref, e.g. to rebuild after a base-image security fix.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-image-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    name: build + push
+    # workflow_run fires on failure too; only a green backend run proceeds.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/early-eagles-api
+      COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Checkout the tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.COMMIT }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=sha-${{ env.COMMIT }}
+            type=raw,value=main,enable=${{ github.event_name == 'workflow_run' }}
+          labels: |
+            org.opencontainers.image.revision=${{ env.COMMIT }}
+            org.opencontainers.image.title=early-eagles-api
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          # Repo root: the analyzers' .editorconfig files live outside apps/api.
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            SOURCE_REVISION=${{ env.COMMIT }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          {
+            echo "### API image pushed"
+            echo
+            echo '```'
+            echo "${IMAGE}:sha-${COMMIT}"
+            echo '```'
+            echo "Deploy with \`EE_API_IMAGE=${IMAGE}:sha-${COMMIT}\` and \`EE_API_PORT=8080\` (docs/runbooks/deploy-infra.md)."
+          } >> "$GITHUB_STEP_SUMMARY"

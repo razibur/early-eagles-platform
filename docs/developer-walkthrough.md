@@ -2147,6 +2147,42 @@ same rule used by hand. Commit prefixes are `deps(api)`, `deps(web)` and `deps(c
 advisories are not delayed by the schedule. The file validates against SchemaStore's
 `dependabot-2.0` schema.
 
+**The API image (P0-084).** [`apps/api/Dockerfile`](../apps/api/Dockerfile) is a two-stage build: the
+.NET 10 SDK restores (project files first, so the layer is cached) and publishes, then the result is
+copied into **`mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled`**. That image has no shell and no
+package manager, runs as the non-root `app` user (uid 1654) and listens on **8080**. The commit is
+passed in as `SOURCE_REVISION` → `-p:SourceRevisionId`, so `/health` reports `1.0.0+<sha>` even though
+the build context has no `.git`.
+
+```bash
+docker build -f apps/api/Dockerfile -t early-eagles-api --build-arg SOURCE_REVISION=$(git rev-parse HEAD) .
+docker run --rm -p 5090:8080 -e "ConnectionStrings__Postgres=Host=host.docker.internal;Port=55432;Database=earlyeagles;Username=postgres;Password=postgres" early-eagles-api
+```
+
+[`api-image.yml`](../.github/workflows/api-image.yml) builds and pushes it to
+`ghcr.io/razibur/early-eagles-api` with the built-in `GITHUB_TOKEN` (`packages: write`). It runs on
+`workflow_run` after **`backend` succeeds on `main`**, so an image only exists for a commit that passed
+the unit tests and the tenant-isolation gate. It checks out that exact commit and tags it
+`sha-<commit>`, plus the moving `main` tag. There is no `latest`. The GitHub Actions cache keeps the
+restore layer between runs.
+
+Verified locally: the image builds, runs as uid 1654, `/health` reports the HEAD commit, and `/ready`
+is healthy against the compose Postgres.
+
+⚠ **Gotcha — the build context is the repo root.** The analyzer severities live in
+`apps/api/.editorconfig`, which inherits the root `.editorconfig`. With `apps/api` as the context, the
+first build failed on hundreds of `SA1633` errors that the local build has switched off. The
+allow-list in [`apps/api/Dockerfile.dockerignore`](../apps/api/Dockerfile.dockerignore) keeps the
+root context down to ~245 KB. BuildKit reads `<Dockerfile>.dockerignore` next to the Dockerfile.
+
+⚠ **Gotcha — `libgssapi_krb5.so.2: cannot open shared object file`.** Npgsql prefers Kerberos (GSS)
+encryption by default and loads that library on every connection, and the chiseled image doesn't
+have it. `PostgresDataSourceFactory` now sets `GssEncryptionMode.Disable` unless the connection
+string mentions GSS. Nothing in the platform uses Kerberos.
+
+⚠ **Gotcha — "Failed to determine the https port for redirect".** This is expected in the container.
+TLS ends at the Container Apps ingress, and the app serves plain HTTP on 8080.
+
 **SBOM on release (P0-083).** [`sbom.yml`](../.github/workflows/sbom.yml) runs when a GitHub release
 is published, or by hand with `workflow_dispatch`. It attaches two CycloneDX files to the release
 and keeps them as a 90-day artifact:
