@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~68% (139 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~69% (140 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -453,7 +453,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: severity table (cross-tenant leak always Sev 1), first-15-minutes checklist, KQL for failures/exceptions/one operation/container stdout narrowed by tenant (P0-089.2/P0-090 fields), symptom→cause table, a Sev 1 data-exposure procedure (contain via `az containerapp ingress disable` — flags checked against `--help`; preserve; scope; regression test in the isolation suite first; notify), blameless write-up. Paging/status-page tooling waits on Better Stack (P0-092/093); table names confirmed at the first deploy.
 - `[x]` **P0-098** Contribution guide + commit format + PR template
   ↳ verify: guide + commit format were [`CONTRIBUTING.md`](./CONTRIBUTING.md) (P0-014.6); this adds [`.github/pull_request_template.md`](./.github/pull_request_template.md) — task ID title format, What / How it was verified (including what could *not* be checked) / a checklist mirroring CONTRIBUTING (verify line, walkthrough, isolation gate, lint/build/e2e, Bicep, TenantId + query filter, AuditBehavior, feature flag, cookie inventory, no secrets, ADR not edit) — and links it from CONTRIBUTING, whose checklist gains the e2e and cookie-inventory items. Template takes effect on the first PR after push.
-- `[ ]` **P0-099** Glossary `docs/glossary.md`
+- `[x]` **P0-099** Glossary `docs/glossary.md`
+  ↳ verify: [`docs/glossary.md`](./docs/glossary.md) defines Tenant, Member, Session, RSVP, Attendance and Dues (plus Tenant 0, slug, role, leaderboard, event) and the platform terms (plan, tenant status, tenant context, isolation gate, audit event, command/query, domain event/outbox/subject, feature flag, environments); names match the code (`TenantMemberRole`, `TenantPlan`, `TenantStatus`, `ListAuditEventsQuery`) and project-scope.md. Linked from the README documents table along with the runbooks folder.
 
 ### Bonus / out-of-plan work done so far
 

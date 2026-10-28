@@ -83,6 +83,8 @@ Read these in order to get the full picture:
 | 5 | [`PROGRESS.md`](./PROGRESS.md) | Live status dashboard — what's done, in-flight, next |
 | 6 | [`docs/developer-walkthrough.md`](./docs/developer-walkthrough.md) | **Build-from-zero guide** — recreate the project by hand, step by step |
 | 7 | [`CLAUDE.md`](./CLAUDE.md) | Guidance for Claude Code (AI assistant) |
+| 8 | [`docs/glossary.md`](./docs/glossary.md) | One meaning per term: tenant, member, session, RSVP, attendance, dues, … |
+| 9 | [`docs/runbooks/`](./docs/runbooks/) | Deploy, migrate, roll back, respond to incidents |
 
 Historical context and rejected alternatives live under [`docs/`](./docs/) — read only if you need to understand why a particular path was not chosen.
 
