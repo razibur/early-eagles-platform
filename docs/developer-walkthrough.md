@@ -2254,14 +2254,14 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 
 | Area | Status | Where it plugs in |
 |---|---|---|
-| **Service Bus transport** (P0-050.2.2) | blocked | the drain publishes + stamps through `IOutboxPublisher`; the real publisher waits on the topic (P0-051 → P0-058.4) |
+| **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
 | **EF-backed `ITenantLookup`** | deferred | replaces `NullTenantLookup` once a seeded DB exists |
-| **Audit query endpoint** (P0-048) | not started | tenant-admin-scoped, paginated read over `audit_events` |
+| **Audit endpoint in Production** (P0-048.2) | waits on P0-038 | `/audit-events` exists outside Production; tenant-admin authorization needs Clerk role claims |
 | **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
-| **CI/CD** | not started | GitHub Actions: build + push on `main` merge, staging on demand, manual prod promote ([ADR-0009](./adr/0009-local-dev-no-cloud-dev-environment.md) — dev runs locally) |
+| **CD to Azure** (P0-086/087/088) | waits on Azure | CI, image push, Dependabot and SBOMs exist (§12A); staging/prod deploys and the migration runner need the subscription and an OIDC identity |
 
 **On Vercel specifically:** the operative stack ([ADR-0002](./adr/0002-enterprise-saas-reframe.md))
 targets **Azure**, not Vercel. The Next.js frontend *could* deploy to Vercel, but that is not

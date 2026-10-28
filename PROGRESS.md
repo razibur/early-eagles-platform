@@ -414,15 +414,21 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[x]` **P0-080** Dependabot config for NuGet + npm
   ↳ verify: [`.github/dependabot.yml`](./.github/dependabot.yml): NuGet (`/apps/api`), npm (root lockfile), GitHub Actions; weekly Mon 06:00 America/New_York; minor+patch grouped per ecosystem; `cooldown.default-days: 14` (same two-week rule used by hand); `deps(api|web|ci)` commit prefixes. Validates against SchemaStore `dependabot-2.0` with 0 errors. **Live check carried:** Dependabot only runs once the repo is on GitHub.
 - `[ ]` **P0-081** GitHub secret scanning + push protection enabled
+  ↳ **Waiting on your decision (2026-10-27):** the repo is private, where GitHub secret scanning + push protection is a paid add-on (Secret Protection). Free alternative: gitleaks in CI + a pre-commit hook.
 - `[ ]` **P0-082** CodeQL workflow for C# + TypeScript
+  ↳ **Waiting on your decision (2026-10-27):** CodeQL code scanning on a private repo needs the paid GitHub Code Security add-on. Free alternatives: Semgrep CE in CI, or make the repo public.
 - `[x]` **P0-083** SBOM (CycloneDX) generated on release
   ↳ verify: [`.github/workflows/sbom.yml`](./.github/workflows/sbom.yml) on `release: published` (+ `workflow_dispatch`): CycloneDX .NET 6.3.1 → `api.cdx.json`, `@cyclonedx/cyclonedx-npm` 6.0.1 → `web.cdx.json`, uploaded as a 90-day artifact and attached to the release with `gh release upload` (`contents: write` on that job only). Same commands run locally: API BOM CycloneDX 1.7 with 66 components (Npgsql present, test projects excluded); web BOM CycloneDX 1.6 with 376 runtime components (next/react/zustand present, `@playwright/test` absent). `actionlint` clean. **Live check carried:** first published release.
 - `[x]` **P0-084** GH Actions: ~~deploy backend to dev~~ build + test + push image to `ghcr.io` (`GITHUB_TOKEN`, `packages: write`) on `main` merge (no cloud dev — ADR-0009)
   ↳ verify: [`apps/api/Dockerfile`](./apps/api/Dockerfile) (SDK build → `aspnet:10.0-noble-chiseled`, non-root uid 1654, port 8080, commit via `SOURCE_REVISION`; repo-root context with an allow-list [`Dockerfile.dockerignore`](./apps/api/Dockerfile.dockerignore), ~245 KB) + [`.github/workflows/api-image.yml`](./.github/workflows/api-image.yml) (on `workflow_run` of a **successful** `backend` run on `main`: checks out that commit, pushes `ghcr.io/razibur/early-eagles-api:sha-<commit>` + `main` with `GITHUB_TOKEN`/`packages: write`, GHA layer cache; no `latest`). Local: image builds, `/health` = `1.0.0+<HEAD sha>`, `/ready` 200 against compose Postgres. Found and fixed: Npgsql's default GSS probe logged `libgssapi_krb5.so.2` errors in the chiseled image → `GssEncryptionMode.Disable` by default (2 new unit tests; unit 257/257, integration 94 + 5 skipped). `actionlint` clean. deploy-infra runbook now uses `sha-<commit>` tags. **Live check carried:** first push of `main`.
 - `[ ]` **P0-085** GH Actions: deploy frontend to Vercel preview on PR
+  ↳ **Waiting on your decision:** the operative stack is Azure; CLAUDE.md requires an ADR before adding Vercel as a deployment target.
 - `[ ]` **P0-086** GH Actions: deploy to staging on tag (`v*-staging`)
+  ↳ **Waiting on Azure:** needs the subscription (P0-003) and a GitHub→Azure OIDC identity. Manual procedure meanwhile: [`docs/runbooks/deploy.md`](./docs/runbooks/deploy.md).
 - `[ ]` **P0-087** GH Actions: deploy to prod on manual approval
+  ↳ **Waiting on Azure:** as P0-086, plus a GitHub environment with required reviewers (free on private repos only for some plans — check before relying on it).
 - `[ ]` **P0-088** Migrations runner job (separate from app deploy)
+  ↳ **Waiting on Azure + a decision:** the runner needs an identity with the Postgres Entra admin role (the API role has no DDL by design). Manual procedure meanwhile: [`docs/runbooks/db-migrate.md`](./docs/runbooks/db-migrate.md).
 
 ### Observability + ops
 
