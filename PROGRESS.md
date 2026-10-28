@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~60% (121 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~60% (122 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -396,7 +396,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`CookieBanner`](./apps/web/components/consent/cookie-banner.tsx) (equal-weight *Accept analytics* / *Necessary only*, Preferences with an always-on Necessary row and an Analytics `role="switch"`) on the P0-072 consent store; [`SiteFooter`](./apps/web/components/shell/site-footer.tsx) reopens it via *Cookie settings*. `e2e/cookie-consent.spec.ts` ×3 widths, all green: first visit shows the banner and **sets no cookie**; *Necessary only* persists across reload with the banner gone; *Cookie settings* reopens with the current choice and saves a change to the cookie. The first run caught a real bug — a `hydrated` flag set in the persisted store wrote an undecided cookie on first visit — fixed by tracking hydration through the `persist` API. Full e2e suite 33/33; lint + `tsc` clean.
 - `[x]` **P0-076.2** `docs/cookie-policy.md` stub
   ↳ verify: [`docs/cookie-policy.md`](./docs/cookie-policy.md): rules (necessary vs optional, refusing as easy as accepting, update-both-in-one-change), inventory (`ee_consent` cookie 365 d, `ee-theme` localStorage), planned entries (Clerk, PostHog, Sentry) and open questions for legal review. Published at **`/cookies`** ([`app/cookies/page.tsx`](./apps/web/app/cookies/page.tsx)), linked from the banner and the footer; the e2e test follows the banner link and finds both entries.
-- `[ ]` **P0-077.1** Next.js middleware extracts subdomain from host
+- `[x]` **P0-077.1** Next.js middleware extracts subdomain from host
+  ↳ verify: [`proxy.ts`](./apps/web/proxy.ts) (Next 16's renamed middleware) sets `x-ee-tenant-slug` from the host via [`extractTenantSlug`](./apps/web/lib/tenancy/subdomain.ts), deleting any client-sent copy first; matcher skips static assets. Parity: [`e2e/tenant-subdomain.spec.ts`](./apps/web/e2e/tenant-subdomain.spec.ts) runs every case from the API's `SubdomainExtractorTests` — 29/29. Live under `next start` with a throwaway echo route (deleted): `alpha.localhost` → `alpha`, `ALPHA.EarlyEagles.club` → `alpha`, `localhost` → none, `a.b.localhost` → none, spoofed header dropped on both bare and tenant hosts, `/icon.svg` still 200.
 - `[ ]` **P0-077.2** Pass tenant context to pages via React Context
 - `[ ]` **P0-077.3** Dev hosts file note in README; `<slug>.localhost:3000` resolves
 

@@ -468,6 +468,32 @@ cookie or storage key goes into both, in the same change**, and anything optiona
 both choices and **sets no cookie**; *Necessary only* is remembered across a reload; *Cookie settings*
 reopens the preferences with the current state and saves a change; the banner links to the policy,
 which lists `ee_consent` and `ee-theme`.
+
+### 4.10 Tenant from the subdomain — `proxy.ts` (P0-077.1)
+
+Next 16 renamed `middleware.ts` to **`proxy.ts`** (exported function `proxy`, same `config.matcher`).
+[`apps/web/proxy.ts`](../apps/web/proxy.ts) reads the `Host`, extracts the tenant slug with
+[`lib/tenancy/subdomain.ts`](../apps/web/lib/tenancy/subdomain.ts), and passes it on as the request
+header **`x-ee-tenant-slug`** through `NextResponse.next({ request: { headers } })`. The matcher
+skips `_next/static`, `_next/image`, `sw.js`, the manifest and anything with a file extension.
+
+- **Same rules as the API.** `extractTenantSlug` mirrors `SubdomainExtractor`: base domains
+  `earlyeagles.club` and `localhost`, exactly one label, port stripped, lowercased, IPs and IPv6
+  rejected. [`e2e/tenant-subdomain.spec.ts`](../apps/web/e2e/tenant-subdomain.spec.ts) runs **every
+  case from the API's `SubdomainExtractorTests`** against it (29 pure-function tests, run once), so
+  the two can't drift silently.
+- **The client can't choose a tenant.** The proxy deletes any incoming `x-ee-tenant-slug` before
+  setting its own. A spoofed header on a bare host yields no tenant, and on `alpha.localhost` yields
+  `alpha`.
+- **Render-only.** No lookup and no redirect happen here. The API remains the authority on which
+  tenant a request belongs to, and on whether that tenant exists.
+
+Verified with a throwaway route handler (deleted) that echoed the header under `next start`:
+`alpha.localhost` → `alpha`, `ALPHA.EarlyEagles.club` → `alpha`, `localhost` → none, nested
+`a.b.localhost` → none, spoofed header stripped, `/icon.svg` still served.
+
+⚠ **Gotcha — `middleware.ts` is deprecated in Next 16.** The build lists the file as
+`ƒ Proxy (Middleware)`. New code uses `proxy.ts` and an exported `proxy` function.
 ---
 
 ## 5. Backend — Clean Architecture solution
