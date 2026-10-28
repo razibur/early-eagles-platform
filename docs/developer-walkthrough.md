@@ -413,6 +413,34 @@ that called `useQueryClient` and ran a query in a production build, then deleted
 
 ⚠ **Gotcha — `app/_anything` is not a route.** Folders starting with `_` are private in the App
 Router, so a test page at `app/__probe/page.tsx` silently 404s. Use a plain name.
+
+### 4.8 Client state — Zustand, starting with consent (P0-072)
+
+Zustand 5.0.15 holds client-only state that several components share. Server data belongs to
+TanStack Query (§4.7). The first store is a real one:
+[`lib/stores/consent-store.ts`](../apps/web/lib/stores/consent-store.ts), the cookie-consent decision.
+The P0-076.1 banner writes it, a footer link reopens it, and analytics (P0-074) will check
+`analytics` before loading.
+
+- **Persisted to a first-party cookie**, `ee_consent` (`SameSite=Lax`, 365 days, `Secure` on
+  HTTPS), through a small Zustand `StateStorage` over `document.cookie`:
+  [`lib/stores/cookie-storage.ts`](../apps/web/lib/stores/cookie-storage.ts). A consent record that
+  is itself a cookie can be read server-side later without another round trip.
+- **Only the decision is persisted** (`partialize`: `analytics`, `decidedAt`). Whether the
+  preferences panel is open is per page view.
+- **`skipHydration: true`** + [`ConsentHydrator`](../apps/web/components/providers/consent-hydrator.tsx),
+  which calls `persist.rehydrate()` after mount. Server and first client render both start from the
+  defaults, so there's no hydration mismatch and pages stay static. `hydrated` flips to `true` once the
+  cookie has been read, which the banner waits for so it never flashes at someone who already
+  decided.
+
+Verified with a throwaway page (two components, one writing, one reading) under a production build:
+state crosses components, the cookie holds `{"state":{"analytics":true,…},"version":1}`, and both
+accept and reject survive a reload.
+
+⚠ **Gotcha — `persist` reads storage while the store is created.** Without `skipHydration`, the
+browser's first render already has the cookie's value while the server HTML has the default, which
+is a hydration mismatch on anything that renders consent. Rehydrate in an effect instead.
 ---
 
 ## 5. Backend — Clean Architecture solution
@@ -2068,6 +2096,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Next.js / React | 16.2.6 / 19.2.4 |
 | @playwright/test (web e2e, uses installed Chrome) | 1.64.0 |
 | @tanstack/react-query | 5.104.2 |
+| zustand | 5.0.15 |
 | Tailwind CSS | v4 |
 | Node.js | ≥ 22 · npm 11 |
 | Postgres (dev/test image) | postgres:17 |

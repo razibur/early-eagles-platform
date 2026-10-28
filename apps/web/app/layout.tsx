@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { Big_Shoulders, Hanken_Grotesk } from "next/font/google"
+import { ConsentHydrator } from "@/components/providers/consent-hydrator"
 import { QueryProvider } from "@/components/providers/query-provider"
 import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration"
 import { AppTopBar } from "@/components/shell/app-top-bar"
@@ -62,6 +63,7 @@ export default function RootLayout({
           {children}
           <BottomNav />
         </QueryProvider>
+        <ConsentHydrator />
         <ServiceWorkerRegistration />
       </body>
     </html>

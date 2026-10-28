@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~58% (118 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~59% (119 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -386,7 +386,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: `@tanstack/react-query` 5.104.2; [`QueryProvider`](./apps/web/components/providers/query-provider.tsx) wraps the root layout (new `QueryClient` per server request so cached data can't cross requests or tenants; one lazily created client per browser tab; `staleTime` 60 s). Verified with a throwaway page (deleted, not committed) under a production build: `useQueryClient()` resolved and a `useQuery` returned its data, no console errors. Lint + `tsc` clean. P0-071.2/.3 (auth fetch + first real query) wait on Clerk.
 - `[ ]` **P0-071.2** Auth-aware fetch wrapper injects Clerk JWT
 - `[ ]` **P0-071.3** Sample authenticated query renders data from `/api/whoami`
-- `[ ]` **P0-072** Zustand store for client-only state
+- `[x]` **P0-072** Zustand store for client-only state
+  ↳ verify: zustand 5.0.15. First store is real: [`consent-store.ts`](./apps/web/lib/stores/consent-store.ts) (analytics yes/no/undecided + decidedAt; preferences-open is transient), persisted through [`cookieStorage`](./apps/web/lib/stores/cookie-storage.ts) to a first-party `ee_consent` cookie (SameSite=Lax, 365 days, Secure on https), `skipHydration` + [`ConsentHydrator`](./apps/web/components/providers/consent-hydrator.tsx) rehydrating after mount so pages stay static and hydration matches. Verified with a throwaway two-component page (deleted) under a production build: writer → reader round-trip, cookie `{"state":{"analytics":true,…},"version":1}`, accept and reject both survive reload, no console errors. Lint + `tsc` clean.
 - `[ ]` **P0-073.1** Install `@sentry/nextjs`; configure DSN from env
 - `[ ]` **P0-073.2** Test error in dev appears in Sentry within 1 min
 - `[ ]` **P0-074** PostHog SDK installed + page-view tracking
