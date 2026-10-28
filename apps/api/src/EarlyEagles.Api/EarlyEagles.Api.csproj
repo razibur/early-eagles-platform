@@ -1,19 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.7" />
-    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.2.1" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.3.0" />
     <!-- Direct pin overrides the vulnerable Microsoft.OpenApi 2.0.0 pulled transitively by
          Microsoft.AspNetCore.OpenApi. 2.7.5 is the first version patched against CVE-2026-49451
          (GHSA-v5pm-xwqc-g5wc, uncontrolled recursion on OpenAPI parse). Framework still pins
          2.0.0 as of 10.0.10, so this stays until the transitive pin moves past 2.7.5. -->
-    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
+    <PackageReference Include="Microsoft.OpenApi" Version="2.12.2" />
     <!-- Telemetry (P0-089.1). The Azure Monitor distro brings OpenTelemetry 1.15.x
          with ASP.NET Core + HttpClient instrumentation; the OTLP exporter and Npgsql
          instrumentation are pinned to that same 1.15 line so nothing drags the core
          library past what the distro was built against. -->
     <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.6.0" />
-    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.19.1" />
     <PackageReference Include="Npgsql.OpenTelemetry" Version="10.0.3" />
   </ItemGroup>
 
