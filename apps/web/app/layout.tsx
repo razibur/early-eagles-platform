@@ -54,8 +54,8 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
-      {/* Bottom padding on phones keeps the last of the page clear of the fixed BottomNav. */}
-      <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-primary/30 selection:text-foreground pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
+      {/* Bottom padding on phones = BottomNav height (4rem of tabs + 1px border + safe area), so the page end stays clear of it. */}
+      <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-primary/30 selection:text-foreground pb-[calc(4rem+1px+env(safe-area-inset-bottom))] md:pb-0">
         <AppTopBar />
         {children}
         <BottomNav />

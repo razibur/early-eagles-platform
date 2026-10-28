@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~57% (116 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~58% (117 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -380,8 +380,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: one nav list ([`lib/navigation.ts`](./apps/web/lib/navigation.ts)) drives [`BottomNav`](./apps/web/components/shell/bottom-nav.tsx) (fixed, `md:hidden`, safe-area padded; body pads on phones) and [`DesktopNav`](./apps/web/components/shell/desktop-nav.tsx) (top bar from md up). Unbuilt sections are [`ComingSoon`](./apps/web/components/shell/coming-soon.tsx) pages naming their phase (Wall 4, Roster 1, Events 4, Chat 3, Settings 1). Headless Chrome: at 390px on `/roster` the Roster tab is the one `aria-current="page"` and highlighted; at 1280px on `/events` the Events link is; the bar is `display:block` at 767px and `none` at 768px; all six targets return 200; titles set; no console errors. Lint + `tsc` clean.
 - `[x]` **P0-070.3** Theme switcher (light / dark / system) wired to `.light` class
   ↳ verify: [`ThemeSwitcher`](./apps/web/components/shell/theme-switcher.tsx) (radio menu in the top bar) + [`lib/theme.ts`](./apps/web/lib/theme.ts) (`localStorage["ee-theme"]`, `applyTheme` sets `.light`, `color-scheme`, `theme-color` meta) + an inline `<head>` boot script so the saved theme applies before first paint. Headless Chrome: default dark; choosing Light sets the class, stores `light`, meta `#f6f9fb`, body background light; after reload the class is already `light` at `DOMContentLoaded` (no flash); System follows an emulated OS change live and on reload; a second tab follows a change; no console errors or hydration warnings. Lint + `tsc` clean.
-- `[ ]` **P0-070.4** Responsive layout tests at phone / tablet / desktop breakpoints
-  ↳ scope note: per [ADR-0004](docs/adr/0004-role-based-landing-and-routing.md) the eventual nav splits into member (`/`, `/roster`, `/events`, `/chat`, `/settings`) and admin (`/admin`, `/insights`). Real implementation in Phase 1.
+- `[x]` **P0-070.4** Responsive layout tests at phone / tablet / desktop breakpoints
+  ↳ verify: `npm run test:e2e` → **21 passed**: [`e2e/responsive-layout.spec.ts`](./apps/web/e2e/responsive-layout.spec.ts) on Playwright 1.64.0 (installed Chrome, production build on :3200) across phone 390×844, tablet 768×1024, desktop 1280×800 — every nav section returns 200 with no console errors and no horizontal overflow, top bar + theme + account controls present, exactly one navigation visible marking the current section, phone body padding clears the bottom bar; Light theme survives a reload at each width. Full-page screenshots attached in the HTML report (structure asserted, not pixels — baselines don't travel between Windows and Linux CI). First run caught a real bug: body padding 64px vs a 65px bar — fixed.
 - `[ ]` **P0-071.1** Install `@tanstack/react-query`; set up `QueryClientProvider`
 - `[ ]` **P0-071.2** Auth-aware fetch wrapper injects Clerk JWT
 - `[ ]` **P0-071.3** Sample authenticated query renders data from `/api/whoami`

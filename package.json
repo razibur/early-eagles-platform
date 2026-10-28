@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "npm --workspace web run dev",
     "build": "npm --workspace web run build",
-    "lint": "npm --workspace web run lint"
+    "lint": "npm --workspace web run lint",
+    "test:e2e": "npm --workspace web run test:e2e"
   },
   "engines": {
     "node": ">=22.0.0"

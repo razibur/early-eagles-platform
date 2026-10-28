@@ -359,6 +359,39 @@ preferences are an external store, so read them with `useSyncExternalStore`.
 ⚠ **Gotcha — the boot script can't import.** It's a string injected into the HTML, so it can't
 reach module code. It repeats the storage key and light color via `JSON.stringify` of the
 constants, so a rename can't leave it behind.
+
+### 4.6 Responsive layout tests (P0-070.4)
+
+Browser tests live in `apps/web/e2e/` and run with **Playwright** (`@playwright/test` 1.64.0,
+pinned exactly) against a **production build**. [`playwright.config.ts`](../apps/web/playwright.config.ts)
+starts `npm run build && next start --port 3200` itself and defines three projects: **phone**
+390×844, **tablet** 768×1024 (the `md` breakpoint, the first width with desktop nav) and **desktop**
+1280×800. `channel: "chrome"` drives the installed Google Chrome, so nothing downloads; GitHub's
+ubuntu runners ship Chrome too.
+
+```pwsh
+npm run test:e2e          # from the repo root; HTML report in apps/web/playwright-report/
+```
+
+[`responsive-layout.spec.ts`](../apps/web/e2e/responsive-layout.spec.ts) visits every section from
+`lib/navigation.ts` at each width and asserts structure, not pixels:
+
+- 200, no console errors, no horizontal overflow (`scrollWidth <= innerWidth`)
+- the top bar, the theme button and the account menu are present
+- exactly one navigation is visible (bottom bar below 768px, top-bar links from 768px) and it marks
+  the current section with `aria-current="page"`
+- on phones, the body's bottom padding is at least the bar's height
+
+A full-page screenshot is attached to every test in the HTML report for eyeballing. A theme test
+checks that Light survives a reload at each width. 21 tests in total.
+
+⚠ **Gotcha — pixel snapshots don't travel.** Font rasterisation differs between Windows and the
+Linux CI runner, so `toHaveScreenshot` baselines from one machine fail on the other. Assert
+structure and attach screenshots for humans instead.
+
+⚠ **Gotcha — the bottom bar is 65px, not 64.** `h-16` tabs plus the 1px `border-t`. The first run
+caught the body padding at `4rem`, leaving the last pixel of every phone page under the bar. It's
+now `calc(4rem + 1px + env(safe-area-inset-bottom))`.
 ---
 
 ## 5. Backend — Clean Architecture solution
@@ -2012,6 +2045,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Microsoft.AspNetCore.Mvc.Testing | 10.0.9 |
 | Testcontainers.PostgreSql | 4.14.0 |
 | Next.js / React | 16.2.6 / 19.2.4 |
+| @playwright/test (web e2e, uses installed Chrome) | 1.64.0 |
 | Tailwind CSS | v4 |
 | Node.js | ≥ 22 · npm 11 |
 | Postgres (dev/test image) | postgres:17 |
