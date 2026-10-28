@@ -1,6 +1,6 @@
 # ADR-0012: gitleaks and Semgrep CE in CI instead of GitHub secret scanning and CodeQL
 
-- **Status:** Accepted
+- **Status:** Accepted; revisit-trigger outcome superseded by [ADR-0013](./0013-public-repo-native-github-security.md) (repo made public, native features added, this workflow kept)
 - **Date:** 2026-10-28
 - **Deciders:** Project owner (Moh. Razib)
 - **Related docs:** [`Implementation-Plan.md`](../../Implementation-Plan.md) P0-081, P0-082;

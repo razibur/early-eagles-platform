@@ -9,6 +9,20 @@ one fails. Why these tools and not GitHub's paid ones: [ADR-0012](../adr/0012-gi
 | `sast (semgrep)` | Semgrep CE 1.180.0, `p/default` | tracked files: C#, TypeScript, Dockerfiles, workflows, … | any finding |
 
 It runs on PRs to `main`, pushes to `main`, and Mondays at 06:17 UTC, so new rules also catch old code.
+Both jobs are required checks on `main`.
+
+Since the repo went public ([ADR-0013](../adr/0013-public-repo-native-github-security.md)), GitHub's own
+features run as well:
+
+| Feature | What it adds | Where to look |
+|---|---|---|
+| Secret scanning + **push protection** | blocks a push containing a known provider's token *before* it lands; alerts on history | the push error itself; Security → Secret scanning |
+| CodeQL ([`codeql.yml`](../../.github/workflows/codeql.yml)) | cross-file taint analysis for C#, JS/TS and workflows (`security-extended`); advisory, not required | PR annotations; Security → Code scanning |
+| Dependabot alerts + security updates | vulnerable dependencies, with fix PRs outside the weekly schedule | Security → Dependabot |
+
+If push protection blocks a push, the secret never reached GitHub: remove it from the commit (amend
+or rebase) and rotate it only if it might have leaked elsewhere. Don't use the "allow secret" bypass
+link unless it really is a test value.
 
 ## 1. Run it locally
 

@@ -849,6 +849,16 @@ tools that run in CI instead:
 |---|---|
 | P0-081 | **Reworded:** secret scanning with gitleaks over the full git history in the `security` workflow, on every PR, push to `main` and weekly. Verify: a planted secret fails the check. Push protection is out of reach without the paid feature; an opt-in pre-commit hook is documented instead. |
 | P0-082 | **Reworded:** SAST with Semgrep CE (`p/default`) for C#, TypeScript, Dockerfiles and workflows in the same workflow. Verify: findings fail the job and are listed in its log (there's no PR annotation without paid code scanning). |
+
+### Public repository (2026-10-28)
+
+The owner made the repo public instead of paying for GitHub Pro ([ADR-0013](./docs/adr/0013-public-repo-native-github-security.md)). That unblocks P0-015 and brings back the original scope of P0-081/082 alongside the free tools:
+
+| ID | Change |
+|---|---|
+| P0-015 | Unblocked. PR required (0 approvals), six required checks (strict), conversation resolution, no force push or deletion, enforced for admins. **Signed commits deferred** (history and local setup unsigned). |
+| P0-081 | Adds GitHub secret scanning + push protection (on). gitleaks stays. |
+| P0-082 | Adds the CodeQL workflow (`codeql.yml`: C#, JS/TS, Actions; `security-extended`), advisory rather than required. Semgrep stays. |
 ---
 
 ## Sequencing notes

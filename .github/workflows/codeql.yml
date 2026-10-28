@@ -1,0 +1,60 @@
+# CodeQL code scanning (P0-082) — free now the repo is public (ADR-0013).
+# Runs alongside security.yml's Semgrep: CodeQL follows data across files
+# (taint tracking), Semgrep covers patterns, Dockerfiles and quick local runs.
+#
+# Results appear under Security → Code scanning and as PR annotations.
+#
+#   * csharp — build-mode `none`: CodeQL reads the source without compiling, so
+#     no .NET SDK setup or restore is needed here.
+#   * javascript-typescript — the web app; no build needed.
+#   * actions — the workflow files themselves (injection, over-broad tokens).
+#
+# Not a required check for now: a new CodeQL query can start failing old code;
+# alerts are triaged in the Security tab instead.
+
+name: codeql
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # Weekly, so new queries run over unchanged code.
+  schedule:
+    - cron: '41 6 * * 1'
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: codeql (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # Upload results to code scanning.
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [csharp, javascript-typescript, actions]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: /language:${{ matrix.language }}
