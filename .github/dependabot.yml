@@ -27,6 +27,12 @@ updates:
     groups:
       api-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # ASP.NET Core 10's OpenAPI source generator is compiled against
+      # Microsoft.OpenApi 2.x; 3.x makes it emit code that doesn't build
+      # (CS0200 on IOpenApiMediaType.Example, PR #10). Revisit with .NET 11.
+      - dependency-name: Microsoft.OpenApi
+        update-types: ["version-update:semver-major"]
 
   # One lockfile at the repo root covers every npm workspace (apps/web today).
   - package-ecosystem: npm
@@ -44,6 +50,16 @@ updates:
     groups:
       web-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # TypeScript 7 (the native compiler): `next build` fails with it (PR #3).
+      # Revisit when Next.js documents support.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # ESLint 10: eslint-plugin-react (via eslint-config-next) calls the
+      # removed context.getFilename() (PR #5). Revisit when eslint-config-next
+      # supports ESLint 10.
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
