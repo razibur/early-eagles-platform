@@ -14,9 +14,14 @@ namespace EarlyEagles.Tests.Integration.Observability;
 // resolves, and user.id for an authenticated principal. Listens to the ASP.NET
 // Core request activity directly; no exporter involved. Slugs and user ids are
 // unique to this class so parallel tests' activities can't be mistaken for ours.
+//
+// The client gets the response before the server stops the request activity
+// (that happens when the HttpContext is disposed), so each test waits for its
+// span instead of asserting straight after the call; CI hit that race.
 public sealed class TelemetryEnrichmentTests : IDisposable
 {
     private const string Slug = "otel-enrich-check";
+    private static readonly TimeSpan SpanTimeout = TimeSpan.FromSeconds(5);
     private static readonly Guid TenantId = new("e0e0e0e0-0089-0002-0000-000000000001");
 
     private readonly ConcurrentBag<Activity> stopped = [];
@@ -44,7 +49,7 @@ public sealed class TelemetryEnrichmentTests : IDisposable
 
         await client.GetAsync(new Uri("/whoami", UriKind.Relative));
 
-        var span = Assert.Single(stopped, a => (a.GetTagItem("tenant.slug") as string) == Slug);
+        var span = await WaitForSpanAsync(a => (a.GetTagItem("tenant.slug") as string) == Slug);
         Assert.Equal(TenantId.ToString(), span.GetTagItem("tenant.id"));
         Assert.Null(span.GetTagItem("user.id"));
     }
@@ -59,7 +64,7 @@ public sealed class TelemetryEnrichmentTests : IDisposable
 
         await client.GetAsync(new Uri("/whoami", UriKind.Relative));
 
-        Assert.Contains(stopped, a => (a.GetTagItem("user.id") as string) == userId && (a.GetTagItem("tenant.slug") as string) == Slug);
+        await WaitForSpanAsync(a => (a.GetTagItem("user.id") as string) == userId && (a.GetTagItem("tenant.slug") as string) == Slug);
     }
 
     [Fact]
@@ -71,13 +76,26 @@ public sealed class TelemetryEnrichmentTests : IDisposable
 
         await client.GetAsync(new Uri($"/whoami?marker={marker}", UriKind.Relative));
 
-        var span = Assert.Single(stopped, a => MatchesMarker(a, marker));
+        var span = await WaitForSpanAsync(a => MatchesMarker(a, marker));
         Assert.Null(span.GetTagItem("tenant.id"));
     }
 
     // The startup filter records each request's query string on its activity.
     private static bool MatchesMarker(Activity activity, string marker) =>
         activity.GetCustomProperty("test.query") is string query && query.Contains(marker, StringComparison.Ordinal);
+
+    // Polls for the one stopped activity matching the predicate; fails with the
+    // usual Assert.Single message if none (or several) arrive in time.
+    private async Task<Activity> WaitForSpanAsync(Func<Activity, bool> predicate)
+    {
+        var deadline = DateTime.UtcNow + SpanTimeout;
+        while (DateTime.UtcNow < deadline && !stopped.Any(predicate))
+        {
+            await Task.Delay(10);
+        }
+
+        return Assert.Single(stopped, a => predicate(a));
+    }
 
     private sealed class EnrichmentFactory : WebApplicationFactory<Program>
     {
