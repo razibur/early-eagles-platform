@@ -2123,6 +2123,28 @@ secret, wait and redeploy; nothing needs changing.
 
 ---
 
+## 12A. Continuous integration — GitHub Actions
+
+Two workflows run on every PR to `main` and every push to `main`. Neither has a `paths:` filter: a
+path-filtered required check never reports on PRs outside its filter and blocks the merge forever.
+
+| Workflow | Jobs | What runs |
+|---|---|---|
+| [`backend.yml`](../.github/workflows/backend.yml) (P0-078.1, P0-079) | `build + unit tests` · `integration tests (tenant-isolation gate)` | Release build with warnings-as-errors and the Unit project, then the Integration project against Testcontainers Postgres (Docker is preinstalled on `ubuntu-latest`). The Service Bus emulator tests skip because `EE_SERVICEBUS_EMULATOR` isn't set. |
+| [`web.yml`](../.github/workflows/web.yml) (P0-078.2) | `lint + build` · `browser tests (Playwright)` | `npm ci` at the root (one lockfile for every workspace), `npm run lint`, `npm run build`, then `npm run test:e2e` on the runner's Google Chrome, with the HTML report uploaded as an artifact for 14 days |
+
+Validate workflow files locally before pushing; the image bundles shellcheck for the `run:` steps:
+
+```bash
+MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -no-color
+```
+
+⚠ **Gotcha — Git Bash rewrites `/repo` into a Windows path.** Without `MSYS_NO_PATHCONV=1`, Docker
+receives `-w C:/Program Files/Git/repo` and refuses to start.
+
+⚠ **Gotcha — nothing here has run on GitHub yet.** The repo hasn't been pushed. The commands are the
+ones run locally throughout Phase 0, and the first push is the live check.
+
 ## 13. Not-yet-built (and where it goes)
 
 Everything below is **planned, not built** — see [`Implementation-Plan.md`](../Implementation-Plan.md)

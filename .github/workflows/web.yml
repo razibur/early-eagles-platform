@@ -1,0 +1,90 @@
+# Web CI — the Next.js app under apps/web/ (P0-078.2).
+#
+# Two jobs, mirroring backend.yml, so each can be a required check on its own:
+#
+#   * lint-and-build — eslint, then a production `next build`, which also
+#     type-checks. The fast lane.
+#
+#   * browser-tests — the Playwright suite (P0-070.4 onward): responsive layout
+#     at three widths, cookie consent, tenant subdomains. playwright.config.ts
+#     builds and starts the app itself and drives the runner's installed Google
+#     Chrome (`channel: "chrome"`), so no browser download is needed.
+#
+# npm workspaces: install at the repo root (one lockfile), run in apps/web.
+
+name: web
+
+on:
+  # No `paths:` filter, for the same reason as backend.yml: a path-filtered
+  # required check never reports on PRs outside the filter and blocks merges.
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-build:
+    name: lint + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install (root lockfile, all workspaces)
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (type-checks too)
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+  browser-tests:
+    name: browser tests (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install (root lockfile, all workspaces)
+        run: npm ci
+
+      - name: Verify Google Chrome is available
+        run: google-chrome --version
+
+      - name: Playwright
+        run: npm run test:e2e
+        env:
+          CI: 'true'
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Upload report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 14

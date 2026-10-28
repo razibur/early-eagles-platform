@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~62% (125 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~62% (126 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -407,7 +407,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 
 - `[x]` **P0-078.1** GH Actions: `dotnet build` + unit tests on PR
   ↳ verify: [`.github/workflows/backend.yml`](./.github/workflows/backend.yml) — the first CI workflow. Two parallel jobs so failures are attributable and each can be marked required in branch protection independently: `build + unit tests` (the fast lane — compiles the whole `EarlyEagles.slnx` in Release with warnings-as-errors, then runs the Unit test project) and `integration tests (tenant-isolation gate)` (Testcontainers-backed, the P0-034 gate). Both install .NET 10 SDK via `actions/setup-dotnet@v4` with `dotnet-version: '10.0.x'` (TFM pinned in `apps/api/Directory.Build.props` per ADR-0006); no `global.json` yet. Concurrency group cancels superseded runs on non-main refs. Minimum-privilege `permissions: contents: read`. Frontend CI (P0-078.2) will be a separate workflow so a Next.js change doesn't wait on a .NET build.
-- `[ ]` **P0-078.2** GH Actions: `npm run lint` + `npm run build` on PR
+- `[x]` **P0-078.2** GH Actions: `npm run lint` + `npm run build` on PR
+  ↳ verify: [`.github/workflows/web.yml`](./.github/workflows/web.yml): `lint + build` (root `npm ci` → `npm run lint` → `npm run build`) and `browser tests (Playwright)` (`npm run test:e2e` on the runner's Google Chrome, HTML report uploaded 14 days); no `paths:` filter, same concurrency/permissions shape as `backend.yml`. `actionlint` 1.7.7 (with shellcheck) → 0 errors across both workflows. The same commands pass locally (lint clean, build OK, e2e 68 passed). **Live check carried:** first run on GitHub needs the repo pushed.
 - `[ ]` **P0-079** GH Actions: integration tests against ephemeral Postgres
 - `[ ]` **P0-080** Dependabot config for NuGet + npm
 - `[ ]` **P0-081** GitHub secret scanning + push protection enabled
