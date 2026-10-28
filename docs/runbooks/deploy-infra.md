@@ -136,11 +136,16 @@ Azure Postgres accepts Entra tokens only. A token lasts about an hour and is the
 ```pwsh
 $token = az account get-access-token --resource-type oss-rdbms --query accessToken -o tsv
 $env:ConnectionStrings__Postgres = "Host=$pgHost;Database=$pgDb;Username=$env:EE_PG_ADMIN_NAME;Password=$token;SslMode=VerifyFull"
+cd apps/api      # dotnet-ef is a local tool whose manifest is here
 dotnet ef database update `
-  --project apps/api/src/EarlyEagles.Infrastructure `
-  --startup-project apps/api/src/EarlyEagles.Infrastructure
+  --project src/EarlyEagles.Infrastructure `
+  --startup-project src/EarlyEagles.Infrastructure
+cd ../..
 Remove-Item Env:ConnectionStrings__Postgres
 ```
+
+Later schema changes follow [`db-migrate.md`](./db-migrate.md) (reviewed idempotent script, expand
+before contract).
 
 Migrations always run as the admin, never as the API: the API's role has no DDL (6.3). Whoever
 runs migrations owns the tables, and the default privileges in 6.3 are tied to that role.

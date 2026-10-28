@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~67% (135 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~67% (136 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -445,7 +445,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: README "Architecture" section with a Mermaid flowchart (browser → `proxy.ts` → pages → API tenant resolution/enrichment → endpoints → Mediator pipeline → EF Core query filter → Postgres; outbox → `domain-events` → `payments` → PaymentConfirmedHandler; Key Vault via managed identity; OpenTelemetry → App Insights; ghcr image from CI; Clerk and Stripe marked planned). The block extracted from the README parses and renders with mermaid 11.17.2 in Chrome (`mermaid.parse` + `render` OK, screenshot reviewed), so GitHub will render it.
 - `[ ]` **P0-097.1** Runbook: `docs/runbooks/deploy.md`
 - `[ ]` **P0-097.2** Runbook: `docs/runbooks/rollback.md`
-- `[ ]` **P0-097.3** Runbook: `docs/runbooks/db-migrate.md`
+- `[x]` **P0-097.3** Runbook: `docs/runbooks/db-migrate.md`
+  ↳ verify: [`docs/runbooks/db-migrate.md`](./docs/runbooks/db-migrate.md): expand/contract rules, local check, reviewed idempotent script applied as the Entra admin (no `-1`), verify, failure table. Verified locally: the idempotent script applies 3 migrations to an empty DB and re-runs as a no-op with both audit triggers present. Also fixed deploy-infra §6.1 (`dotnet ef` must run from `apps/api`).
 - `[ ]` **P0-097.4** Runbook: `docs/runbooks/incident-response.md`
 - `[x]` **P0-098** Contribution guide + commit format + PR template
   ↳ verify: guide + commit format were [`CONTRIBUTING.md`](./CONTRIBUTING.md) (P0-014.6); this adds [`.github/pull_request_template.md`](./.github/pull_request_template.md) — task ID title format, What / How it was verified (including what could *not* be checked) / a checklist mirroring CONTRIBUTING (verify line, walkthrough, isolation gate, lint/build/e2e, Bicep, TenantId + query filter, AuditBehavior, feature flag, cookie inventory, no secrets, ADR not edit) — and links it from CONTRIBUTING, whose checklist gains the e2e and cookie-inventory items. Template takes effect on the first PR after push.
