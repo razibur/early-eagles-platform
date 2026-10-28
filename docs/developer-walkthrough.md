@@ -1259,11 +1259,18 @@ from Windows still reaches the native server. Migrations, `psql` and the API all
 the wrong database. That's why the compose file uses 55432. Check with
 `netstat -ano | findstr :5432`.
 
-To create the schema in the container:
+To create the schema in the container, from `apps/api` (where the local tool manifest is):
 
 ```pwsh
-dotnet ef database update --project apps/api/src/EarlyEagles.Infrastructure --startup-project apps/api/src/EarlyEagles.Infrastructure
+cd apps/api
+dotnet tool restore
+dotnet ef database update --project src/EarlyEagles.Infrastructure --startup-project src/EarlyEagles.Infrastructure
 ```
+
+⚠ **Gotcha — `dotnet ef` only works below `apps/api`.** Local tools are found by searching *up* from
+the current directory for `.config/dotnet-tools.json`, which is in `apps/api`. From the repo root,
+`dotnet ef` fails with *"Cannot find a tool in the manifest file that has a command named
+'dotnet-ef'"*.
 
 The Infrastructure project is its own startup project: it has the design-time
 `ApplicationDbContextFactory` and the EF Design package, and the Api project doesn't.

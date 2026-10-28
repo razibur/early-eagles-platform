@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~61% (124 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~62% (125 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -431,7 +431,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 
 ### Documentation
 
-- `[ ]` **P0-095** README quick start (local dev)
+- `[x]` **P0-095** README quick start (local dev)
+  ↳ verify: README "Local development → Quick start": prerequisites (Node ≥ 22 / npm 11, .NET 10 SDK, Docker), `npm install`, `docker compose up -d`, the `ConnectionStrings__Postgres` env var, migrations from `apps/api`, API + web run commands, a check (`/ready` Healthy with `postgres`, dashboard on :3000, `/swagger`), a test-command table, and the optional Service Bus emulator. Every command run during this session; root `npm run test:e2e` → 68 passed. Writing it caught a documentation bug: `dotnet ef` only resolves under `apps/api` (local tool manifest), so the walkthrough §11 command from the repo root failed — both now `cd apps/api` first. README status paragraph rewritten (it still said ~24%).
 - `[ ]` **P0-096** Architecture diagram (mermaid) in README
 - `[ ]` **P0-097.1** Runbook: `docs/runbooks/deploy.md`
 - `[ ]` **P0-097.2** Runbook: `docs/runbooks/rollback.md`
