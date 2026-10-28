@@ -54,10 +54,10 @@ jobs:
         working-directory: apps/api
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up .NET 10 SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           # Tracks the latest 10.0.x patch. TFM is pinned to net10.0 in
           # apps/api/Directory.Build.props per ADR-0006.
@@ -89,10 +89,10 @@ jobs:
         working-directory: apps/api
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up .NET 10 SDK
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
