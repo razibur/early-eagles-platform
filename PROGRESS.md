@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~69% (141 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~70% (143 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -413,10 +413,10 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: already in place: [`backend.yml`](./.github/workflows/backend.yml)'s `integration tests (tenant-isolation gate)` job runs the Integration project against Testcontainers `postgres:17` on `ubuntu-latest` (Docker preinstalled), Release build, warnings-as-errors; the emulator-gated Service Bus tests skip without `EE_SERVICEBUS_EMULATOR`. Locally the same command passes: 94 passed, 5 skipped. `actionlint` clean. **Live check carried:** green run on the first push.
 - `[x]` **P0-080** Dependabot config for NuGet + npm
   ↳ verify: [`.github/dependabot.yml`](./.github/dependabot.yml): NuGet (`/apps/api`), npm (root lockfile), GitHub Actions; weekly Mon 06:00 America/New_York; minor+patch grouped per ecosystem; `cooldown.default-days: 14` (same two-week rule used by hand); `deps(api|web|ci)` commit prefixes. Validates against SchemaStore `dependabot-2.0` with 0 errors. **Live check carried:** Dependabot only runs once the repo is on GitHub.
-- `[ ]` **P0-081** GitHub secret scanning + push protection enabled
-  ↳ **Waiting on your decision (2026-10-27):** the repo is private, where GitHub secret scanning + push protection is a paid add-on (Secret Protection). Free alternative: gitleaks in CI + a pre-commit hook.
-- `[ ]` **P0-082** CodeQL workflow for C# + TypeScript
-  ↳ **Waiting on your decision (2026-10-27):** CodeQL code scanning on a private repo needs the paid GitHub Code Security add-on. Free alternatives: Semgrep CE in CI, or make the repo public.
+- `[x]` **P0-081** ~~GitHub secret scanning + push protection~~ secret scanning with gitleaks in CI (ADR-0012)
+  ↳ verify: gitleaks 8.30.1 in CI instead of paid GitHub secret scanning ([ADR-0012](./docs/adr/0012-gitleaks-and-semgrep-instead-of-github-advanced-security.md)): [`.github/workflows/security.yml`](./.github/workflows/security.yml) `secrets (gitleaks)` scans full history on PR/push/weekly; [`.gitleaks.toml`](./.gitleaks.toml) = default rules + one allowlist for public Azure role IDs. Local: history (117 commits) clean; planted random `sk_live_` key in a `.bicep` file → caught (`stripe-access-token`), role-ID line allowed; staged scan caught the runbook's own sample until marked `gitleaks:allow`. Found + fixed: a `paths` allowlist silenced every Bicep finding (allowlist conditions are OR'd). No push protection (caught after push → rotate); optional pre-commit hook in [`security-scanning.md`](./docs/runbooks/security-scanning.md) §6. `actionlint` clean. **Live check carried:** first `security` run on GitHub.
+- `[x]` **P0-082** ~~CodeQL~~ Semgrep CE SAST workflow for C# + TypeScript (ADR-0012)
+  ↳ verify: Semgrep CE 1.180.0 (`p/default`: C#, TypeScript, Dockerfile, workflows) instead of paid CodeQL ([ADR-0012](./docs/adr/0012-gitleaks-and-semgrep-instead-of-github-advanced-security.md)): `sast (semgrep)` job in [`security.yml`](./.github/workflows/security.yml), `--error --metrics=off`, image pinned by tag + digest. First local scan: 19 findings, all fixed → 0: 18 mutable action tags → every `uses:` pinned to a commit SHA (`# vX.Y.Z` comment, newest release in the current major, all ≥ 2 weeks old); Dockerfile `USER $APP_UID` (image inspect → 1654, `/health` 200). Findings read in the job log (no SARIF: code-scanning UI is paid). `actionlint` clean. **Live check carried:** first `security` run on GitHub.
 - `[x]` **P0-083** SBOM (CycloneDX) generated on release
   ↳ verify: [`.github/workflows/sbom.yml`](./.github/workflows/sbom.yml) on `release: published` (+ `workflow_dispatch`): CycloneDX .NET 6.3.1 → `api.cdx.json`, `@cyclonedx/cyclonedx-npm` 6.0.1 → `web.cdx.json`, uploaded as a 90-day artifact and attached to the release with `gh release upload` (`contents: write` on that job only). Same commands run locally: API BOM CycloneDX 1.7 with 66 components (Npgsql present, test projects excluded); web BOM CycloneDX 1.6 with 376 runtime components (next/react/zustand present, `@playwright/test` absent). `actionlint` clean. **Live check carried:** first published release.
 - `[x]` **P0-084** GH Actions: ~~deploy backend to dev~~ build + test + push image to `ghcr.io` (`GITHUB_TOKEN`, `packages: write`) on `main` merge (no cloud dev — ADR-0009)

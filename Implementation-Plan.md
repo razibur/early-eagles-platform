@@ -838,6 +838,17 @@ keep in step without adding a capability. Reworded:
 | ID | Change |
 |---|---|
 | P0-090 | **Reworded:** structured logging with tenant context on .NET's built-in `ILogger`: a request logging scope (`TenantId`, `TenantSlug`, `UserId`) from `TelemetryEnrichmentMiddleware`, JSON console output with scopes outside Development (stdout → Log Analytics), `IncludeScopes` on the OpenTelemetry log exporter. Verify unchanged: logs queryable per tenant in Log Analytics. |
+
+### Free security scanning (2026-10-28)
+
+The repo is private, where GitHub secret scanning and CodeQL are paid add-ons.
+[ADR-0012](./docs/adr/0012-gitleaks-and-semgrep-instead-of-github-advanced-security.md) picks free
+tools that run in CI instead:
+
+| ID | Change |
+|---|---|
+| P0-081 | **Reworded:** secret scanning with gitleaks over the full git history in the `security` workflow, on every PR, push to `main` and weekly. Verify: a planted secret fails the check. Push protection is out of reach without the paid feature; an opt-in pre-commit hook is documented instead. |
+| P0-082 | **Reworded:** SAST with Semgrep CE (`p/default`) for C#, TypeScript, Dockerfiles and workflows in the same workflow. Verify: findings fail the job and are listed in its log (there's no PR annotation without paid code scanning). |
 ---
 
 ## Sequencing notes

@@ -40,4 +40,7 @@ WORKDIR /app
 COPY --from=build /app .
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
+# The chiseled image already defaults to the non-root `app` user; stating it
+# keeps that true if the base image changes, and satisfies the Semgrep rule.
+USER $APP_UID
 ENTRYPOINT ["dotnet", "EarlyEagles.Api.dll"]

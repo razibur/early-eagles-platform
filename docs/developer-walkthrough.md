@@ -2168,19 +2168,47 @@ secret, wait and redeploy; nothing needs changing.
 
 ## 12A. Continuous integration — GitHub Actions
 
-Two workflows run on every PR to `main` and every push to `main`. Neither has a `paths:` filter: a
+Three workflows run on every PR to `main` and every push to `main`. None has a `paths:` filter: a
 path-filtered required check never reports on PRs outside its filter and blocks the merge forever.
 
 | Workflow | Jobs | What runs |
 |---|---|---|
 | [`backend.yml`](../.github/workflows/backend.yml) (P0-078.1, P0-079) | `build + unit tests` · `integration tests (tenant-isolation gate)` | Release build with warnings-as-errors and the Unit project, then the Integration project against Testcontainers Postgres (Docker is preinstalled on `ubuntu-latest`). The Service Bus emulator tests skip because `EE_SERVICEBUS_EMULATOR` isn't set. |
 | [`web.yml`](../.github/workflows/web.yml) (P0-078.2) | `lint + build` · `browser tests (Playwright)` | `npm ci` at the root (one lockfile for every workspace), `npm run lint`, `npm run build`, then `npm run test:e2e` on the runner's Google Chrome, with the HTML report uploaded as an artifact for 14 days |
+| [`security.yml`](../.github/workflows/security.yml) (P0-081, P0-082) | `secrets (gitleaks)` · `sast (semgrep)` | gitleaks over the full git history, and Semgrep CE's `p/default` rules over C#, TypeScript, Dockerfiles and workflows. Also runs weekly. Any finding fails the job. See below. |
 
 Validate workflow files locally before pushing; the image bundles shellcheck for the `run:` steps:
 
 ```bash
 MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -no-color
 ```
+
+**Every action is pinned to a commit SHA**, e.g.
+`uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0`. A tag like `@v4` can be
+moved by whoever controls the action's repo, which is how the `tj-actions` and `trivy-action`
+compromises spread. Dependabot understands the `# vX.Y.Z` comment and bumps the SHA and the comment
+together. Semgrep fails the build on an unpinned `uses:`.
+
+**Security scanning (P0-081, P0-082).** On a private repo, GitHub's secret scanning and CodeQL are
+paid, so [ADR-0012](./adr/0012-gitleaks-and-semgrep-instead-of-github-advanced-security.md) runs free
+tools instead. Both are pinned container images (tag + digest) and need no account.
+
+| Job | Tool | Notes |
+|---|---|---|
+| `secrets (gitleaks)` | gitleaks 8.30.1, `git` mode, `fetch-depth: 0` | built-in rules plus [`.gitleaks.toml`](../.gitleaks.toml), whose only allowlist covers the public Azure role IDs in the Bicep files |
+| `sast (semgrep)` | Semgrep CE 1.180.0, `--config p/default --error --metrics=off` | the first scan found 18 unpinned actions and a Dockerfile without `USER`; both fixed, now 0 findings |
+
+The local commands, what to do when a job fails (rotate a real secret *before* removing it), and an
+optional pre-commit hook are in [`runbooks/security-scanning.md`](./runbooks/security-scanning.md).
+
+⚠ **Gotcha — gitleaks allowlist conditions are OR'd.** An `[[allowlists]]` entry with both `paths`
+and `regexes` skips a finding when *either* matches. An entry for `infra/*.bicep` therefore
+silenced a planted Stripe key in a Bicep file. Use `condition = "AND"`, or (as here) a specific
+regex on its own. Anchoring that regex with `^…$` under `regexTarget = "line"` matched nothing.
+Always re-run the planted-secret check after editing the file.
+
+⚠ **Gotcha — gitleaks ignores placeholder-looking keys.** A test value like `sk_live_…abcd0123456789`
+isn't reported. Plant a random string when testing the rules.
 
 **Dependency updates (P0-080).** [`.github/dependabot.yml`](../.github/dependabot.yml) covers NuGet
 (`/apps/api`), npm (the root lockfile, every workspace) and GitHub Actions. It runs weekly on Monday
@@ -2195,7 +2223,8 @@ advisories are not delayed by the schedule. The file validates against SchemaSto
 copied into **`mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled`**. That image has no shell and no
 package manager, runs as the non-root `app` user (uid 1654) and listens on **8080**. The commit is
 passed in as `SOURCE_REVISION` → `-p:SourceRevisionId`, so `/health` reports `1.0.0+<sha>` even though
-the build context has no `.git`.
+the build context has no `.git`. The Dockerfile also states `USER $APP_UID`: the base image already
+defaults to that user, but saying so keeps it true if the base changes.
 
 ```bash
 docker build -f apps/api/Dockerfile -t early-eagles-api --build-arg SOURCE_REVISION=$(git rev-parse HEAD) .
@@ -2244,8 +2273,9 @@ for that. CI starts from `npm ci`, so there's no extraneous local clutter either
 ⚠ **Gotcha — Git Bash rewrites `/repo` into a Windows path.** Without `MSYS_NO_PATHCONV=1`, Docker
 receives `-w C:/Program Files/Git/repo` and refuses to start.
 
-⚠ **Gotcha — nothing here has run on GitHub yet.** The repo hasn't been pushed. The commands are the
-ones run locally throughout Phase 0, and the first push is the live check.
+**First run on GitHub (2026-10-28).** The first push of `main` passed `backend` (1m25s) and `web`
+(2m04s), then `api-image` pushed `ghcr.io/razibur/early-eagles-api:sha-f0b063d`. Dependabot opened its
+first PRs within minutes; majors come one per PR and need reading before merge.
 
 ## 13. Not-yet-built (and where it goes)
 
@@ -2317,6 +2347,9 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | `Microsoft.App/containerApps` API | 2026-01-01 |
 | `Microsoft.ServiceBus/namespaces` (+ topics, subscriptions) API | 2024-01-01 |
 | `Microsoft.ManagedIdentity/userAssignedIdentities` API | 2024-11-30 |
+| gitleaks (CI image) | 8.30.1 |
+| Semgrep CE (CI image) | 1.180.0 |
+| actionlint (local workflow lint) | 1.7.7 |
 
 ---
 
@@ -2364,6 +2397,8 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `dotnet ef`: startup project doesn't reference `Microsoft.EntityFrameworkCore.Design` | Api project used as startup | `--startup-project apps/api/src/EarlyEagles.Infrastructure` |
 | Service Bus emulator container exits immediately | `ACCEPT_EULA` not `Y`, or `MSSQL_SA_PASSWORD` empty/weak, so SQL Server never starts | set both in `.env` (§11); `docker compose --profile bus logs mssql` |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
+| gitleaks misses a planted secret | an allowlist with `paths` + `regexes` (OR'd), or a placeholder-looking test value | `condition = "AND"` or regex only; plant a random value (§12A) |
+| `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
 
 ---
 

@@ -1,0 +1,19 @@
+# gitleaks configuration (P0-081). Extends the built-in rules; only adds
+# allowlists for values that look like keys but are public by definition.
+# Keep each entry narrow, say why it is safe, and re-run the planted-secret
+# check in docs/runbooks/security-scanning.md (section 4) after changing anything here.
+
+title = "early-eagles gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Azure built-in role definition IDs (Bicep): fixed, public GUIDs documented by Microsoft"
+regexTarget = "line"
+# Not anchored with ^/$: gitleaks' "line" target doesn't match them reliably.
+# A path filter is deliberately absent too: an allowlist's conditions are OR'd
+# by default, so a path entry would silence every finding in every .bicep file.
+regexes = [
+  '''\bvar \w+RoleId = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'(\s|$)''',
+]

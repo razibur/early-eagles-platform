@@ -1,0 +1,65 @@
+# Security scanning (P0-081, P0-082) — free replacements for GitHub's secret
+# scanning and CodeQL, which need paid GitHub Advanced Security on a private
+# repo (ADR-0012).
+#
+#   * secrets — gitleaks over the whole git history the push or PR brings in,
+#     with the built-in rules plus the narrow allowlist in .gitleaks.toml.
+#
+#   * sast — Semgrep CE with the community `p/default` ruleset: C#, TypeScript,
+#     Dockerfiles and these workflow files. Rules come from the public Semgrep
+#     registry; no account or token. --metrics=off sends no usage data.
+#
+# Both run as pinned container images (tag + digest; both releases at least two
+# weeks old when chosen). Findings fail the job; they're read in the job log.
+# No SARIF upload: GitHub's code-scanning UI is part of the paid product.
+
+name: security
+
+on:
+  # No `paths:` filter, for the same reason as backend.yml: a path-filtered
+  # required check never reports on PRs outside the filter and blocks merges.
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  # Weekly, so new rules catch old code even when nothing is pushed.
+  schedule:
+    - cron: '17 6 * * 1'
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: secrets (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Scan git history
+        run: |
+          docker run --rm -v "$PWD:/repo" \
+            ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git /repo --config /repo/.gitleaks.toml --redact --no-banner --verbose
+
+  sast:
+    name: sast (semgrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Scan with Semgrep CE
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src \
+            semgrep/semgrep:1.180.0@sha256:529ee8a277ec8adc5b534d7c74eea0a47e9de21d62852b6ba7ac6ba9566845c3 \
+            semgrep scan --config p/default --metrics=off --error
