@@ -173,14 +173,14 @@ shadcn/ui (Base UI variant), and Recharts**. The dependency set to reproduce:
 
 ```jsonc
 // apps/web/package.json — dependencies (exact versions in the real file)
-"next": "16.2.6", "react": "19.2.4", "react-dom": "19.2.4",
+"next": "16.4.1", "react": "19.2.4", "react-dom": "19.2.4",
 "@base-ui/react": "^1.5.0",          // shadcn Base UI variant primitive layer
 "shadcn": "^4.8.0",                  // component CLI/registry
 "recharts": "^3.8.0",               // charts
 "class-variance-authority", "clsx", "tailwind-merge", "tw-animate-css",
 "lucide-react", "motion"
 // devDependencies: tailwindcss ^4, @tailwindcss/postcss ^4, eslint ^9,
-//                  eslint-config-next 16.2.6, typescript ^5, @types/*
+//                  eslint-config-next 16.4.1, typescript ^5, @types/*
 ```
 
 ▶ Reference: [`apps/web/package.json`](../apps/web/package.json)
@@ -2210,6 +2210,13 @@ Always re-run the planted-secret check after editing the file.
 ⚠ **Gotcha — gitleaks ignores placeholder-looking keys.** A test value like `sk_live_…abcd0123456789`
 isn't reported. Plant a random string when testing the rules.
 
+**First Dependabot alerts (2026-10-28).** Turning on alerts showed Next.js 16.2.6 with several
+critical remote-code-execution advisories (image optimization, `use cache`, `next/og`). It was upgraded
+to **16.4.1**, which fixes all of them and was exactly 14 days old. `npm audit fix` (no `--force`)
+cleared the transitive ones within their ranges. What remains are 3 low-severity issues in the shadcn
+CLI's `deepmerge`, which has no fix and isn't run by the app. `shadcn` is a runtime dependency only
+because `globals.css` imports `shadcn/tailwind.css`.
+
 **Dependency updates (P0-080).** [`.github/dependabot.yml`](../.github/dependabot.yml) covers NuGet
 (`/apps/api`), npm (the root lockfile, every workspace) and GitHub Actions. It runs weekly on Monday
 06:00 US Eastern, groups minor and patch bumps into one PR per ecosystem (majors stay separate), and
@@ -2328,7 +2335,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Microsoft.NET.Test.Sdk | 17.14.1 |
 | Microsoft.AspNetCore.Mvc.Testing | 10.0.9 |
 | Testcontainers.PostgreSql | 4.14.0 |
-| Next.js / React | 16.2.6 / 19.2.4 |
+| Next.js / React | 16.4.1 / 19.2.4 |
 | @playwright/test (web e2e, uses installed Chrome) | 1.64.0 |
 | @tanstack/react-query | 5.104.2 |
 | zustand | 5.0.15 |
