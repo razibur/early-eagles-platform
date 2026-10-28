@@ -60,6 +60,11 @@ updates:
       # supports ESLint 10.
       - dependency-name: eslint
         update-types: ["version-update:semver-major"]
+      # @types/node tracks the Node.js runtime (22: CI, engines); types for a
+      # newer Node would allow APIs the runtime doesn't have. Bump together
+      # with node-version in the workflows.
+      - dependency-name: "@types/node"
+        versions: [">=23"]
 
   - package-ecosystem: github-actions
     directory: /
