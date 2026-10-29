@@ -2184,7 +2184,7 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7
 ```
 
 **Every action is pinned to a commit SHA**, e.g.
-`uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0`. A tag like `@v4` can be
+`uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1`. A tag like `@v4` can be
 moved by whoever controls the action's repo, which is how the `tj-actions` and `trivy-action`
 compromises spread. Dependabot understands the `# vX.Y.Z` comment and bumps the SHA and the comment
 together. Semgrep fails the build on an unpinned `uses:`.
@@ -2268,7 +2268,14 @@ docker run --rm -p 5090:8080 -e "ConnectionStrings__Postgres=Host=host.docker.in
 [`api-image.yml`](../.github/workflows/api-image.yml) builds and pushes it to
 `ghcr.io/razibur/early-eagles-api` with the built-in `GITHUB_TOKEN` (`packages: write`). It runs on
 `workflow_run` after **`backend` succeeds on `main`**, so an image only exists for a commit that passed
-the unit tests and the tenant-isolation gate. It checks out that exact commit and tags it
+the unit tests and the tenant-isolation gate.
+
+⚠ **Gotcha — `workflow_run`'s `branches:` filter matches the head branch *name*.** A fork PR from a
+branch called `main` matches `branches: [main]` too. Since the repo went public, that would have let
+a green `backend` run on fork code trigger an image build with `packages: write`. The job's `if:` now
+also requires `workflow_run.event == 'push'` and `head_repository.full_name == github.repository`.
+`actions/checkout` v7 refuses fork PR checkouts under `workflow_run` as well, but the workflow
+shouldn't depend on that. It checks out that exact commit and tags it
 `sha-<commit>`, plus the moving `main` tag. There is no `latest`. The GitHub Actions cache keeps the
 restore layer between runs.
 
@@ -2431,6 +2438,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `dotnet ef`: startup project doesn't reference `Microsoft.EntityFrameworkCore.Design` | Api project used as startup | `--startup-project apps/api/src/EarlyEagles.Infrastructure` |
 | Service Bus emulator container exits immediately | `ACCEPT_EULA` not `Y`, or `MSSQL_SA_PASSWORD` empty/weak, so SQL Server never starts | set both in `.env` (§11); `docker compose --profile bus logs mssql` |
 | Telemetry test fails now and then in CI: `Assert.Single() … did not contain any matching items` for the request span | the client gets the response before ASP.NET Core stops the request activity (on `HttpContext` dispose) | wait for the span (`WaitForSpanAsync`, 5 s) instead of asserting straight after the call |
+| A fork PR could trigger a `workflow_run` job meant for `main` | `branches:` on `workflow_run` filters by head branch name, not repository | also check `workflow_run.event == 'push'` and `head_repository.full_name` (§12A) |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 | gitleaks misses a planted secret | an allowlist with `paths` + `regexes` (OR'd), or a placeholder-looking test value | `condition = "AND"` or regex only; plant a random value (§12A) |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
