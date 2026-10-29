@@ -51,6 +51,14 @@ public sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             .HasMaxLength(32)
             .IsRequired();
 
+        // Clerk org = tenant (P0-036.2). Nullable: seeded and test tenants have
+        // none. Unique so one organization can never provision two tenants;
+        // Postgres allows any number of NULLs in a unique index.
+        builder.Property(t => t.ClerkOrganizationId)
+            .HasColumnName("clerk_organization_id")
+            .HasMaxLength(Tenant.ClerkOrganizationIdMaxLength);
+        builder.HasIndex(t => t.ClerkOrganizationId).IsUnique();
+
         builder.OwnsOne(t => t.Branding, branding =>
         {
             branding.Property(b => b.LogoUrl)

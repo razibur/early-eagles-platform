@@ -18,6 +18,7 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
     public const int SlugMinLength = 2;
     public const int SlugMaxLength = 63;
     public const int DisplayNameMaxLength = 200;
+    public const int ClerkOrganizationIdMaxLength = 64;
 
     private Tenant(Guid id, string slug, string displayName)
         : base(id)
@@ -55,6 +56,20 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
 
     public TenantStatus Status { get; private set; }
 
+    /// <summary>
+    /// The Clerk organization this tenant is (P0-036.2): Clerk org = tenant.
+    /// <c>null</c> for a tenant created outside Clerk (seed data, tests).
+    /// Set once; a tenant never moves to another organization.
+    /// </summary>
+    public string? ClerkOrganizationId { get; private set; }
+
+    /// <summary>True when <paramref name="slug"/> satisfies the subdomain rules <see cref="Create"/> enforces.</summary>
+    public static bool IsValidSlug(string? slug) => slug is not null && SlugProblem(slug) is null;
+
+    /// <summary>True when <paramref name="displayName"/> is non-blank and fits once trimmed.</summary>
+    public static bool IsValidDisplayName(string? displayName) =>
+        displayName is not null && displayName.Trim().Length is > 0 and <= DisplayNameMaxLength;
+
     public static Tenant Create(Guid id, string slug, string displayName)
     {
         if (id == Guid.Empty)
@@ -66,6 +81,39 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
         var trimmedDisplayName = ValidateDisplayName(displayName);
 
         return new Tenant(id, slug, trimmedDisplayName);
+    }
+
+    /// <summary>
+    /// Links the tenant to its Clerk organization. Idempotent for the same id
+    /// (webhooks are delivered at least once); a different id is a bug.
+    /// </summary>
+    public void LinkClerkOrganization(string clerkOrganizationId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(clerkOrganizationId);
+        if (clerkOrganizationId.Length > ClerkOrganizationIdMaxLength)
+        {
+            throw new ArgumentException(
+                $"Clerk organization id must be at most {ClerkOrganizationIdMaxLength} characters; got {clerkOrganizationId.Length}.",
+                nameof(clerkOrganizationId));
+        }
+
+        if (ClerkOrganizationId is not null && ClerkOrganizationId != clerkOrganizationId)
+        {
+            throw new InvalidOperationException(
+                $"Tenant is already linked to Clerk organization '{ClerkOrganizationId}'.");
+        }
+
+        ClerkOrganizationId = clerkOrganizationId;
+    }
+
+    public void Rename(string displayName)
+    {
+        if (Status is TenantStatus.Deactivated)
+        {
+            throw new InvalidOperationException("Cannot rename a deactivated tenant.");
+        }
+
+        DisplayName = ValidateDisplayName(displayName);
     }
 
     public void SetBranding(Branding branding)
@@ -152,26 +200,30 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
     {
         ArgumentNullException.ThrowIfNull(slug);
 
+        var problem = SlugProblem(slug);
+        if (problem is not null)
+        {
+            throw new ArgumentException(problem, nameof(slug));
+        }
+    }
+
+    /// <summary>Why <paramref name="slug"/> breaks the subdomain rules, or <c>null</c> when it doesn't.</summary>
+    private static string? SlugProblem(string slug)
+    {
         if (slug.Length < SlugMinLength || slug.Length > SlugMaxLength)
         {
-            throw new ArgumentException(
-                $"Tenant slug must be {SlugMinLength}–{SlugMaxLength} characters; got {slug.Length}.",
-                nameof(slug));
+            return $"Tenant slug must be {SlugMinLength}–{SlugMaxLength} characters; got {slug.Length}.";
         }
 
         if (!char.IsAsciiLetterLower(slug[0]))
         {
-            throw new ArgumentException(
-                "Tenant slug must start with a lowercase ASCII letter.",
-                nameof(slug));
+            return "Tenant slug must start with a lowercase ASCII letter.";
         }
 
         var last = slug[^1];
         if (!char.IsAsciiLetterLower(last) && !char.IsAsciiDigit(last))
         {
-            throw new ArgumentException(
-                "Tenant slug must end with a lowercase ASCII letter or digit.",
-                nameof(slug));
+            return "Tenant slug must end with a lowercase ASCII letter or digit.";
         }
 
         for (var i = 0; i < slug.Length; i++)
@@ -180,18 +232,16 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
             var isAllowed = char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c) || c == '-';
             if (!isAllowed)
             {
-                throw new ArgumentException(
-                    $"Tenant slug may only contain lowercase ASCII letters, digits, and hyphens; got '{c}' at index {i}.",
-                    nameof(slug));
+                return $"Tenant slug may only contain lowercase ASCII letters, digits, and hyphens; got '{c}' at index {i}.";
             }
 
             if (c == '-' && i > 0 && slug[i - 1] == '-')
             {
-                throw new ArgumentException(
-                    "Tenant slug must not contain consecutive hyphens.",
-                    nameof(slug));
+                return "Tenant slug must not contain consecutive hyphens.";
             }
         }
+
+        return null;
     }
 
     private static string ValidateDisplayName(string displayName)
