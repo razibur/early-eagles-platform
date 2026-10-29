@@ -870,6 +870,17 @@ dependency on P0-035.1 is dropped for these two; the live check (a real delivery
 |---|---|
 | P0-036.1 | **Depends on** P0-020.5 only (was P0-035.1). Config: `Clerk:WebhookSigningSecret`; unset → 503, malformed → startup failure. |
 | P0-037 | Hand-written Svix verifier instead of the Svix SDK; verify adds: replayed (> 5 min) → 400, oversized → 413. |
+
+### P0-036.2 split (2026-10-28)
+
+"Handle `organization.created` → upsert `tenants` row" is a schema change, a command, and the
+webhook wiring, each with its own failure modes:
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-036.2.1 | `Tenant.ClerkOrganizationId` (unique, set once), `Rename`, slug/name pre-check helpers; expand-only migration | P0-033.1 | Unit tests; migrations apply to a fresh Postgres |
+| P0-036.2.2 | `ProvisionTenantCommand` (create or rename, idempotent) with `ITenantRepository` + `IClerkTenantDirectory` | P0-036.2.1, P0-047.2 | Integration via the pipeline: created + audited in the tenant's own log; redelivery → one row |
+| P0-036.2.3 | Webhook dispatches `organization.created`: pre-check, set the ambient tenant, send the command | P0-036.1, P0-036.2.2 | Signed delivery → tenant row; unusable or taken slug → 200 and no row |
 ---
 
 ## Sequencing notes

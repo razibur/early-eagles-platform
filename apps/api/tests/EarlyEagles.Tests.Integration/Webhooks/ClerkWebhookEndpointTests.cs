@@ -3,25 +3,39 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using EarlyEagles.Api.Webhooks;
+using EarlyEagles.Domain.Tenants;
+using EarlyEagles.Infrastructure.Tenancy;
+using EarlyEagles.Tests.Integration.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace EarlyEagles.Tests.Integration.Webhooks;
 
 // P0-036.1 / P0-037 — the Clerk webhook endpoint accepts a Svix-signed raw body
-// and nothing else. Requests are signed here exactly as Svix signs them.
+// and nothing else; P0-036.2.3 — organization.created provisions a tenant.
+// Requests are signed here exactly as Svix signs them. The signature tests use
+// an event type with no handler, so they don't depend on what handlers write.
+[Collection(PostgresCollectionDefinition.Name)]
 public sealed class ClerkWebhookEndpointTests
 {
-    private const string OrganizationCreated = """{"type":"organization.created","object":"event","data":{"id":"org_29w9IfBrPmcpi0IeBVaKtA7R94W","slug":"early-eagles"}}""";
+    private const string OrganizationCreated = """{"type":"session.created","object":"event","data":{"id":"sess_29w9IfBrPmcpi0IeBVaKtA7R94W"}}""";
 
     private static readonly byte[] Key = RandomNumberGenerator.GetBytes(24);
     private static readonly string Secret = "whsec_" + Convert.ToBase64String(Key);
 
+    private readonly PostgresFixture fixture;
+
+    public ClerkWebhookEndpointTests(PostgresFixture fixture) => this.fixture = fixture;
+
     [Fact]
     public async Task A_Correctly_Signed_Event_Is_Accepted()
     {
-        using var factory = new ClerkFactory(Secret);
+        using var factory = new ClerkFactory(fixture, Secret);
 
         var response = await factory.CreateClient().SendAsync(Signed(OrganizationCreated));
 
@@ -31,9 +45,9 @@ public sealed class ClerkWebhookEndpointTests
     [Fact]
     public async Task A_Body_Changed_After_Signing_Is_Rejected()
     {
-        using var factory = new ClerkFactory(Secret);
+        using var factory = new ClerkFactory(fixture, Secret);
         var request = Signed(OrganizationCreated);
-        request.Content = Json(OrganizationCreated.Replace("early-eagles", "other-club", StringComparison.Ordinal));
+        request.Content = Json(OrganizationCreated.Replace("sess_", "sess_x", StringComparison.Ordinal));
 
         var response = await factory.CreateClient().SendAsync(request);
 
@@ -44,7 +58,7 @@ public sealed class ClerkWebhookEndpointTests
     [Fact]
     public async Task An_Unsigned_Request_Is_Rejected()
     {
-        using var factory = new ClerkFactory(Secret);
+        using var factory = new ClerkFactory(fixture, Secret);
         using var request = new HttpRequestMessage(HttpMethod.Post, ClerkWebhookEndpoints.Route) { Content = Json(OrganizationCreated) };
 
         var response = await factory.CreateClient().SendAsync(request);
@@ -55,7 +69,7 @@ public sealed class ClerkWebhookEndpointTests
     [Fact]
     public async Task A_Replayed_Request_Older_Than_Five_Minutes_Is_Rejected()
     {
-        using var factory = new ClerkFactory(Secret);
+        using var factory = new ClerkFactory(fixture, Secret);
 
         var response = await factory.CreateClient().SendAsync(Signed(OrganizationCreated, DateTimeOffset.UtcNow.AddMinutes(-6)));
 
@@ -65,7 +79,7 @@ public sealed class ClerkWebhookEndpointTests
     [Fact]
     public async Task A_Signed_Body_Without_An_Event_Type_Is_Rejected()
     {
-        using var factory = new ClerkFactory(Secret);
+        using var factory = new ClerkFactory(fixture, Secret);
 
         var response = await factory.CreateClient().SendAsync(Signed("""{"data":{}}"""));
 
@@ -76,7 +90,7 @@ public sealed class ClerkWebhookEndpointTests
     [Fact]
     public async Task A_Signed_Body_That_Is_Not_Json_Is_Rejected()
     {
-        using var factory = new ClerkFactory(Secret);
+        using var factory = new ClerkFactory(fixture, Secret);
 
         var response = await factory.CreateClient().SendAsync(Signed("not json"));
 
@@ -86,7 +100,7 @@ public sealed class ClerkWebhookEndpointTests
     [Fact]
     public async Task An_Oversized_Body_Is_Refused_Before_Verification()
     {
-        using var factory = new ClerkFactory(Secret);
+        using var factory = new ClerkFactory(fixture, Secret);
         var huge = "{\"type\":\"x\",\"pad\":\"" + new string('a', ClerkWebhookEndpoints.MaxBodyBytes) + "\"}";
 
         var response = await factory.CreateClient().SendAsync(Signed(huge));
@@ -97,7 +111,7 @@ public sealed class ClerkWebhookEndpointTests
     [Fact]
     public async Task Without_A_Signing_Secret_The_Endpoint_Answers_503()
     {
-        using var factory = new ClerkFactory(secret: null);
+        using var factory = new ClerkFactory(fixture, secret: null);
 
         var response = await factory.CreateClient().SendAsync(Signed(OrganizationCreated));
 
@@ -109,7 +123,7 @@ public sealed class ClerkWebhookEndpointTests
     {
         // Production returns 400 "Tenant not specified" for tenant-scoped paths on
         // the bare host; Clerk calls the bare host, so the webhook path is exempt.
-        using var factory = new ClerkFactory(Secret, environment: "Production");
+        using var factory = new ClerkFactory(fixture, Secret, environment: "Production");
 
         var response = await factory.CreateClient().SendAsync(Signed(OrganizationCreated));
 
@@ -119,11 +133,93 @@ public sealed class ClerkWebhookEndpointTests
     [Fact]
     public void A_Malformed_Signing_Secret_Stops_The_Host_At_Startup()
     {
-        using var factory = new ClerkFactory("not-a-whsec-secret");
+        using var factory = new ClerkFactory(fixture, "not-a-whsec-secret");
 
         var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
         Assert.Contains("WebhookSigningSecret", exception.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task Organization_Created_Provisions_A_Tenant_Linked_To_The_Organization()
+    {
+        var (orgId, slug) = NewOrganization();
+        using var factory = new ClerkFactory(fixture, Secret);
+
+        var response = await factory.CreateClient().SendAsync(Signed(OrganizationEvent(orgId, slug, "Webhook Club")));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var tenant = await FindTenantAsync(orgId);
+        Assert.NotNull(tenant);
+        Assert.Equal(slug, tenant!.Slug);
+        Assert.Equal("Webhook Club", tenant.DisplayName);
+    }
+
+    [Fact]
+    public async Task A_Redelivered_Organization_Created_Leaves_One_Tenant()
+    {
+        var (orgId, slug) = NewOrganization();
+        using var factory = new ClerkFactory(fixture, Secret);
+        var client = factory.CreateClient();
+
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(Signed(OrganizationEvent(orgId, slug, "Twice Club")))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(Signed(OrganizationEvent(orgId, slug, "Twice Club")))).StatusCode);
+
+        await using var db = fixture.CreateContext(new TenantContext());
+        Assert.Equal(1, await db.Tenants.IgnoreQueryFilters().CountAsync(t => t.ClerkOrganizationId == orgId));
+    }
+
+    [Theory]
+    [InlineData("Early_Eagles")]
+    [InlineData("-bad-start")]
+    public async Task An_Unusable_Slug_Is_Acknowledged_Without_Creating_A_Tenant(string slug)
+    {
+        // Retrying can't fix the slug, so the delivery is acknowledged (and
+        // logged as an error) rather than retried for days.
+        var (orgId, _) = NewOrganization();
+        using var factory = new ClerkFactory(fixture, Secret);
+
+        var response = await factory.CreateClient().SendAsync(Signed(OrganizationEvent(orgId, slug, "Bad Slug Club")));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(await FindTenantAsync(orgId));
+    }
+
+    [Fact]
+    public async Task A_Slug_Owned_By_Another_Tenant_Is_Not_Taken_Over()
+    {
+        var (orgId, _) = NewOrganization();
+        using var factory = new ClerkFactory(fixture, Secret);
+
+        var response = await factory.CreateClient().SendAsync(Signed(OrganizationEvent(orgId, PostgresFixture.AlphaSlug, "Impostor")));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(await FindTenantAsync(orgId));
+        await using var db = fixture.CreateContext(new TenantContext());
+        var alpha = await db.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == PostgresFixture.AlphaTenantId);
+        Assert.NotEqual("Impostor", alpha.DisplayName);
+    }
+
+    [Fact]
+    public async Task Organization_Created_Without_A_Slug_Is_Acknowledged_Without_Creating_A_Tenant()
+    {
+        var (orgId, _) = NewOrganization();
+        using var factory = new ClerkFactory(fixture, Secret);
+        var body = $$$"""{"type":"organization.created","data":{"id":"{{{orgId}}}","name":"No Slug"}}""";
+
+        var response = await factory.CreateClient().SendAsync(Signed(body));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(await FindTenantAsync(orgId));
+    }
+
+    private static (string OrgId, string Slug) NewOrganization()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        return ("org_" + suffix, "hook-" + suffix);
+    }
+
+    private static string OrganizationEvent(string orgId, string slug, string name) =>
+        $$$"""{"type":"organization.created","object":"event","data":{"id":"{{{orgId}}}","slug":"{{{slug}}}","name":"{{{name}}}","object":"organization"}}""";
 
     private static HttpRequestMessage Signed(string body, DateTimeOffset? sentAt = null)
     {
@@ -140,13 +236,21 @@ public sealed class ClerkWebhookEndpointTests
 
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
 
+    private async Task<Tenant?> FindTenantAsync(string orgId)
+    {
+        await using var db = fixture.CreateContext(new TenantContext());
+        return await db.Tenants.IgnoreQueryFilters().SingleOrDefaultAsync(t => t.ClerkOrganizationId == orgId);
+    }
+
     private sealed class ClerkFactory : WebApplicationFactory<Program>
     {
+        private readonly string connectionString;
         private readonly string? secret;
         private readonly string environment;
 
-        public ClerkFactory(string? secret, string environment = "Development")
+        public ClerkFactory(PostgresFixture fixture, string? secret, string environment = "Development")
         {
+            connectionString = fixture.ConnectionString;
             this.secret = secret;
             this.environment = environment;
         }
@@ -155,6 +259,11 @@ public sealed class ClerkWebhookEndpointTests
         {
             builder.UseEnvironment(environment);
             builder.UseSetting("Clerk:WebhookSigningSecret", secret ?? string.Empty);
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<NpgsqlDataSource>();
+                services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
+            });
         }
     }
 }

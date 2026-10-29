@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~72% (146 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~73% (150 / ~206 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -210,7 +210,14 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-035.3** Integration test: unauth → 401; valid → claims populated
 - `[x]` **P0-036.1** Endpoint `POST /api/webhooks/clerk` accepting raw body
   ↳ verify: endpoint reachable; body preserved. [`ClerkWebhookEndpoints`](./apps/api/src/EarlyEagles.Api/Webhooks/ClerkWebhookEndpoints.cs): `POST /api/webhooks/clerk`, anonymous, raw body read (≤ 1 MB, else 413) and verified before parsing; `type` read from JSON (400 if missing/not JSON); every type → 200 until handlers land (P0-036.2–.5). Tenant-agnostic (`/api/webhooks` on the middleware allow-list: Clerk calls the bare host). `Clerk:WebhookSigningSecret` unset → 503; malformed → startup failure (`ValidateOnStart`). Not in OpenAPI. Integration tests (10): signed → 200, tampered/unsigned/replayed (6 min old) → 400, no type / not JSON → 400, oversized → 413, no secret → 503, Production bare host → 200, bad secret → host won't start. Mutation: dropping the allow-list entry fails the Production test. Unit 284 · integration 108 + 5 skipped.
-- `[ ]` **P0-036.2** Handle `organization.created` → upsert `tenants` row
+- `[x]` **P0-036.2** Handle `organization.created` → upsert `tenants` row — **split** 2026-10-28, see [Implementation-Plan appendix](./Implementation-Plan.md#p0-0362-split-2026-10-28)
+  ↳ verify: split into .2.1–.2.3, all done; see those rows.
+- `[x]` **P0-036.2.1** Tenant ↔ Clerk organization link (domain + migration)
+  ↳ verify: `Tenant.ClerkOrganizationId` (nullable, unique index, ≤ 64, set once, idempotent for the same id), `Tenant.Rename`, `IsValidSlug` / `IsValidDisplayName` (agree with `Create`, tested both ways). Migration `AddTenantClerkOrganizationId`: expand-only (nullable column + unique index). 26 unit tests; integration suite applies all migrations to a fresh Postgres.
+- `[x]` **P0-036.2.2** `ProvisionTenantCommand` + tenant store ports
+  ↳ verify: [`ProvisionTenantCommand`](./apps/api/src/EarlyEagles.Application/Tenants/ProvisionTenantCommand.cs) creates the tenant (linked to the org) or, on redelivery, renames it (slug kept); refuses unless the ambient tenant **is** the tenant being provisioned, so the audit row lands in that tenant's own log after the row commits (`audit_events` FK). Ports `ITenantRepository` (through the filter; throws if the request's context was created before the tenant resolved) and `IClerkTenantDirectory` (platform read on its own context, ids + slugs only). Integration via the real pipeline + Postgres (5): create + audit in own log, idempotent redelivery, wrong ambient → refused, nothing written, directory lookups incl. slug taken, repository context-snapshot guard.
+- `[x]` **P0-036.2.3** Webhook dispatches `organization.created` → `ProvisionTenantCommand`
+  ↳ verify: Creating org in Clerk dashboard yields new `tenants` row — locally: a signed `organization.created` delivery creates the linked tenant. [`ClerkWebhookDispatcher`](./apps/api/src/EarlyEagles.Api/Webhooks/ClerkWebhookDispatcher.cs) pre-checks id/slug/name, slug validity and ownership (unusable → 200 + Error log 1405, since retries can't fix it), sets the ambient tenant (new v7 id or the linked one) and sends the command; DB failures → 500 → Svix retries. Integration (6 new): provisions + linked, redelivery leaves one tenant, invalid slugs ×2 and missing slug → no tenant, another tenant's slug not taken over. **Found + fixed:** the directory first used the request's DbContext, pinning its tenant snapshot to "none", so a redelivery couldn't see its own row and hit the unique index (500). Unit 310 · integration 119 + 5 skipped. **Live check carried:** a real org created in Clerk (P0-006).
 - `[ ]` **P0-036.3** Handle `organizationMembership.created` → upsert `tenant_members`
 - `[ ]` **P0-036.4** Handle `user.created` → seed basic profile
 - `[ ]` **P0-036.5** Handle `user.updated` → patch profile

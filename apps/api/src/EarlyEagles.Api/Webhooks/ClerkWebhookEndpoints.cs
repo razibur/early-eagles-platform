@@ -15,10 +15,11 @@ namespace EarlyEagles.Api.Webhooks;
 ///   the exact bytes received, before anything parses them.</item>
 ///   <item>Tenant-agnostic: Clerk calls the bare API host, so the path is on
 ///   <see cref="Tenancy.TenantResolutionMiddleware"/>'s allow-list. The tenant
-///   comes from the payload (an organization id) once handlers exist.</item>
+///   comes from the payload (an organization id); see
+///   <see cref="ClerkWebhookDispatcher"/>.</item>
 ///   <item>Any 2xx tells Svix the delivery succeeded; anything else is retried
 ///   with backoff. Event types with no handler yet are acknowledged (200) so
-///   they aren't retried for days. Handlers arrive with P0-036.2–.5.</item>
+///   they aren't retried for days.</item>
 ///   <item>Not in the OpenAPI document: it's an integration endpoint, not
 ///   something API clients call.</item>
 /// </list>
@@ -48,6 +49,7 @@ public static class ClerkWebhookEndpoints
         HttpRequest request,
         IOptions<ClerkOptions> options,
         TimeProvider timeProvider,
+        ClerkWebhookDispatcher dispatcher,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
@@ -86,7 +88,8 @@ public static class ClerkWebhookEndpoints
                 title: "Invalid webhook signature");
         }
 
-        if (!TryReadEventType(body, out var eventType))
+        using var document = TryParse(body);
+        if (document is null || !TryReadEventType(document.RootElement, out var eventType))
         {
             ClerkWebhookLog.Malformed(logger, messageId);
             return TypedResults.Problem(
@@ -96,6 +99,8 @@ public static class ClerkWebhookEndpoints
         }
 
         ClerkWebhookLog.Received(logger, eventType, messageId);
+        var data = document.RootElement.TryGetProperty("data", out var value) ? value : default;
+        await dispatcher.DispatchAsync(eventType, data, messageId, cancellationToken).ConfigureAwait(false);
         return TypedResults.Ok();
     }
 
@@ -123,24 +128,28 @@ public static class ClerkWebhookEndpoints
         return buffer.ToArray();
     }
 
-    private static bool TryReadEventType(byte[] body, out string eventType)
+    private static JsonDocument? TryParse(byte[] body)
     {
-        eventType = string.Empty;
         try
         {
-            using var document = JsonDocument.Parse(body);
-            if (document.RootElement.ValueKind == JsonValueKind.Object
-                && document.RootElement.TryGetProperty("type", out var type)
-                && type.ValueKind == JsonValueKind.String
-                && !string.IsNullOrEmpty(type.GetString()))
-            {
-                eventType = type.GetString()!;
-                return true;
-            }
+            return JsonDocument.Parse(body);
         }
         catch (JsonException)
         {
-            // Falls through to the malformed-payload response.
+            return null;
+        }
+    }
+
+    private static bool TryReadEventType(JsonElement root, out string eventType)
+    {
+        eventType = string.Empty;
+        if (root.ValueKind == JsonValueKind.Object
+            && root.TryGetProperty("type", out var type)
+            && type.ValueKind == JsonValueKind.String
+            && !string.IsNullOrEmpty(type.GetString()))
+        {
+            eventType = type.GetString()!;
+            return true;
         }
 
         return false;

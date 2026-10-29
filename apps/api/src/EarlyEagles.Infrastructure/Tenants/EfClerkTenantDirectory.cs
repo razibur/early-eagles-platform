@@ -1,5 +1,6 @@
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Infrastructure.Persistence;
+using EarlyEagles.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
 
 namespace EarlyEagles.Infrastructure.Tenants;
@@ -9,17 +10,25 @@ namespace EarlyEagles.Infrastructure.Tenants;
 /// any tenant is resolved, so it bypasses the query filter, and it projects ids
 /// and slugs only.
 /// </summary>
+/// <remarks>
+/// Opens its own short-lived context instead of using the request's. The
+/// request's <see cref="ApplicationDbContext"/> snapshots the tenant when it's
+/// constructed; resolving it here, before the webhook sets the tenant, would
+/// pin it to "no tenant" for the rest of the request, and the command's reads
+/// would then miss the tenant's own row.
+/// </remarks>
 public sealed class EfClerkTenantDirectory : IClerkTenantDirectory
 {
-    private readonly ApplicationDbContext context;
+    private readonly DbContextOptions<ApplicationDbContext> options;
 
-    public EfClerkTenantDirectory(ApplicationDbContext context)
+    public EfClerkTenantDirectory(DbContextOptions<ApplicationDbContext> options)
     {
-        this.context = context;
+        this.options = options;
     }
 
     public async Task<ClerkTenantDirectoryEntry> FindAsync(string clerkOrganizationId, string slug, CancellationToken cancellationToken)
     {
+        await using var context = new ApplicationDbContext(options, new TenantContext());
         var matches = await context.Tenants
             .IgnoreQueryFilters()
             .AsNoTracking()
