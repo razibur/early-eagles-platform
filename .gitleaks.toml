@@ -8,6 +8,15 @@ title = "early-eagles gitleaks config"
 [extend]
 useDefault = true
 
+# Svix / Clerk webhook signing secrets (P0-037). Not in the default rules: a
+# random whsec_ value assigned to any variable went unreported.
+[[rules]]
+id = "svix-webhook-signing-secret"
+description = "Svix webhook signing secret (Clerk webhooks)"
+regex = '''\b(whsec_[A-Za-z0-9+/]{24,}={0,2})'''
+secretGroup = 1
+keywords = ["whsec_"]
+
 [[allowlists]]
 description = "Azure built-in role definition IDs (Bicep): fixed, public GUIDs documented by Microsoft"
 regexTarget = "line"
@@ -16,4 +25,11 @@ regexTarget = "line"
 # by default, so a path entry would silence every finding in every .bicep file.
 regexes = [
   '''\bvar \w+RoleId = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'(\s|$)''',
+]
+
+[[allowlists]]
+description = "The example signing secret from Svix's public documentation, used as a test vector (SvixWebhookVerifierTests)"
+# Matches the secret itself (the default target), and only this exact value.
+regexes = [
+  '''^whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw$''',
 ]
