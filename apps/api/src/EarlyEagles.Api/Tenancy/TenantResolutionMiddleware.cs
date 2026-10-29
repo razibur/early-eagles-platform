@@ -20,8 +20,9 @@ namespace EarlyEagles.Api.Tenancy;
 /// <para>
 /// Infrastructure endpoints in <see cref="TenantAgnosticPathPrefixes"/> are never
 /// gated: uptime probes hit <c>/health</c> and <c>/ready</c> on the bare domain,
-/// so they must resolve without a tenant even in Production. Webhook routes join
-/// this list when they land (Clerk P0-036, Stripe P0-043).
+/// so they must resolve without a tenant even in Production. Webhooks
+/// (<c>/api/webhooks</c>: Clerk P0-036, Stripe P0-043) call the bare API host too
+/// and carry their tenant in the payload.
 /// </para>
 /// </summary>
 public sealed class TenantResolutionMiddleware : IMiddleware
@@ -36,6 +37,9 @@ public sealed class TenantResolutionMiddleware : IMiddleware
         // Gating them would mask that 404 behind a 400 tenant error.
         "/openapi",
         "/swagger",
+
+        // Third-party webhooks, authenticated by their own signatures.
+        "/api/webhooks",
     ];
 
     private readonly ITenantLookup lookup;

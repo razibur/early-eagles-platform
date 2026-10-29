@@ -859,6 +859,17 @@ The owner made the repo public instead of paying for GitHub Pro ([ADR-0013](./do
 | P0-015 | Unblocked. PR required (0 approvals), six required checks (strict), conversation resolution, no force push or deletion, enforced for admins. **Signed commits deferred** (history and local setup unsigned). |
 | P0-081 | Adds GitHub secret scanning + push protection (on). gitleaks stays. |
 | P0-082 | Adds the CodeQL workflow (`codeql.yml`: C#, JS/TS, Actions; `security-extended`), advisory rather than required. Semgrep stays. |
+
+### Clerk work that doesn't need the account (2026-10-28)
+
+The webhook endpoint and its signature check don't need the Clerk SDK or a Clerk account: Svix
+signing is a published HMAC scheme, and tests sign requests with a locally generated secret. The
+dependency on P0-035.1 is dropped for these two; the live check (a real delivery) waits for P0-006.
+
+| ID | Change |
+|---|---|
+| P0-036.1 | **Depends on** P0-020.5 only (was P0-035.1). Config: `Clerk:WebhookSigningSecret`; unset → 503, malformed → startup failure. |
+| P0-037 | Hand-written Svix verifier instead of the Svix SDK; verify adds: replayed (> 5 min) → 400, oversized → 413. |
 ---
 
 ## Sequencing notes

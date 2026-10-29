@@ -6,6 +6,7 @@ using EarlyEagles.Application.Abstractions.Messaging;
 using EarlyEagles.Application.Abstractions.Persistence;
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Infrastructure.Auditing;
+using EarlyEagles.Infrastructure.Identity;
 using EarlyEagles.Infrastructure.Messaging;
 using EarlyEagles.Infrastructure.Outbox;
 using EarlyEagles.Infrastructure.Persistence;
@@ -102,6 +103,17 @@ public static class DependencyInjection
                 options => options.BatchSize is > 0 and <= OutboxOptions.MaxBatchSize,
                 $"{OutboxOptions.SectionName}:{nameof(OutboxOptions.BatchSize)} must be between 1 and {OutboxOptions.MaxBatchSize}.")
             .ValidateOnStart();
+
+        // Clerk webhooks (P0-036.1, P0-037). The signing secret is optional so
+        // the API boots without Clerk, but a malformed one fails at startup
+        // instead of rejecting every webhook later.
+        services.AddOptions<ClerkOptions>()
+            .Bind(configuration.GetSection(ClerkOptions.SectionName))
+            .Validate(
+                options => string.IsNullOrEmpty(options.WebhookSigningSecret) || SvixWebhookVerifier.IsValidSecret(options.WebhookSigningSecret),
+                $"{ClerkOptions.SectionName}:{nameof(ClerkOptions.WebhookSigningSecret)} must look like '{SvixWebhookVerifier.SecretPrefix}<base64>'.")
+            .ValidateOnStart();
+        services.TryAddSingleton(TimeProvider.System);
 
         AddOutboxPublisher(services, configuration);
 
