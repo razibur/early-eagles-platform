@@ -11,6 +11,7 @@ using EarlyEagles.Infrastructure.Messaging;
 using EarlyEagles.Infrastructure.Outbox;
 using EarlyEagles.Infrastructure.Persistence;
 using EarlyEagles.Infrastructure.Tenancy;
+using EarlyEagles.Infrastructure.Tenants;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -78,6 +79,11 @@ public static class DependencyInjection
         // Audit log read side (P0-048). Scoped onto the request's context so the
         // tenant query filter applies.
         services.AddScoped<IAuditLogReader, EfAuditLogReader>();
+
+        // Tenant aggregate write side and the platform-level Clerk lookup
+        // (P0-036.2). Scoped onto the request's context.
+        services.AddScoped<ITenantRepository, EfTenantRepository>();
+        services.AddScoped<IClerkTenantDirectory, EfClerkTenantDirectory>();
 
         // Unit of work (P0-024.3) backing TransactionBehavior. Scoped so it
         // shares the request's ApplicationDbContext — the transaction it opens
