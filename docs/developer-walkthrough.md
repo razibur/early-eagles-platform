@@ -754,6 +754,53 @@ make subdomain→tenant resolution observable end-to-end.
 
 ▶ [`TenancyEndpoints.cs`](../apps/api/src/EarlyEagles.Api/Tenancy/TenancyEndpoints.cs)
 
+### 8.5 Clerk webhooks — signed, tenant-agnostic (P0-036.1, P0-037)
+
+Clerk tells the platform about new organizations (tenants), memberships and users by webhook, so
+`POST /api/webhooks/clerk` is how tenants get provisioned. Anyone on the internet can call it,
+so it accepts a request only when it carries a valid **Svix signature**, the scheme Clerk signs
+with:
+
+1. **Read the raw body** (at most 1 MB, otherwise 413). The signature covers the exact bytes, so
+   nothing parses them first.
+2. **Verify** ([`SvixWebhookVerifier`](../apps/api/src/EarlyEagles.Infrastructure/Identity/SvixWebhookVerifier.cs)):
+   - compute HMAC-SHA256 over `{svix-id}.{svix-timestamp}.{body}`, keyed with the base64 after
+     `whsec_`;
+   - compare it in constant time against each `v1,<base64>` entry in `svix-signature` (there are
+     several during a secret rotation);
+   - reject a timestamp more than 5 minutes from now, so a captured request can't be replayed.
+
+   On failure the endpoint returns 400 without saying why. The reason goes to the log (EventId 1401).
+3. **Read `type`** from the JSON (400 if missing). Every type is acknowledged with 200 for now. Any
+   non-2xx makes Svix retry with backoff for days, so unhandled types must still succeed.
+   The handlers come next: `organization.created` → tenant (P0-036.2), membership → member (.3),
+   user created/updated → profile (.4/.5).
+
+The path is on `TenantResolutionMiddleware`'s allow-list (`/api/webhooks`): Clerk calls the bare
+API host, so in Production the tenant gate would otherwise answer 400. The tenant comes from the
+payload's organization id instead. The endpoint isn't in the OpenAPI document.
+
+| Setting | Where it comes from |
+|---|---|
+| `Clerk:WebhookSigningSecret` (`Clerk__WebhookSigningSecret`) | Clerk dashboard → Webhooks → endpoint → *Signing Secret*. Locally: `dotnet user-secrets set Clerk:WebhookSigningSecret whsec_… --project apps/api/src/EarlyEagles.Api`. In Azure: a Key Vault secret reference (with P0-035.1). |
+
+Unset → the endpoint answers **503** and processes nothing (EventId 1403), so the API still boots
+without Clerk. Set but malformed (not `whsec_<base64>`) → the host **fails at startup**
+(`ValidateOnStart`), rather than rejecting every delivery later.
+
+Tests: [`SvixWebhookVerifierTests`](../apps/api/tests/EarlyEagles.Tests.Unit/Identity/SvixWebhookVerifierTests.cs)
+starts from the example in Svix's own documentation, so the implementation is checked against the
+scheme rather than against itself. It also covers secret rotation, tampering, a wrong key, replay
+and malformed headers.
+[`ClerkWebhookEndpointTests`](../apps/api/tests/EarlyEagles.Tests.Integration/Webhooks/ClerkWebhookEndpointTests.cs)
+covers the HTTP behaviour, including Production on the bare host. Mutation check: removing
+`/api/webhooks` from the allow-list fails that test.
+
+⚠ **Gotcha — hand-written, not the Svix SDK.** The `Svix` NuGet package is a full API client; only
+its 40-line verification is needed. If Clerk ever moves to the *Standard Webhooks* header names
+(`webhook-id`, `webhook-timestamp`, `webhook-signature`), the algorithm is identical and only the
+header names change.
+
 ---
 
 ## 9. Persistence — EF Core, the query filter & migrations
@@ -2328,7 +2375,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
 | **EF-backed `ITenantLookup`** | deferred | replaces `NullTenantLookup` once a seeded DB exists |
 | **Audit endpoint in Production** (P0-048.2) | waits on P0-038 | `/audit-events` exists outside Production; tenant-admin authorization needs Clerk role claims |
-| **Clerk auth** (B2B Orgs = tenants) | Phase 0/2 | JWT bearer, `[Authorize]`, webhook → tenant provisioning |
+| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint exists (§8.5); next: event handlers → tenants/members/profiles (P0-036.2–.5), then JWT bearer and `[Authorize]` (P0-035) |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |

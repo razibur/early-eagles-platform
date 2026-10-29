@@ -20,7 +20,7 @@ Last updated: 2026-10-27
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~71% (144 / ~203 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~72% (146 / ~203 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -208,12 +208,14 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-035.1** Install `Clerk.Net.SDK`; configure secret key from vault
 - `[ ]` **P0-035.2** JWT validation middleware (signature, expiry, audience, issuer)
 - `[ ]` **P0-035.3** Integration test: unauth → 401; valid → claims populated
-- `[ ]` **P0-036.1** Endpoint `POST /api/webhooks/clerk` accepting raw body
+- `[x]` **P0-036.1** Endpoint `POST /api/webhooks/clerk` accepting raw body
+  ↳ verify: endpoint reachable; body preserved. [`ClerkWebhookEndpoints`](./apps/api/src/EarlyEagles.Api/Webhooks/ClerkWebhookEndpoints.cs): `POST /api/webhooks/clerk`, anonymous, raw body read (≤ 1 MB, else 413) and verified before parsing; `type` read from JSON (400 if missing/not JSON); every type → 200 until handlers land (P0-036.2–.5). Tenant-agnostic (`/api/webhooks` on the middleware allow-list: Clerk calls the bare host). `Clerk:WebhookSigningSecret` unset → 503; malformed → startup failure (`ValidateOnStart`). Not in OpenAPI. Integration tests (10): signed → 200, tampered/unsigned/replayed (6 min old) → 400, no type / not JSON → 400, oversized → 413, no secret → 503, Production bare host → 200, bad secret → host won't start. Mutation: dropping the allow-list entry fails the Production test. Unit 284 · integration 108 + 5 skipped.
 - `[ ]` **P0-036.2** Handle `organization.created` → upsert `tenants` row
 - `[ ]` **P0-036.3** Handle `organizationMembership.created` → upsert `tenant_members`
 - `[ ]` **P0-036.4** Handle `user.created` → seed basic profile
 - `[ ]` **P0-036.5** Handle `user.updated` → patch profile
-- `[ ]` **P0-037** Svix signature verification on webhook endpoint
+- `[x]` **P0-037** Svix signature verification on webhook endpoint
+  ↳ verify: bad signature → 400; good → 200. Hand-written [`SvixWebhookVerifier`](./apps/api/src/EarlyEagles.Infrastructure/Identity/SvixWebhookVerifier.cs) (HMAC-SHA256 over `{svix-id}.{svix-timestamp}.{body}`, `whsec_` base64 key, constant-time compare across space-separated `v1,` entries, ±5 min tolerance) instead of the Svix SDK (a full API client). 27 unit tests, starting from **Svix's documentation example** (`msg_p5jXN8AQM9LWM0D4loKWxJek`, passes) + rotation, tampering, wrong key, replay ±301 s, edges ±300 s, malformed headers/secrets. Failure reason logged (EventId 1401), never returned. **Live check carried:** a real Clerk delivery once the account exists (P0-006).
 - `[ ]` **P0-038** Map Clerk org roles ↔ `tenant-admin` / `member` claims
 - `[ ]` **P0-039.1** Install `@clerk/nextjs`; configure publishable key
 - `[ ]` **P0-039.2** Wrap root layout in `<ClerkProvider>`

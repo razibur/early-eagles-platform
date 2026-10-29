@@ -4,6 +4,7 @@ using EarlyEagles.Api.Health;
 using EarlyEagles.Api.Observability;
 using EarlyEagles.Api.OpenApi;
 using EarlyEagles.Api.Tenancy;
+using EarlyEagles.Api.Webhooks;
 using EarlyEagles.Application;
 using EarlyEagles.Infrastructure;
 using EarlyEagles.Infrastructure.Messaging;
@@ -72,6 +73,10 @@ app.UseMiddleware<TelemetryEnrichmentMiddleware>();
 app.MapHealthEndpoints();
 app.MapTenancyEndpoints();
 app.MapTenantMembersEndpoints();
+
+// Clerk webhook receiver (P0-036.1); anonymous, authenticated by its Svix
+// signature (P0-037).
+app.MapClerkWebhookEndpoints();
 
 // Audit log query (P0-048.1). Outside Production only until it is restricted
 // to tenant admins (P0-048.2, needs Clerk role claims from P0-038).
