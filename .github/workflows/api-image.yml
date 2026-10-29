@@ -28,7 +28,15 @@ jobs:
   image:
     name: build + push
     # workflow_run fires on failure too; only a green backend run proceeds.
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    # `branches: [main]` matches the head branch *name*, so a fork PR from a
+    # branch called "main" would match too. Also require that the backend run
+    # was a push to this repository, so only code already on main is built and
+    # pushed with packages: write.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
