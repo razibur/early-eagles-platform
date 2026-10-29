@@ -773,8 +773,8 @@ with:
    On failure the endpoint returns 400 without saying why. The reason goes to the log (EventId 1401).
 3. **Read `type`** from the JSON (400 if missing). Every type is acknowledged with 200 for now. Any
    non-2xx makes Svix retry with backoff for days, so unhandled types must still succeed.
-   The handlers come next: `organization.created` → tenant (P0-036.2), membership → member (.3),
-   user created/updated → profile (.4/.5).
+   Handlers so far: `organization.created` → tenant (P0-036.2, below). Next: membership → member
+   (.3), user created/updated → profile (.4/.5).
 
 The path is on `TenantResolutionMiddleware`'s allow-list (`/api/webhooks`): Clerk calls the bare
 API host, so in Production the tenant gate would otherwise answer 400. The tenant comes from the
@@ -795,6 +795,34 @@ and malformed headers.
 [`ClerkWebhookEndpointTests`](../apps/api/tests/EarlyEagles.Tests.Integration/Webhooks/ClerkWebhookEndpointTests.cs)
 covers the HTTP behaviour, including Production on the bare host. Mutation check: removing
 `/api/webhooks` from the allow-list fails that test.
+
+**`organization.created` → a tenant (P0-036.2).** Clerk org = tenant, so a new organization
+provisions a tenant row linked by `tenants.clerk_organization_id` (unique, nullable for seed data).
+[`ClerkWebhookDispatcher`](../apps/api/src/EarlyEagles.Api/Webhooks/ClerkWebhookDispatcher.cs):
+
+1. Reads `data.id`, `data.slug` and `data.name`, and checks them with `Tenant.IsValidSlug` /
+   `IsValidDisplayName`.
+2. Asks [`IClerkTenantDirectory`](../apps/api/src/EarlyEagles.Application/Abstractions/Tenancy/IClerkTenantDirectory.cs)
+   (a platform-level read across tenants) which tenant the organization already is, and whether
+   another tenant owns the slug.
+3. **Sets the ambient tenant** to that tenant: a new v7 id, or the linked one. Then it sends
+   `ProvisionTenantCommand`. The command runs *as* the tenant it creates, so `AuditBehavior` files
+   its audit row in that tenant's own log, as its first entry. That row is written after the
+   tenant row commits, which the `audit_events → tenants` foreign key requires.
+
+| Outcome | Response | Why |
+|---|---|---|
+| created / renamed | 200, log 1404 | redeliveries rename at most; the slug (the tenant's address) never changes |
+| invalid slug, blank name, missing fields, slug owned by another tenant | **200**, log **1405 (Error)** | a retry would fail the same way; someone has to look |
+| database failure | 500 | Svix retries with backoff |
+
+⚠ **Gotcha — the DbContext snapshots the tenant when it's created.** `ApplicationDbContext` reads
+`ITenantContext` in its constructor. The directory first used the request's context, *before* the
+dispatcher set the tenant, so the context was pinned to "no tenant". On a redelivery the command
+then couldn't see its own row through the query filter, inserted it again, and hit the unique index
+(500). The directory now opens its own short-lived context, as `AuditService` does. As a backstop,
+`EfTenantRepository.FindAsync` throws if the context's tenant isn't the one asked for. Rule: **set
+the tenant before anything in the request touches `ApplicationDbContext`.**
 
 ⚠ **Gotcha — hand-written, not the Svix SDK.** The `Svix` NuGet package is a full API client; only
 its 40-line verification is needed. If Clerk ever moves to the *Standard Webhooks* header names
@@ -2375,7 +2403,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
 | **EF-backed `ITenantLookup`** | deferred | replaces `NullTenantLookup` once a seeded DB exists |
 | **Audit endpoint in Production** (P0-048.2) | waits on P0-038 | `/audit-events` exists outside Production; tenant-admin authorization needs Clerk role claims |
-| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint exists (§8.5); next: event handlers → tenants/members/profiles (P0-036.2–.5), then JWT bearer and `[Authorize]` (P0-035) |
+| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` (§8.5); next: memberships and profiles (P0-036.3–.5), then JWT bearer and `[Authorize]` (P0-035) |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
@@ -2487,6 +2515,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Telemetry test fails now and then in CI: `Assert.Single() … did not contain any matching items` for the request span | the client gets the response before ASP.NET Core stops the request activity (on `HttpContext` dispose) | wait for the span (`WaitForSpanAsync`, 5 s) instead of asserting straight after the call |
 | A fork PR could trigger a `workflow_run` job meant for `main` | `branches:` on `workflow_run` filters by head branch name, not repository | also check `workflow_run.event == 'push'` and `head_repository.full_name` (§12A) |
 | CodeQL `js/bad-code-sanitization` on the theme boot script | values interpolated (`JSON.stringify`) into code injected via `dangerouslySetInnerHTML` | keep the script a plain literal; the reload e2e test guards the duplicated storage key (§4.5) |
+| Webhook redelivery → 500, duplicate key on `IX_tenants_clerk_organization_id` | the request's `ApplicationDbContext` was created before the tenant was set, so the filter hid the existing row | platform reads use their own context; set the tenant before touching the request's (§8.5) |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 | gitleaks misses a planted secret | an allowlist with `paths` + `regexes` (OR'd), or a placeholder-looking test value | `condition = "AND"` or regex only; plant a random value (§12A) |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |

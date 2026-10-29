@@ -1,3 +1,4 @@
+using EarlyEagles.Application.Tenants;
 using EarlyEagles.Infrastructure.Identity;
 
 namespace EarlyEagles.Api.Webhooks;
@@ -19,4 +20,18 @@ internal static partial class ClerkWebhookLog
 
     [LoggerMessage(EventId = 1403, Level = LogLevel.Error, Message = "Clerk webhook received but Clerk:WebhookSigningSecret is not set")]
     public static partial void NotConfigured(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 1404,
+        Level = LogLevel.Information,
+        Message = "Tenant {Result} for Clerk organization {OrganizationId}: {TenantId} ({SvixId})")]
+    public static partial void TenantProvisioned(ILogger logger, ProvisionTenantResult result, Guid tenantId, string organizationId, string svixId);
+
+    // Error, not Warning: the organization exists in Clerk with no tenant, and
+    // nothing retries it. Someone has to look.
+    [LoggerMessage(
+        EventId = 1405,
+        Level = LogLevel.Error,
+        Message = "Clerk organization {OrganizationId} not provisioned: {Reason} ({SvixId})")]
+    public static partial void ProvisioningSkipped(ILogger logger, string organizationId, string reason, string svixId);
 }

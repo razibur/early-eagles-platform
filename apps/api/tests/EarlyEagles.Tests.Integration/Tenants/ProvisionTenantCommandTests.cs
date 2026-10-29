@@ -100,6 +100,20 @@ public sealed class ProvisionTenantCommandTests : IDisposable
         Assert.True(alphaSlug.SlugTakenByAnotherTenant);
     }
 
+    [Fact]
+    public async Task The_Repository_Refuses_A_Context_Created_Before_The_Tenant_Was_Resolved()
+    {
+        // The DbContext snapshots the tenant at construction. Creating it first
+        // (no tenant) and resolving the tenant afterwards must fail loudly, not
+        // make the tenant's own row invisible.
+        using var scope = factory.Services.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<ITenantRepository>();
+        scope.ServiceProvider.GetRequiredService<ITenantContextInitializer>().Initialize(PostgresFixture.AlphaTenantId, PostgresFixture.AlphaSlug);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => repository.FindAsync(PostgresFixture.AlphaTenantId, CancellationToken.None));
+    }
+
     private static (string OrgId, string Slug) NewOrganization()
     {
         var suffix = Guid.NewGuid().ToString("N")[..12];
