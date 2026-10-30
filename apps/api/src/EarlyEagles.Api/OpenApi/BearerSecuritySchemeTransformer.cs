@@ -8,14 +8,12 @@ namespace EarlyEagles.Api.OpenApi;
 /// so Swagger UI shows an "Authorize" button and so generated clients know how to
 /// attach a token. Tokens are Clerk session JWTs (per ADR-0002), validated by
 /// <c>ClerkJwtBearerOptionsSetup</c> (P0-035.2); this transformer just describes the shape.
-/// No endpoints carry a security requirement yet: /health and /ready are public,
-/// and the rest of the API is still being scaffolded. When <c>[Authorize]</c>
-/// starts going on endpoints, Microsoft.AspNetCore.OpenApi auto-generates the
-/// <c>security</c> requirement against this scheme.
+/// Operations that require authorization reference it through
+/// <see cref="BearerSecurityRequirementOperationTransformer"/> (P0-027.3).
 /// </summary>
 public sealed class BearerSecuritySchemeTransformer : IOpenApiDocumentTransformer
 {
-    private const string SchemeId = "Bearer";
+    public const string SchemeId = "Bearer";
 
     public Task TransformAsync(
         OpenApiDocument document,

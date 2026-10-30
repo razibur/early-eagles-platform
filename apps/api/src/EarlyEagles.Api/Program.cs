@@ -20,6 +20,7 @@ builder.Services.AddOpenApi(options =>
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
     options.AddDocumentTransformer<TenantResolutionTransformer>();
     options.AddOperationTransformer<TenantHeaderOperationTransformer>();
+    options.AddOperationTransformer<BearerSecurityRequirementOperationTransformer>();
 });
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);

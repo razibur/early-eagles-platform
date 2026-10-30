@@ -681,7 +681,9 @@ cross-cutting concerns in `Program.cs`. Build these in this order:
 
 2. **OpenAPI + Swagger UI** — `Microsoft.AspNetCore.OpenApi` generates the doc;
    `Swashbuckle.AspNetCore.SwaggerUI` renders it. Gated to non-Production. Document
-   transformers advertise the Clerk bearer scheme and the tenant subdomain contract.
+   transformers advertise the Clerk bearer scheme and the tenant subdomain contract. An operation
+   transformer adds the `Bearer` security requirement to every endpoint that requires authorization
+   (P0-027.3): Microsoft.AspNetCore.OpenApi does **not** do that by itself.
    ▶ [`EarlyEagles.Api.csproj`](../apps/api/src/EarlyEagles.Api/EarlyEagles.Api.csproj), `OpenApi/`
 3. **Global exception handling** — RFC 7807/9110 ProblemDetails via `IExceptionHandler`
    implementations (`AddExceptionHandling()` / `UseExceptionHandler()`).
@@ -2651,6 +2653,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 | gitleaks misses a planted secret | an allowlist with `paths` + `regexes` (OR'd), or a placeholder-looking test value | `condition = "AND"` or regex only; plant a random value (§12A) |
 | Signed-in admin gets no `tenantRole` on their own club | the tenant row has no `clerk_organization_id` (seed data), or the session's active organization is another club | link the tenant (webhook, §8.5); switch the active org in Clerk (§8.6) |
+| Swagger UI's *Authorize* token isn't sent / generated client omits the token | the operation has no `security` requirement | it comes from `BearerSecurityRequirementOperationTransformer`; guard the endpoint with `RequireAuthorization` (§7) |
 | Role from a v2 session token is `admin`, webhook role is `org:admin` | v2's compact `o.rol` omits the prefix | read it through `ClerkActiveOrganization.From`, which restores it (§8.6) |
 | Every Clerk session token → 401 though the signature is right | `Clerk:AuthorizedParties` missing the web origin the token's `azp` names (e.g. `http://localhost:3000`) | add the exact origin, no trailing slash (§8.6) |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |

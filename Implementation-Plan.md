@@ -931,6 +931,7 @@ at most 60 s old.
 | P0-031.5 | `EfTenantLookup` replaces `NullTenantLookup`: slug → tenant, own context, deactivated → no match | P0-033.1 | Postgres tests; Production `/whoami` resolves a real row, deactivated / unknown → 404 |
 | P0-038.1 | Tenant role claim: when the token's active org is the resolved tenant's Clerk org, add `tenant-admin` or `member`; otherwise none | P0-035.3, P0-031.5 | Admin token on its own club → `tenant-admin`; same token on another club → no role |
 | P0-038.2 | `TenantMember` / `TenantAdmin` authorization policies | P0-038.1 | No token → 401; member on an admin endpoint → 403; admin → 200 |
+| P0-027.3 | Operation transformer: endpoints that require authorization get the `Bearer` security requirement (Microsoft.AspNetCore.OpenApi doesn't add it) | P0-027.2, P0-038.2 | Guarded operations list `security: [{Bearer: []}]`; public ones none |
 ---
 
 ## Sequencing notes
