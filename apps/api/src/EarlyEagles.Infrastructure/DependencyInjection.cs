@@ -48,10 +48,9 @@ public static class DependencyInjection
         services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
         services.AddScoped<ITenantContextInitializer>(sp => sp.GetRequiredService<TenantContext>());
 
-        // Placeholder tenant lookup — always returns null. Replaced by an
-        // EF-backed implementation once a live database is wired (P0-033 / P0-034).
-        // Scoped lifetime matches the future EF impl shape.
-        services.AddScoped<ITenantLookup, NullTenantLookup>();
+        // Slug → tenant for the resolution middleware (P0-031.5). Opens its own
+        // context, so it never pins the request's to "no tenant".
+        services.AddScoped<ITenantLookup, EfTenantLookup>();
 
         // ApplicationDbContext holds the tenant-isolation global query filter
         // (P0-032.2). Scoped so it snapshots ITenantContext per request.

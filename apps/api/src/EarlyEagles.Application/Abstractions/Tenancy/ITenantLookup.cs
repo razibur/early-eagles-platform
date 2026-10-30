@@ -2,10 +2,7 @@ namespace EarlyEagles.Application.Abstractions.Tenancy;
 
 /// <summary>
 /// Resolves a tenant slug to its identity for the tenant-resolution middleware
-/// (P0-031.2). The real implementation reads from the EF-backed
-/// <c>tenants</c> table (landing with P0-032.2 / P0-033.1); a
-/// <c>NullTenantLookup</c> stub keeps the middleware wireable in the
-/// meantime.
+/// (P0-031.2). <c>EfTenantLookup</c> reads the <c>tenants</c> table (P0-031.5).
 /// </summary>
 public interface ITenantLookup
 {
