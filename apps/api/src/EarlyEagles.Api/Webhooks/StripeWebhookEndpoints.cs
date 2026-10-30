@@ -18,8 +18,8 @@ namespace EarlyEagles.Api.Webhooks;
 ///   <see cref="Tenancy.TenantResolutionMiddleware"/>'s allow-list). The
 ///   tenant will come from the Stripe customer (P0-045.2).</item>
 ///   <item>Any 2xx ends the delivery; anything else is retried for up to
-///   three days. Every verified event is acknowledged (200): handlers arrive
-///   with P0-043.2–.4.</item>
+///   three days. Verified events go to <see cref="StripeWebhookDispatcher"/>
+///   and are acknowledged (200) unless it throws.</item>
 ///   <item>Not in the OpenAPI document: it's an integration endpoint.</item>
 /// </list>
 /// </remarks>
@@ -47,6 +47,7 @@ public static class StripeWebhookEndpoints
         HttpRequest request,
         IOptions<StripeOptions> options,
         TimeProvider timeProvider,
+        StripeWebhookDispatcher dispatcher,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
@@ -79,6 +80,7 @@ public static class StripeWebhookEndpoints
         {
             case StripeWebhookVerificationResult.Valid:
                 StripeWebhookLog.Received(logger, stripeEvent!.Type, stripeEvent.Id, stripeEvent.Livemode);
+                await dispatcher.DispatchAsync(stripeEvent, cancellationToken).ConfigureAwait(false);
                 return TypedResults.Ok();
 
             case StripeWebhookVerificationResult.ApiVersionMismatch:

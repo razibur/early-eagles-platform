@@ -27,4 +27,17 @@ internal static partial class StripeWebhookLog
 
     [LoggerMessage(EventId = 1604, Level = LogLevel.Error, Message = "Stripe webhook received but Stripe:WebhookSigningSecret is not set")]
     public static partial void NotConfigured(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 1605,
+        Level = LogLevel.Information,
+        Message = "Tenant {TenantId} subscription {SubscriptionId} recorded: {Started} ({EventId})")]
+    public static partial void SubscriptionStarted(ILogger logger, Guid tenantId, string subscriptionId, bool started, string eventId);
+
+    // Error, not Warning: someone paid and no tenant recorded it. Someone has to look.
+    [LoggerMessage(
+        EventId = 1606,
+        Level = LogLevel.Error,
+        Message = "Checkout session {SessionId} not recorded: {Reason} ({EventId})")]
+    public static partial void CheckoutSkipped(ILogger logger, string sessionId, string reason, string eventId);
 }

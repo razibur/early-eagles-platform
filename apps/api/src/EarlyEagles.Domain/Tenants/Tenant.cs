@@ -124,7 +124,8 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
 
     /// <summary>
     /// Records the Stripe customer and subscription a completed checkout
-    /// created (P0-045.1). Returns <c>false</c> when they are already recorded:
+    /// created (P0-045.1) and raises <see cref="SubscriptionStarted"/>
+    /// (P0-043.2). Returns <c>false</c>, raising nothing, when they are already recorded:
     /// Stripe delivers webhooks at least once. A different customer is a bug
     /// (one tenant, one customer); a different subscription replaces the old one.
     /// </summary>
@@ -151,6 +152,7 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
 
         StripeCustomerId = customerId;
         StripeSubscriptionId = subscriptionId;
+        RaiseDomainEvent(new SubscriptionStarted(Id, customerId, subscriptionId));
         return true;
     }
 

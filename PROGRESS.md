@@ -20,7 +20,7 @@ Last updated: 2026-10-30
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~79% (169 / ~214 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~79% (170 / ~214 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -265,7 +265,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-042.3** Stripe dashboard: Enterprise product + placeholder price
 - `[x]` **P0-043.1** Endpoint `POST /api/webhooks/stripe` accepting raw body
   ↳ verify: [`StripeWebhookEndpoints`](./apps/api/src/EarlyEagles.Api/Webhooks/StripeWebhookEndpoints.cs): anonymous, out of the OpenAPI document, on the bare host (`/api/webhooks` is on the tenant allow-list; Production test → 200). Body read raw, capped at 1 MB by the [`WebhookBody`](./apps/api/src/EarlyEagles.Api/Webhooks/WebhookBody.cs) reader now shared with Clerk's endpoint (→ 413). `Stripe:WebhookSigningSecret` unset → 503; not `whsec_…` → startup failure. A verified event is logged (type, id, live mode; event 1600) and acknowledged with 200; handlers are P0-043.2–.4. Integration: [`StripeWebhookEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Webhooks/StripeWebhookEndpointTests.cs) (10).
-- `[ ]` **P0-043.2** Handle `checkout.session.completed` → `SubscriptionStarted` event
+- `[x]` **P0-043.2** Handle `checkout.session.completed` → `SubscriptionStarted` event
+  ↳ verify: [`StripeWebhookDispatcher`](./apps/api/src/EarlyEagles.Api/Webhooks/StripeWebhookDispatcher.cs): a subscription-mode session's `client_reference_id` names the tenant (the platform will set it when it creates the session, P2-008); a platform lookup ([`IBillingTenantDirectory`](./apps/api/src/EarlyEagles.Application/Abstractions/Tenancy/IBillingTenantDirectory.cs)) checks it exists, isn't deactivated and isn't billed to another customer; then `StartTenantSubscriptionCommand` runs as that tenant → `Tenant.LinkStripeSubscription` raises [`SubscriptionStarted`](./apps/api/src/EarlyEagles.Domain/Tenants/SubscriptionStarted.cs) → outbox, audited in the tenant's log. Unusable sessions (no / unknown tenant, payment mode, deactivated, other customer) → error log (1606) + 200. Integration [`StripeCheckoutWebhookTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Webhooks/StripeCheckoutWebhookTests.cs) (8, Postgres, Production): ids recorded, one outbox row, one audit row; redelivery queues nothing more; each skip case changes nothing. Mutation-checked (event raise, mode, customer and deactivated checks). Unit 388 · integration 220 + 5 skipped.
 - `[ ]` **P0-043.3** Handle `customer.subscription.*` family → state-change events
 - `[ ]` **P0-043.4** Handle `invoice.payment_failed` → `PaymentFailed` event
 - `[x]` **P0-044** Stripe webhook signature verification

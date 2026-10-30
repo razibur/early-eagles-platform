@@ -954,6 +954,7 @@ deliveries (`stripe listen`, the dashboard endpoint) and for the API keys.
 | P0-041.1 | **Split in practice:** `Stripe.net` lands with P0-043.1 (account-free). API keys and `@stripe/stripe-js` stay here. |
 | P0-043.1 | **Depends on** nothing (was P0-041.1). Committed with P0-044: an endpoint that took unverified bodies would never be correct on its own. |
 | P0-044 | Also refuses a signed event from another API release train than the SDK's: its objects may not match the typed models. 400 so Stripe keeps retrying once the endpoint's version is fixed. |
+| P0-043.2 | The tenant comes from the Checkout Session's `client_reference_id`, which P2-008 must set to the tenant id when it creates the session. A session without a usable one is logged as an error and acknowledged (a retry can't fix it). Adds the `IBillingTenantDirectory` platform lookup. |
 | P0-045.1 | **Moved ahead of** P0-043.2: recording the ids on the tenant is what makes a redelivered `checkout.session.completed` a no-op (`LinkStripeSubscription` returns `false`), so the event handler depends on it. Adds unique indexes on both ids. |
 
 ---
