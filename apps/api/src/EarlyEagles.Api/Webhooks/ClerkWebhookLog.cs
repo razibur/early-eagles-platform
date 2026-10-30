@@ -1,4 +1,6 @@
+using EarlyEagles.Application.TenantMembers;
 using EarlyEagles.Application.Tenants;
+using EarlyEagles.Domain.Tenants;
 using EarlyEagles.Infrastructure.Identity;
 
 namespace EarlyEagles.Api.Webhooks;
@@ -34,4 +36,27 @@ internal static partial class ClerkWebhookLog
         Level = LogLevel.Error,
         Message = "Clerk organization {OrganizationId} not provisioned: {Reason} ({SvixId})")]
     public static partial void ProvisioningSkipped(ILogger logger, string organizationId, string reason, string svixId);
+
+    [LoggerMessage(
+        EventId = 1406,
+        Level = LogLevel.Information,
+        Message = "Member {Result}: Clerk user {ClerkUserId} as {Role} in tenant {TenantId} ({SvixId})")]
+    public static partial void MemberAdded(ILogger logger, AddTenantMemberResult result, string clerkUserId, TenantMemberRole role, Guid tenantId, string svixId);
+
+    // Error: the person is in the Clerk organization but not in the club, and
+    // nothing retries it.
+    [LoggerMessage(
+        EventId = 1407,
+        Level = LogLevel.Error,
+        Message = "Clerk membership of {ClerkUserId} in {OrganizationId} not recorded: {Reason} ({SvixId})")]
+    public static partial void MembershipSkipped(ILogger logger, string organizationId, string clerkUserId, string reason, string svixId);
+
+    // Warning, not Error: usually organization.created is a moment behind and
+    // Svix's retry succeeds. Repeats mean the organization was never
+    // provisioned (see 1405).
+    [LoggerMessage(
+        EventId = 1408,
+        Level = LogLevel.Warning,
+        Message = "Clerk membership of {ClerkUserId} in {OrganizationId} deferred: no tenant for the organization yet ({SvixId})")]
+    public static partial void MembershipDeferred(ILogger logger, string organizationId, string clerkUserId, string svixId);
 }

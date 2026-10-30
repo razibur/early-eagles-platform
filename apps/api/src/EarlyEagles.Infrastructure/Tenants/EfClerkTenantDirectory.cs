@@ -41,4 +41,16 @@ public sealed class EfClerkTenantDirectory : IClerkTenantDirectory
         var slugTaken = matches.Exists(t => t.Slug == slug && t.ClerkOrganizationId != clerkOrganizationId);
         return new ClerkTenantDirectoryEntry(linked?.Id, linked?.Slug, slugTaken);
     }
+
+    public async Task<ClerkLinkedTenant?> FindTenantAsync(string clerkOrganizationId, CancellationToken cancellationToken)
+    {
+        await using var context = new ApplicationDbContext(options, new TenantContext());
+        return await context.Tenants
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(t => t.ClerkOrganizationId == clerkOrganizationId)
+            .Select(t => new ClerkLinkedTenant(t.Id, t.Slug))
+            .SingleOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
 }

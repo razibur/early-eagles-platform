@@ -43,6 +43,13 @@ public sealed class TenantMember : Entity<TenantMemberId>, ITenantScoped
 
     public TenantMemberRole Role { get; private set; }
 
+    /// <summary>
+    /// True when <paramref name="clerkUserId"/> would pass <see cref="Create"/>'s
+    /// check, so a webhook can pre-check a payload without catching exceptions.
+    /// </summary>
+    public static bool IsValidClerkUserId(string? clerkUserId) =>
+        !string.IsNullOrWhiteSpace(clerkUserId) && clerkUserId.Length <= ClerkUserIdMaxLength;
+
     public static TenantMember Create(Guid tenantId, string clerkUserId, TenantMemberRole role)
     {
         if (tenantId == Guid.Empty)

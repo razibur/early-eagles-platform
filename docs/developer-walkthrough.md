@@ -773,8 +773,8 @@ with:
    On failure the endpoint returns 400 without saying why. The reason goes to the log (EventId 1401).
 3. **Read `type`** from the JSON (400 if missing). Every type is acknowledged with 200 for now. Any
    non-2xx makes Svix retry with backoff for days, so unhandled types must still succeed.
-   Handlers so far: `organization.created` → tenant (P0-036.2, below). Next: membership → member
-   (.3), user created/updated → profile (.4/.5).
+   Handlers so far: `organization.created` → tenant (P0-036.2) and `organizationMembership.created`
+   → member (P0-036.3), both below. Next: user created/updated → profile (.4/.5).
 
 The path is on `TenantResolutionMiddleware`'s allow-list (`/api/webhooks`): Clerk calls the bare
 API host, so in Production the tenant gate would otherwise answer 400. The tenant comes from the
@@ -836,6 +836,25 @@ inserts the member, or on a redelivery sets the role to whatever Clerk sent: Cle
 Like `ProvisionTenantCommand`, it refuses to run unless the ambient tenant is the member's tenant,
 so the audit row lands in that club's log. `EfTenantMemberRepository` has the same
 context-snapshot guard as `EfTenantRepository` (see the gotcha above).
+
+The dispatcher reads `data.organization.id`, `data.public_user_data.user_id` and `data.role`, looks
+the tenant up with `IClerkTenantDirectory.FindTenantAsync`, sets the ambient tenant and sends the
+command. Roles go through [`ClerkOrganizationRoles`](../apps/api/src/EarlyEagles.Infrastructure/Identity/ClerkOrganizationRoles.cs):
+only `org:admin` (or the legacy `admin`) becomes `TenantAdmin`; custom roles, a missing role, or a
+typo become `Member`. An unrecognised role must never widen access.
+
+| Outcome | Response | Why |
+|---|---|---|
+| added / role updated | 200, log 1406 | Clerk owns the role; a redelivery overwrites ours |
+| missing organization or user id, user id too long | **200**, log **1407 (Error)** | a retry would fail the same way |
+| organization has no tenant yet | **503**, log 1408 (Warning) | Svix retries with backoff |
+| database failure | 500 | Svix retries |
+
+⚠ **Gotcha — Svix doesn't guarantee delivery order.** Creating an organization in Clerk also
+creates the creator's admin membership, and the two webhooks race. If the membership wins, there
+is no tenant to add it to. Answering 200 would lose the club's first admin for good, so the
+endpoint answers 503 and Svix tries again a few seconds later, by which time the tenant exists.
+Repeated 1408 warnings for the same organization mean it was never provisioned: look for its 1405.
 
 ---
 
@@ -2411,7 +2430,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
 | **EF-backed `ITenantLookup`** | deferred | replaces `NullTenantLookup` once a seeded DB exists |
 | **Audit endpoint in Production** (P0-048.2) | waits on P0-038 | `/audit-events` exists outside Production; tenant-admin authorization needs Clerk role claims |
-| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` (§8.5); next: memberships and profiles (P0-036.3–.5), then JWT bearer and `[Authorize]` (P0-035) |
+| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); next: profiles (P0-036.4–.5), then JWT bearer and `[Authorize]` (P0-035) |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
