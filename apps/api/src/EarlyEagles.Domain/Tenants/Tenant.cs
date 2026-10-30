@@ -209,6 +209,27 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
         Status = TenantStatus.PastDue;
     }
 
+    /// <summary>
+    /// A Stripe invoice payment failed (P0-043.4): an active tenant becomes
+    /// <see cref="TenantStatus.PastDue"/> and <see cref="PaymentFailed"/> is
+    /// raised. Returns <c>false</c>, raising nothing, when the tenant is already
+    /// past due: Stripe retries a failing invoice and redelivers webhooks.
+    /// Suspended or deactivated tenants throw, as <see cref="MarkPastDue"/> does.
+    /// </summary>
+    public bool RecordPaymentFailure(string invoiceId)
+    {
+        ValidateStripeId(invoiceId, nameof(invoiceId));
+
+        if (Status is TenantStatus.PastDue)
+        {
+            return false;
+        }
+
+        MarkPastDue();
+        RaiseDomainEvent(new PaymentFailed(Id, invoiceId));
+        return true;
+    }
+
     public void Suspend()
     {
         if (Status is TenantStatus.Suspended)

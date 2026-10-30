@@ -1022,6 +1022,18 @@ A redelivery links nothing new, so nothing is raised or queued. A session that c
 logged as an **error** (event 1606) and acknowledged: someone paid and no club recorded it, and
 three days of retries wouldn't change that.
 
+**`invoice.payment_failed` → `PaymentFailed` (P0-043.4).** An invoice names the customer, not the
+tenant, so `IBillingTenantDirectory.FindByStripeCustomerAsync` finds the tenant by the
+`stripe_customer_id` recorded at checkout (the column is unique, so at most one matches). An
+active tenant moves to **PastDue** through `RecordTenantPaymentFailureCommand` →
+`Tenant.RecordPaymentFailure`, which raises `PaymentFailed` into the outbox. Stripe retries a
+failing payment several times and sends this event after each attempt. Only the first one moves
+the tenant: a tenant that is already past due raises nothing.
+
+An unknown customer, or a tenant that is suspended or deactivated, is logged as an **error**
+(event 1608) and acknowledged. Suspension and reactivation after payment are not handled here.
+They come with the subscription events (P0-043.3).
+
 Stripe.net is in Infrastructure (it will also call Stripe's API for checkout in Phase 2). It pins
 an API version: 53.1.0 reads **`2026-10-28.endive`** events. Version checks compare only the
 release-train name (`endive`), so other dates in the same train are accepted.
@@ -2674,7 +2686,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
 | **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); and grants `tenant-admin` / `member` only on the session's own club (P0-038.1); `TenantMember` / `TenantAdmin` policies (P0-038.2) |
 | **Email (Resend)** | sender built | `IEmailSender` with a Resend and a logging implementation (P0-053.1, §9.9); the first real send waits for the account (P0-011, P0-055) |
-| **Stripe Billing** | started | signed webhook endpoint (P0-043.1, P0-044, §8.7); tenant Stripe ids (P0-045.1); checkout → `SubscriptionStarted` (P0-043.2); subscription / invoice handlers P0-043.3–.4 and the plan update P0-045.2 next; checkout UI Phase 2. Tenant *subscription* billing only — **not** member dues |
+| **Stripe Billing** | started | signed webhook endpoint (P0-043.1, P0-044, §8.7); tenant Stripe ids (P0-045.1); checkout → `SubscriptionStarted` (P0-043.2); failed payment → past due (P0-043.4); subscription handlers P0-043.3 and the plan update P0-045.2 wait for the dashboard prices (P0-042); checkout UI Phase 2. Tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
 | **CD to Azure** (P0-086/087/088) | waits on Azure | CI, image push, Dependabot and SBOMs exist (§12A); staging/prod deploys and the migration runner need the subscription and an OIDC identity |
@@ -2798,6 +2810,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Resend → 403 with error 1010 though the API key is right | the request has no `User-Agent` header | send one; the typed client registration adds `EarlyEagles/<version>` (§9.9) |
 | Every Stripe webhook → 400 "Unsupported Stripe API version" | the dashboard endpoint sends another API release train than Stripe.net pins | set the endpoint's API version to the one in the error, or upgrade Stripe.net (§8.7) |
 | Stripe webhooks → 400 "Invalid webhook signature" locally | `stripe listen` signs with its own session secret, not the dashboard endpoint's | use the `whsec_` the CLI prints (§8.7) |
+| `invoice.payment_failed` leaves the tenant active; log event 1608 "no tenant is billed to customer" | the tenant never recorded that customer (checkout made outside the platform, see the row below) | link the tenant to the customer first (§8.7) |
 | Stripe checkout paid but the tenant has no `stripe_customer_id`; log event 1606 | the session had no `client_reference_id`, or not the tenant id (e.g. a Payment Link or a dashboard checkout) | create sessions through the platform, which sets it (P2-008); link the tenant by hand (§8.7) |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
 
