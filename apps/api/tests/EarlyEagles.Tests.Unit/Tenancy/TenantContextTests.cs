@@ -46,6 +46,26 @@ public class TenantContextTests
         Assert.True(context.IsResolved);
         Assert.Equal(tenantId, context.TenantId);
         Assert.Equal("early-eagles", context.Slug);
+        Assert.Null(context.ClerkOrganizationId);
+    }
+
+    [Fact]
+    public void Reading_ClerkOrganizationId_Before_Resolve_Throws()
+    {
+        var context = new TenantContext();
+
+        Assert.Throws<InvalidOperationException>(() => context.ClerkOrganizationId);
+    }
+
+    [Fact]
+    public void Initialize_Keeps_The_Clerk_Organization()
+    {
+        // P0-038.1 — role claims compare it with the token's active organization.
+        var context = new TenantContext();
+
+        context.Initialize(Guid.NewGuid(), "early-eagles", "org_2abcClub");
+
+        Assert.Equal("org_2abcClub", context.ClerkOrganizationId);
     }
 
     [Fact]

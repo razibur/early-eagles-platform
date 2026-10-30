@@ -42,7 +42,7 @@ public sealed class EfTenantLookup : ITenantLookup
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(t => t.Slug == normalized && t.Status != TenantStatus.Deactivated)
-            .Select(t => new TenantLookupResult(t.Id, t.Slug))
+            .Select(t => new TenantLookupResult(t.Id, t.Slug, t.ClerkOrganizationId))
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
     }

@@ -11,6 +11,7 @@ public sealed class TenantContext : ITenantContext, ITenantContextInitializer
 {
     private Guid tenantId;
     private string? slug;
+    private string? clerkOrganizationId;
 
     public bool IsResolved { get; private set; }
 
@@ -26,7 +27,13 @@ public sealed class TenantContext : ITenantContext, ITenantContextInitializer
             : throw new InvalidOperationException(
                 "Tenant context has not been resolved for the current request.");
 
-    public void Initialize(Guid tenantId, string slug)
+    public string? ClerkOrganizationId =>
+        IsResolved
+            ? clerkOrganizationId
+            : throw new InvalidOperationException(
+                "Tenant context has not been resolved for the current request.");
+
+    public void Initialize(Guid tenantId, string slug, string? clerkOrganizationId = null)
     {
         if (IsResolved)
         {
@@ -49,6 +56,7 @@ public sealed class TenantContext : ITenantContext, ITenantContextInitializer
 
         this.tenantId = tenantId;
         this.slug = slug;
+        this.clerkOrganizationId = clerkOrganizationId;
         IsResolved = true;
     }
 }

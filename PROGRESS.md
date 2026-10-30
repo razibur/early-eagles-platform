@@ -20,7 +20,7 @@ Last updated: 2026-10-29
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~75% (159 / ~213 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~75% (160 / ~213 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -243,7 +243,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[x]` **P0-037** Svix signature verification on webhook endpoint
   ↳ verify: bad signature → 400; good → 200. Hand-written [`SvixWebhookVerifier`](./apps/api/src/EarlyEagles.Infrastructure/Identity/SvixWebhookVerifier.cs) (HMAC-SHA256 over `{svix-id}.{svix-timestamp}.{body}`, `whsec_` base64 key, constant-time compare across space-separated `v1,` entries, ±5 min tolerance) instead of the Svix SDK (a full API client). 27 unit tests, starting from **Svix's documentation example** (`msg_p5jXN8AQM9LWM0D4loKWxJek`, passes) + rotation, tampering, wrong key, replay ±301 s, edges ±300 s, malformed headers/secrets. Failure reason logged (EventId 1401), never returned. **Live check carried:** a real Clerk delivery once the account exists (P0-006).
 - `[~]` **P0-038** Map Clerk org roles ↔ `tenant-admin` / `member` claims — **split** 2026-10-29, see [Implementation-Plan appendix](./Implementation-Plan.md#tenant-lookup-and-p0-038-split-2026-10-29)
-- `[ ]` **P0-038.1** Tenant role claim when the token's active org is the request's tenant
+- `[x]` **P0-038.1** Tenant role claim when the token's active org is the request's tenant
+  ↳ verify: [`TenantRoleClaimsTransformation`](./apps/api/src/EarlyEagles.Api/Authentication/TenantRoleClaimsTransformation.cs) adds `ee_tenant_role` (`tenant-admin` / `member`, via `ClerkOrganizationRoles`) only when `ClerkActiveOrganization.Id` equals `ITenantContext.ClerkOrganizationId` (new; carried from `EfTenantLookup` through `TenantLookupResult` and `Initialize`). The bearer handler strips any `ee_tenant_role` the token brings itself. `/me` returns `tenantRole`. [`TenantRoleClaimTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Authentication/TenantRoleClaimTests.cs) (8, Postgres + Production subdomains + signed tokens): `admin` / `org:admin` → `tenant-admin`, `member` / custom `coach` → `member` on its own club; another club's admin, no active org, unlinked tenant, forged role claim → none. The forged-claim test found the hole before the fix. Mutation: dropping the org match fails the cross-club test. Test token helpers moved to [`ClerkTestTokens`](./apps/api/tests/EarlyEagles.Tests.Integration/Authentication/ClerkTestTokens.cs). Unit 338 · integration 182 + 5 skipped.
 - `[ ]` **P0-038.2** `TenantMember` / `TenantAdmin` authorization policies (401 / 403)
 - `[ ]` **P0-039.1** Install `@clerk/nextjs`; configure publishable key
 - `[ ]` **P0-039.2** Wrap root layout in `<ClerkProvider>`

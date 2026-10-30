@@ -31,4 +31,13 @@ public interface ITenantContext
     /// been resolved.
     /// </summary>
     string Slug { get; }
+
+    /// <summary>
+    /// The Clerk organization the tenant is linked to, or <c>null</c> when it
+    /// isn't linked (seed data). Session tokens count for this tenant only when
+    /// their active organization is this one (P0-038.1). Throws
+    /// <see cref="InvalidOperationException"/> when the context has not been
+    /// resolved.
+    /// </summary>
+    string? ClerkOrganizationId { get; }
 }

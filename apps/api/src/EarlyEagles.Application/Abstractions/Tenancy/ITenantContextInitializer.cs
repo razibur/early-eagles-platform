@@ -13,5 +13,5 @@ public interface ITenantContextInitializer
     /// <see cref="InvalidOperationException"/> if the context has already been
     /// initialised for the current scope.
     /// </summary>
-    void Initialize(Guid tenantId, string slug);
+    void Initialize(Guid tenantId, string slug, string? clerkOrganizationId = null);
 }
