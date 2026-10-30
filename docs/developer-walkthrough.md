@@ -856,6 +856,15 @@ is no tenant to add it to. Answering 200 would lose the club's first admin for g
 endpoint answers 503 and Svix tries again a few seconds later, by which time the tenant exists.
 Repeated 1408 warnings for the same organization mean it was never provisioned: look for its 1405.
 
+**Profiles (P0-036.4–.5).** There is no platform-wide `users` table. A Clerk user exists before
+joining any club, but nothing outside a tenant may hold domain data, and every audit row belongs
+to a tenant. So the profile (display name, email, avatar URL) lives on `TenantMember`, one copy per
+club. `TenantMember.UpdateProfile` takes whatever Clerk holds and replaces the whole profile. It
+trims each value; a blank value, one longer than its column, or an "email" without `@` (phone-OTP
+users have a phone number as their identifier) becomes `null`. Values are dropped, never truncated
+or thrown: the profile is cosmetic, and it must never fail a membership. Migration
+`AddTenantMemberProfile` adds the three nullable columns (expand-only).
+
 ---
 
 ## 9. Persistence — EF Core, the query filter & migrations

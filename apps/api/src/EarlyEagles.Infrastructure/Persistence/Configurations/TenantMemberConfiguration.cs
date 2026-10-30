@@ -37,6 +37,19 @@ public sealed class TenantMemberConfiguration : IEntityTypeConfiguration<TenantM
             .HasMaxLength(32)
             .IsRequired();
 
+        // Profile copied from Clerk (P0-036.4.1); all optional.
+        builder.Property(m => m.DisplayName)
+            .HasColumnName("display_name")
+            .HasMaxLength(TenantMember.DisplayNameMaxLength);
+
+        builder.Property(m => m.Email)
+            .HasColumnName("email")
+            .HasMaxLength(TenantMember.EmailMaxLength);
+
+        builder.Property(m => m.ImageUrl)
+            .HasColumnName("image_url")
+            .HasMaxLength(TenantMember.ImageUrlMaxLength);
+
         builder.HasOne<Tenant>()
             .WithMany()
             .HasForeignKey(m => m.TenantId)

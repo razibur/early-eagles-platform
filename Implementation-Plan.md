@@ -891,6 +891,21 @@ wiring. The entity and table already exist (P0-029.1, P0-033.2).
 |---|---|---|---|
 | P0-036.3.1 | `AddTenantMemberCommand` (create, or take Clerk's role on redelivery) with `ITenantMemberRepository` | P0-036.2.2 | Integration via the pipeline: created + audited in the tenant's log; redelivery → one row; wrong ambient tenant refused |
 | P0-036.3.2 | Webhook dispatches `organizationMembership.created`: map the Clerk role, find the tenant, set the ambient tenant, send the command | P0-036.2.3, P0-036.3.1 | Signed delivery → member row; unknown organization → retried (non-2xx); missing user id → 200 and no row |
+
+### P0-036.4 / P0-036.5 split (2026-10-29)
+
+"Seed / patch a profile" had no home: a Clerk user exists before joining any club, but no data may
+be non-tenant-scoped and every audit row belongs to a tenant. Decision (owner, 2026-10-29): the
+profile lives **on `TenantMember`**, one copy per club. `user.created` therefore stores nothing
+(the user is in no club yet); the membership event seeds the profile from its `public_user_data`,
+and `user.updated` patches the user's member row in every club, one audited command per tenant.
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-036.4.1 | `TenantMember` display name / email / image URL + `UpdateProfile` (blank, oversized, or `@`-less email → null); expand-only migration | P0-036.3.1 | Unit tests; migrations apply to a fresh Postgres |
+| P0-036.4.2 | Membership webhook seeds the profile from `public_user_data`; `user.created` acknowledged, nothing stored | P0-036.3.2, P0-036.4.1 | Signed membership delivery → member row with name / email / image; signed `user.created` → 200, no rows |
+| P0-036.5.1 | `UpdateTenantMemberProfileCommand` (one tenant) + `IClerkTenantDirectory` lists the tenants a Clerk user belongs to | P0-036.4.1 | Integration via the pipeline: profile patched + audited in that tenant's log; unknown member → no-op |
+| P0-036.5.2 | `user.updated` → the command for each of the user's tenants, each in its own DI scope | P0-036.5.1 | Signed delivery for a user in two clubs → both rows patched, each audited in its own tenant |
 ---
 
 ## Sequencing notes

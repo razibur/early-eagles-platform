@@ -16,7 +16,7 @@ Each task carries a one-line **verify:** with the exact thing to check / command
 to run. If a verify step requires external accounts (Azure, Stripe, Clerk),
 that's noted — the rest you can verify on your laptop.
 
-Last updated: 2026-10-27
+Last updated: 2026-10-29
 
 ---
 
@@ -224,8 +224,13 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`AddTenantMemberCommand`](./apps/api/src/EarlyEagles.Application/TenantMembers/AddTenantMemberCommand.cs) inserts the member or, on redelivery, takes Clerk's role (Clerk is the source of truth); refuses unless the ambient tenant is the member's, so the audit row is that tenant's. [`EfTenantMemberRepository`](./apps/api/src/EarlyEagles.Infrastructure/Tenants/EfTenantMemberRepository.cs) reads through the query filter and throws on a context created before the tenant resolved (same guard as `EfTenantRepository`). Integration via the real pipeline + Postgres (5), each on its own freshly provisioned tenant: created + audited in the tenant's log, redelivery → one row with the new role, same Clerk user in two tenants → two members with their own roles, wrong ambient → refused and nothing written, repository context-snapshot guard. Unit 310 · integration 124 + 5 skipped.
 - `[x]` **P0-036.3.2** Webhook dispatches `organizationMembership.created` → `AddTenantMemberCommand`
   ↳ verify: Adding member in Clerk → new `tenant_members` row — locally: a signed `organizationMembership.created` delivery adds the member to the organization's tenant. [`ClerkWebhookDispatcher`](./apps/api/src/EarlyEagles.Api/Webhooks/ClerkWebhookDispatcher.cs) reads `organization.id`, `public_user_data.user_id` and `role`; maps the role with [`ClerkOrganizationRoles`](./apps/api/src/EarlyEagles.Infrastructure/Identity/ClerkOrganizationRoles.cs) (`org:admin` / legacy `admin` → TenantAdmin, anything else → Member, never wider); finds the tenant with `IClerkTenantDirectory.FindTenantAsync`, sets the ambient tenant, sends the command. **No tenant for the organization yet → 503** (Svix doesn't guarantee order; the creator's membership races `organization.created`), log 1408; missing/oversized user id → 200 + Error log 1407. Integration (7 new): admin/member/custom role ×3, redelivery → one row, membership before its organization → 503 then 200 after the org lands, missing user id → no row, Alpha's admin joining a new org leaves their Alpha row untouched. Mutation: acknowledging instead of deferring fails the ordering test. Unit 325 · integration 131 + 5 skipped. **Live check carried:** a real Clerk org membership (P0-006).
-- `[ ]` **P0-036.4** Handle `user.created` → seed basic profile
-- `[ ]` **P0-036.5** Handle `user.updated` → patch profile
+- `[~]` **P0-036.4** Handle `user.created` → seed basic profile — **split** 2026-10-29, profile lives on `TenantMember`, see [Implementation-Plan appendix](./Implementation-Plan.md#p0-0364--p0-0365-split-2026-10-29)
+- `[x]` **P0-036.4.1** `TenantMember` profile fields + migration
+  ↳ verify: [`TenantMember`](./apps/api/src/EarlyEagles.Domain/Tenants/TenantMember.cs) gains `DisplayName` (≤ 200), `Email` (≤ 320), `ImageUrl` (≤ 2048), all nullable, set only through `UpdateProfile`: trims; blank, oversized, or an email without `@` (a phone-OTP identifier) → `null`, dropped rather than truncated or thrown, since the profile is cosmetic and must never fail a membership. Replaces the whole profile (a field Clerk cleared is cleared) and returns whether anything changed. Migration `AddTenantMemberProfile`: expand-only (three nullable columns). 11 unit tests (`TenantMemberProfileTests`); integration suite applies all migrations to a fresh Postgres. Unit 336 · integration 131 + 5 skipped.
+- `[ ]` **P0-036.4.2** Membership webhook seeds the profile; `user.created` acknowledged
+- `[ ]` **P0-036.5** Handle `user.updated` → patch profile — split with P0-036.4
+- `[ ]` **P0-036.5.1** `UpdateTenantMemberProfileCommand` + the user's tenants from the directory
+- `[ ]` **P0-036.5.2** Webhook dispatches `user.updated` to each of the user's tenants
 - `[x]` **P0-037** Svix signature verification on webhook endpoint
   ↳ verify: bad signature → 400; good → 200. Hand-written [`SvixWebhookVerifier`](./apps/api/src/EarlyEagles.Infrastructure/Identity/SvixWebhookVerifier.cs) (HMAC-SHA256 over `{svix-id}.{svix-timestamp}.{body}`, `whsec_` base64 key, constant-time compare across space-separated `v1,` entries, ±5 min tolerance) instead of the Svix SDK (a full API client). 27 unit tests, starting from **Svix's documentation example** (`msg_p5jXN8AQM9LWM0D4loKWxJek`, passes) + rotation, tampering, wrong key, replay ±301 s, edges ±300 s, malformed headers/secrets. Failure reason logged (EventId 1401), never returned. **Live check carried:** a real Clerk delivery once the account exists (P0-006).
 - `[ ]` **P0-038** Map Clerk org roles ↔ `tenant-admin` / `member` claims
