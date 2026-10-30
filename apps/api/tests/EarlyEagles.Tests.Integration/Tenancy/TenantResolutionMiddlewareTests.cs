@@ -79,7 +79,7 @@ public class TenantResolutionMiddlewareTests : IClassFixture<TenantResolutionMid
             {
                 services.AddSingleton<CapturedSnapshots>();
 
-                // Replace the NullTenantLookup wired in AddInfrastructure with
+                // Replace the EF-backed lookup wired in AddInfrastructure with
                 // a fake that knows about "early-eagles".
                 var fake = new FakeTenantLookup();
                 fake.Register(KnownSlug, KnownTenantId);

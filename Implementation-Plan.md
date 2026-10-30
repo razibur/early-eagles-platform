@@ -917,6 +917,20 @@ which nothing does yet. Tests sign tokens with a local RSA key; the live check w
 |---|---|
 | P0-035.2 | **Depends on** P0-020.5 only (was P0-035.1). "Audience" **reworded** to `azp`: Clerk session tokens carry no `aud`, and Clerk's guide checks `azp` against the allowed origins instead (skipped when absent). Also refuses `sts: pending`. Config: `Clerk:Issuer`, `Clerk:AuthorizedParties`; issuer unset → anonymous, malformed → startup failure. Adds `GET /me` as the first endpoint requiring a user. |
 | P0-035.1 | Kept for when the API first calls Clerk's Backend API; no longer blocks P0-035.2/.3. |
+
+### Tenant lookup and P0-038 split (2026-10-29)
+
+`ITenantLookup` was still the `NullTenantLookup` placeholder from P0-031.2, its EF version never
+tracked as a task, so no real subdomain resolved. Role claims need it: a token's role counts only
+when its active organization **is** the request's tenant, or an admin of one club could act as an
+admin on another club's subdomain. Roles come from the token: Clerk owns them, and the token is
+at most 60 s old.
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-031.5 | `EfTenantLookup` replaces `NullTenantLookup`: slug → tenant, own context, deactivated → no match | P0-033.1 | Postgres tests; Production `/whoami` resolves a real row, deactivated / unknown → 404 |
+| P0-038.1 | Tenant role claim: when the token's active org is the resolved tenant's Clerk org, add `tenant-admin` or `member`; otherwise none | P0-035.3, P0-031.5 | Admin token on its own club → `tenant-admin`; same token on another club → no role |
+| P0-038.2 | `TenantMember` / `TenantAdmin` authorization policies | P0-038.1 | No token → 401; member on an admin endpoint → 403; admin → 200 |
 ---
 
 ## Sequencing notes

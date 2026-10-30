@@ -743,9 +743,13 @@ it stays lenient so `*.localhost`/IP dev hosts work. Infra paths (`/health`, `/r
 
 ▶ [`TenantResolutionMiddleware.cs`](../apps/api/src/EarlyEagles.Api/Tenancy/TenantResolutionMiddleware.cs)
 
-> `ITenantLookup` currently has a `NullTenantLookup` placeholder (returns null for every
-> slug). The real EF-backed lookup is deferred until there is a seeded DB — so `/whoami`
-> cannot resolve a real tenant yet even with a subdomain. This is expected Phase-0 state.
+**The lookup (P0-031.5).** [`EfTenantLookup`](../apps/api/src/EarlyEagles.Infrastructure/Tenants/EfTenantLookup.cs)
+reads `tenants` by slug (lowercased; the unique index makes it one indexed read per request). It
+bypasses the query filter and opens **its own short-lived context**, like `EfClerkTenantDirectory`:
+the request's `ApplicationDbContext` snapshots the tenant when it's created, so it must not be
+created before resolution. A **deactivated** tenant doesn't resolve (its subdomain answers like an
+unknown one: 404 in Production); past-due and suspended tenants still resolve, so the app can tell
+them why they're limited. No cache yet.
 
 ### 8.4 The `/whoami` proof endpoint
 
@@ -1264,7 +1268,7 @@ operational kill switch: rows keep accumulating, only delivery pauses.
 creating them per request would reconnect every time. A failed send throws, and the drain records
 it on the row and retries next tick.
 
-The logging fallback is a placeholder in the same spirit as `NullTenantLookup`: it logs and
+The logging fallback is a placeholder: it logs and
 reports success, so the publish/stamp path runs on a laptop with no bus. **While it is bound,
 events are marked processed without reaching any bus.** Point a local API at the emulator with:
 
@@ -1556,8 +1560,8 @@ curl http://localhost:5080/ready    # {"status":"Healthy","checks":[{"name":"pos
 curl http://localhost:5080/whoami   # 400 "Tenant not resolved" (no subdomain; dev is lenient)
 ```
 
-`/whoami` returns `400` even with an `early-eagles.localhost` Host header, because
-`NullTenantLookup` resolves nothing yet — expected until the EF-backed lookup + seed land.
+`curl -H "Host: <slug>.localhost" http://localhost:5080/whoami` returns that tenant once a row with
+that slug exists (created by Clerk's `organization.created` webhook, §8.5, or inserted by hand).
 In non-Production, `/swagger` serves the API docs.
 
 **Frontend:** `npm run dev` from the repo root → http://localhost:3000 (sample dashboard).
@@ -2512,7 +2516,6 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | Area | Status | Where it plugs in |
 |---|---|---|
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
-| **EF-backed `ITenantLookup`** | deferred | replaces `NullTenantLookup` once a seeded DB exists |
 | **Audit endpoint in Production** (P0-048.2) | waits on P0-038 | `/audit-events` exists outside Production; tenant-admin authorization needs Clerk role claims |
 | **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); next: org role claims → `tenant-admin` (P0-038) |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
@@ -2595,7 +2598,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `CA1711` on a `*Collection` xUnit class | reserved suffix | rename to `*CollectionDefinition` |
 | xUnit `IAsyncLifetime` signature mismatch | v2 uses `Task`, not `ValueTask` | return `Task` |
 | Generated EF migration breaks the strict build | warnings-as-errors + StyleCop | our migrations happen to be clean; if not, mark them generated |
-| `/whoami` returns 400 even with a subdomain | `NullTenantLookup` resolves nothing yet | expected until the EF-backed lookup + seed land |
+| `/whoami` returns 400 even with a subdomain | no `tenants` row with that slug, or the tenant is deactivated | create the tenant (Clerk webhook, §8.5); deactivated tenants never resolve (§8.3) |
 | Package downgrade error after adding EF | test project pinned an older `Microsoft.Extensions.*` | bump the transitive pin to match (10.0.11) |
 | Domain events never reach the outbox | payload serialised as `IDomainEvent`, or the buffer cleared before it was read | serialise the runtime type; snapshot `DomainEvents` first |
 | `BackgroundService` test fails only in a full run | `StartAsync` schedules `ExecuteAsync`; stopping first cancels it before the body runs | wait for a log-line signal before asserting or stopping |

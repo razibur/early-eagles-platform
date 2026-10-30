@@ -5,9 +5,8 @@ namespace EarlyEagles.Infrastructure.Outbox;
 /// <summary>
 /// Placeholder <see cref="IOutboxPublisher"/> that logs each message instead of
 /// sending it, standing in until the Service Bus topic exists (P0-051, which
-/// waits on the Bicep work in P0-058.4). The same shape as
-/// <c>NullTenantLookup</c>: a real registration that keeps the pipeline whole
-/// and honest about what it does not do yet.
+/// waits on the Bicep work in P0-058.4): a real registration that keeps the
+/// pipeline whole and honest about what it does not do yet.
 /// </summary>
 /// <remarks>
 /// It reports success, so the drain stamps rows processed and the queue moves.
