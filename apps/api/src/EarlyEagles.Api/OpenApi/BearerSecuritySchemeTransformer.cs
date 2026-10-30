@@ -6,8 +6,8 @@ namespace EarlyEagles.Api.OpenApi;
 /// <summary>
 /// Declares a <c>Bearer</c> HTTP security scheme on the generated OpenAPI document
 /// so Swagger UI shows an "Authorize" button and so generated clients know how to
-/// attach a token. Tokens are Clerk-issued JWTs (per ADR-0002) — the validation
-/// middleware lands with P0-035.2; this transformer just describes the shape.
+/// attach a token. Tokens are Clerk session JWTs (per ADR-0002), validated by
+/// <c>ClerkJwtBearerOptionsSetup</c> (P0-035.2); this transformer just describes the shape.
 /// No endpoints carry a security requirement yet: /health and /ready are public,
 /// and the rest of the API is still being scaffolded. When <c>[Authorize]</c>
 /// starts going on endpoints, Microsoft.AspNetCore.OpenApi auto-generates the

@@ -20,7 +20,7 @@ Last updated: 2026-10-29
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~74% (156 / ~210 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~75% (157 / ~210 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -206,7 +206,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 ### Identity — Clerk integration
 
 - `[ ]` **P0-035.1** Install `Clerk.Net.SDK`; configure secret key from vault
-- `[ ]` **P0-035.2** JWT validation middleware (signature, expiry, audience, issuer)
+- `[x]` **P0-035.2** JWT validation middleware (signature, expiry, audience, issuer)
+  ↳ verify: [`ClerkJwtBearerOptionsSetup`](./apps/api/src/EarlyEagles.Api/Authentication/ClerkJwtBearerOptionsSetup.cs) on ASP.NET Core's JwtBearer 10.0.13 (no Clerk SDK; see [Implementation-Plan appendix](./Implementation-Plan.md#clerk-session-tokens-without-the-sdk-2026-10-29)): RS256 only, keys from `Clerk:Issuer`'s discovery doc, `iss`, `exp`/`nbf` (5 s skew), **`azp` in place of audience** (Clerk tokens have no `aud`) against `Clerk:AuthorizedParties` when present, `sts: pending` refused. Issuer unset → every request anonymous; malformed issuer/origin → startup failure. `GET /me` (requires a user) echoes `sub`/`sid`. [`ClerkJwtAuthenticationTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Authentication/ClerkJwtAuthenticationTests.cs) (16, local RSA key, no network): valid → 200 + claims; none / wrong key / HMAC / expired / not-yet-valid / wrong issuer / foreign azp / pending → 401; no azp → 200; no issuer → 401 with `/health` 200; 5 malformed settings → host won't start. Mutation: dropping the issuer, azp or sts check each fails its test. Unit 336 pass; integration: the 48 Docker-free tests pass locally (Docker engine down here), full run in CI. Live check (a real Clerk token) waits for P0-006.
 - `[ ]` **P0-035.3** Integration test: unauth → 401; valid → claims populated
 - `[x]` **P0-036.1** Endpoint `POST /api/webhooks/clerk` accepting raw body
   ↳ verify: endpoint reachable; body preserved. [`ClerkWebhookEndpoints`](./apps/api/src/EarlyEagles.Api/Webhooks/ClerkWebhookEndpoints.cs): `POST /api/webhooks/clerk`, anonymous, raw body read (≤ 1 MB, else 413) and verified before parsing; `type` read from JSON (400 if missing/not JSON); every type → 200 until handlers land (P0-036.2–.5). Tenant-agnostic (`/api/webhooks` on the middleware allow-list: Clerk calls the bare host). `Clerk:WebhookSigningSecret` unset → 503; malformed → startup failure (`ValidateOnStart`). Not in OpenAPI. Integration tests (10): signed → 200, tampered/unsigned/replayed (6 min old) → 400, no type / not JSON → 400, oversized → 413, no secret → 503, Production bare host → 200, bad secret → host won't start. Mutation: dropping the allow-list entry fails the Production test. Unit 284 · integration 108 + 5 skipped.

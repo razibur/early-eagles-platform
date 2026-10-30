@@ -121,6 +121,12 @@ public static class DependencyInjection
             .Validate(
                 options => string.IsNullOrEmpty(options.WebhookSigningSecret) || SvixWebhookVerifier.IsValidSecret(options.WebhookSigningSecret),
                 $"{ClerkOptions.SectionName}:{nameof(ClerkOptions.WebhookSigningSecret)} must look like '{SvixWebhookVerifier.SecretPrefix}<base64>'.")
+            .Validate(
+                options => string.IsNullOrEmpty(options.Issuer) || ClerkOptions.IsValidIssuer(options.Issuer),
+                $"{ClerkOptions.SectionName}:{nameof(ClerkOptions.Issuer)} must be the Frontend API URL, e.g. 'https://clerk.earlyeagles.club' (https, no path or trailing slash).")
+            .Validate(
+                options => options.AuthorizedParties.All(ClerkOptions.IsValidOrigin),
+                $"{ClerkOptions.SectionName}:{nameof(ClerkOptions.AuthorizedParties)} entries must be origins, e.g. 'https://earlyeagles.club' (no path or trailing slash).")
             .ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
 

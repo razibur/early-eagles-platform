@@ -1,4 +1,5 @@
 using EarlyEagles.Api.Auditing;
+using EarlyEagles.Api.Authentication;
 using EarlyEagles.Api.ExceptionHandling;
 using EarlyEagles.Api.Health;
 using EarlyEagles.Api.Observability;
@@ -23,6 +24,7 @@ builder.Services.AddOpenApi(options =>
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddExceptionHandling();
+builder.Services.AddClerkAuthentication();
 builder.Services.AddTransient<TenantResolutionMiddleware>();
 builder.Services.AddTransient<TelemetryEnrichmentMiddleware>();
 builder.Services.AddScoped<ClerkWebhookDispatcher>();
@@ -68,12 +70,18 @@ app.UseHttpsRedirection();
 // outside Production misses pass through unresolved for dev-host convenience.
 app.UseMiddleware<TenantResolutionMiddleware>();
 
-// Tag the request's trace span with tenant (and later user) ids (P0-089.2).
+// Clerk session tokens (P0-035.2). Before telemetry enrichment, which tags
+// the span and log scope with the user's id.
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Tag the request's trace span with tenant and user ids (P0-089.2).
 app.UseMiddleware<TelemetryEnrichmentMiddleware>();
 
 app.MapHealthEndpoints();
 app.MapTenancyEndpoints();
 app.MapTenantMembersEndpoints();
+app.MapMeEndpoints();
 
 // Clerk webhook receiver (P0-036.1); anonymous, authenticated by its Svix
 // signature (P0-037).

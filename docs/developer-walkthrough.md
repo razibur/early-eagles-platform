@@ -886,6 +886,47 @@ row lands in that club's own log. The email is the entry in `email_addresses` wh
 | missing or oversized user id | **200**, log **1410 (Error)** | a retry would fail the same way |
 | database failure in any tenant | 500 | Svix redelivers the whole event; tenants already patched report `Unchanged` |
 
+### 8.6 Clerk session tokens — JWT bearer (P0-035.2)
+
+The browser signs in with Clerk and sends its **session token** as `Authorization: Bearer …`.
+The API checks it with ASP.NET Core's own `Microsoft.AspNetCore.Authentication.JwtBearer`; no Clerk
+SDK is needed (P0-035.1's `Clerk.Net.SDK` is only for calling Clerk's Backend API, which nothing
+does yet). [`ClerkJwtBearerOptionsSetup`](../apps/api/src/EarlyEagles.Api/Authentication/ClerkJwtBearerOptionsSetup.cs)
+follows Clerk's *manual JWT verification* guide:
+
+| Check | How |
+|---|---|
+| RS256 signature from the instance's keys | `Authority` = the issuer; keys come from its OIDC discovery document and refresh on rotation. Only `RS256` is accepted (an HMAC-signed token is refused) |
+| `iss` | must equal `Clerk:Issuer` |
+| `exp` / `nbf` | 5 s clock skew, as Clerk's SDKs use (session tokens live 60 s) |
+| `azp` | must be one of `Clerk:AuthorizedParties` **when present**. Clerk omits it when the browser sent no `Origin`. Session tokens have **no `aud`**, so audience validation is off; `azp` is the CSRF guard in its place |
+| `sts` | `pending` (sign-in tasks unfinished, e.g. no organization chosen) is refused, as Clerk's SDKs treat it as signed out |
+
+Claims keep their JWT names (`MapInboundClaims = false`): `sub` is the user id (and the principal's
+`Name`), `sid` the session. `UseAuthentication` / `UseAuthorization` run after tenant resolution
+and **before** `TelemetryEnrichmentMiddleware`, which reads `sub` for `user.id`.
+
+| Setting | Where to find it |
+|---|---|
+| `Clerk:Issuer` (`Clerk__Issuer`) | the instance's Frontend API URL: `https://clerk.earlyeagles.club` (prod) or `https://<name>.clerk.accounts.dev` (dev). Not secret |
+| `Clerk:AuthorizedParties:0..n` (`Clerk__AuthorizedParties__0`) | the web origins, e.g. `http://localhost:3000`, `https://earlyeagles.club`. Not secret |
+
+Issuer unset → the scheme returns *no result* for every request, so the API boots without Clerk
+and `[Authorize]` endpoints answer 401. Issuer not `https://host` (path, trailing slash, `http`) or
+an `AuthorizedParties` entry that isn't a bare origin → the host **fails at startup**. An issuer
+set with no authorized parties refuses every token that carries `azp`.
+
+`GET /me` ([`MeEndpoints`](../apps/api/src/EarlyEagles.Api/Authentication/MeEndpoints.cs)) is the
+first endpoint that requires a user: it echoes `{ userId, sessionId }`, 401 without a valid token.
+
+**Testing without Clerk.** [`ClerkJwtAuthenticationTests`](../apps/api/tests/EarlyEagles.Tests.Integration/Authentication/ClerkJwtAuthenticationTests.cs)
+signs tokens with a local RSA key and swaps the bearer options' `ConfigurationManager` for a
+`StaticConfigurationManager` holding that key: only key discovery is faked. Covered: valid → 200
+with the claims; no token, wrong key (same `kid`), HMAC, expired, not yet valid, wrong issuer,
+foreign `azp`, pending session → 401; no `azp` → 200; no issuer → 401 while `/health` still
+answers; five malformed settings → startup failure. Mutating the issuer, `azp` or `sts` check each
+fails its test.
+
 ---
 
 ## 9. Persistence — EF Core, the query filter & migrations
@@ -2460,7 +2501,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
 | **EF-backed `ITenantLookup`** | deferred | replaces `NullTenantLookup` once a seeded DB exists |
 | **Audit endpoint in Production** (P0-048.2) | waits on P0-038 | `/audit-events` exists outside Production; tenant-admin authorization needs Clerk role claims |
-| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); next: JWT bearer and `[Authorize]` (P0-035) |
+| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer (P0-035.2, §8.6); next: org role claims → `tenant-admin` (P0-038) |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
@@ -2499,6 +2540,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | NetArchTest.Rules | 1.3.2 |
 | xunit / runner | 2.9.3 / 3.1.4 |
 | Microsoft.NET.Test.Sdk | 17.14.1 |
+| Microsoft.AspNetCore.Authentication.JwtBearer | 10.0.13 |
 | Microsoft.AspNetCore.Mvc.Testing | 10.0.9 |
 | Testcontainers.PostgreSql | 4.14.0 |
 | Next.js / React | 16.4.1 / 19.2.4 |
@@ -2575,6 +2617,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Webhook redelivery → 500, duplicate key on `IX_tenants_clerk_organization_id` | the request's `ApplicationDbContext` was created before the tenant was set, so the filter hid the existing row | platform reads use their own context; set the tenant before touching the request's (§8.5) |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 | gitleaks misses a planted secret | an allowlist with `paths` + `regexes` (OR'd), or a placeholder-looking test value | `condition = "AND"` or regex only; plant a random value (§12A) |
+| Every Clerk session token → 401 though the signature is right | `Clerk:AuthorizedParties` missing the web origin the token's `azp` names (e.g. `http://localhost:3000`) | add the exact origin, no trailing slash (§8.6) |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
 
 ---
