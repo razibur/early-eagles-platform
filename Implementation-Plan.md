@@ -906,6 +906,17 @@ and `user.updated` patches the user's member row in every club, one audited comm
 | P0-036.4.2 | Membership webhook seeds the profile from `public_user_data`; `user.created` acknowledged, nothing stored | P0-036.3.2, P0-036.4.1 | Signed membership delivery → member row with name / email / image; signed `user.created` → 200, no rows |
 | P0-036.5.1 | `UpdateTenantMemberProfileCommand` (one tenant) + `IClerkTenantDirectory` lists the tenants a Clerk user belongs to | P0-036.4.1 | Integration via the pipeline: profile patched + audited in that tenant's log; unknown member → no-op |
 | P0-036.5.2 | `user.updated` → the command for each of the user's tenants, each in its own DI scope | P0-036.5.1 | Signed delivery for a user in two clubs → both rows patched, each audited in its own tenant |
+
+### Clerk session tokens without the SDK (2026-10-29)
+
+Validating a Clerk session token needs only ASP.NET Core's JWT bearer handler and the instance's
+public keys, which its Frontend API publishes. `Clerk.Net.SDK` is for calling Clerk's Backend API,
+which nothing does yet. Tests sign tokens with a local RSA key; the live check waits for P0-006.
+
+| ID | Change |
+|---|---|
+| P0-035.2 | **Depends on** P0-020.5 only (was P0-035.1). "Audience" **reworded** to `azp`: Clerk session tokens carry no `aud`, and Clerk's guide checks `azp` against the allowed origins instead (skipped when absent). Also refuses `sts: pending`. Config: `Clerk:Issuer`, `Clerk:AuthorizedParties`; issuer unset → anonymous, malformed → startup failure. Adds `GET /me` as the first endpoint requiring a user. |
+| P0-035.1 | Kept for when the API first calls Clerk's Backend API; no longer blocks P0-035.2/.3. |
 ---
 
 ## Sequencing notes
