@@ -20,7 +20,7 @@ Last updated: 2026-10-30
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~78% (166 / ~214 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~79% (168 / ~214 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -257,16 +257,19 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 
 ### Billing — Stripe integration (scaffolding only)
 
-- `[ ]` **P0-041.1** Install `Stripe.net` + `@stripe/stripe-js`; configure keys
+- `[~]` **P0-041.1** Install `Stripe.net` + `@stripe/stripe-js`; configure keys
+  ↳ verify: backend half done with P0-043.1: `Stripe.net` 53.1.0 in Infrastructure (pins API `2026-10-28.endive`). Still open: the API keys (needs the Stripe account) and `@stripe/stripe-js` (Phase 2 checkout UI).
 - `[ ]` **P0-041.2** Stripe CLI installed locally for webhook testing
 - `[ ]` **P0-042.1** Stripe dashboard: Free product + $0/mo price (test mode)
 - `[ ]` **P0-042.2** Stripe dashboard: Pro product + $25/mo price (test mode)
 - `[ ]` **P0-042.3** Stripe dashboard: Enterprise product + placeholder price
-- `[ ]` **P0-043.1** Endpoint `POST /api/webhooks/stripe` accepting raw body
+- `[x]` **P0-043.1** Endpoint `POST /api/webhooks/stripe` accepting raw body
+  ↳ verify: [`StripeWebhookEndpoints`](./apps/api/src/EarlyEagles.Api/Webhooks/StripeWebhookEndpoints.cs): anonymous, out of the OpenAPI document, on the bare host (`/api/webhooks` is on the tenant allow-list; Production test → 200). Body read raw, capped at 1 MB by the [`WebhookBody`](./apps/api/src/EarlyEagles.Api/Webhooks/WebhookBody.cs) reader now shared with Clerk's endpoint (→ 413). `Stripe:WebhookSigningSecret` unset → 503; not `whsec_…` → startup failure. A verified event is logged (type, id, live mode; event 1600) and acknowledged with 200; handlers are P0-043.2–.4. Integration: [`StripeWebhookEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Webhooks/StripeWebhookEndpointTests.cs) (10).
 - `[ ]` **P0-043.2** Handle `checkout.session.completed` → `SubscriptionStarted` event
 - `[ ]` **P0-043.3** Handle `customer.subscription.*` family → state-change events
 - `[ ]` **P0-043.4** Handle `invoice.payment_failed` → `PaymentFailed` event
-- `[ ]` **P0-044** Stripe webhook signature verification
+- `[x]` **P0-044** Stripe webhook signature verification
+  ↳ verify: [`StripeWebhookVerifier`](./apps/api/src/EarlyEagles.Infrastructure/Billing/StripeWebhookVerifier.cs) wraps Stripe.net's `EventUtility.ValidateSignature` with the clock from `TimeProvider`, then parses only a signed body. No header / wrong secret / changed body / timestamp >300 s either way → 400 "Invalid webhook signature" (reason logged, not returned); signed but not an event (no `id`, `type` or `api_version`) → 400 malformed; signed event from another API release train → 400 naming the expected version, logged as an error. Unit 20 (headers from Stripe.net's `GenerateSignatureHeader`, ±299 s accepted, ±301 s refused); mutation-checked: dropping the signature check, the tolerance, the version check or the secret validation each fail tests. Unit 376, integration 210 + 5 skipped. Live check with `stripe listen` waits for the Stripe account (P0-041.2).
 - `[ ]` **P0-045.1** Migration: add `stripe_customer_id`, `stripe_subscription_id` to `tenants`
 - `[ ]` **P0-045.2** Subscription event → look up tenant → update Plan
 - `[ ]` **P0-045.3** Integration test: simulated webhook updates tenant plan

@@ -88,6 +88,10 @@ app.MapMeEndpoints();
 // signature (P0-037).
 app.MapClerkWebhookEndpoints();
 
+// Stripe webhook receiver (P0-043.1); anonymous, authenticated by its
+// Stripe-Signature (P0-044).
+app.MapStripeWebhookEndpoints();
+
 // Audit log query (P0-048.1), tenant admins only (P0-048.2).
 app.MapAuditEventsEndpoints();
 

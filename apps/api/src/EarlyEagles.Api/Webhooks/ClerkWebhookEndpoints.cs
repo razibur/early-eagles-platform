@@ -30,7 +30,7 @@ public static class ClerkWebhookEndpoints
     public const string Route = "/api/webhooks/clerk";
 
     /// <summary>Clerk events are a few KB; anything this size is not one.</summary>
-    public const int MaxBodyBytes = 1024 * 1024;
+    public const int MaxBodyBytes = WebhookBody.MaxBytes;
 
     private const string LoggerCategory = "EarlyEagles.Api.Webhooks.ClerkWebhook";
 
@@ -65,7 +65,7 @@ public static class ClerkWebhookEndpoints
                 detail: "This environment has no Clerk webhook signing secret.");
         }
 
-        var body = await ReadBodyAsync(request, cancellationToken).ConfigureAwait(false);
+        var body = await WebhookBody.ReadAsync(request, cancellationToken).ConfigureAwait(false);
         if (body is null)
         {
             return TypedResults.Problem(
@@ -111,30 +111,6 @@ public static class ClerkWebhookEndpoints
         }
 
         return TypedResults.Ok();
-    }
-
-    /// <summary>The body as received, or null when it exceeds <see cref="MaxBodyBytes"/>.</summary>
-    private static async Task<byte[]?> ReadBodyAsync(HttpRequest request, CancellationToken cancellationToken)
-    {
-        if (request.ContentLength > MaxBodyBytes)
-        {
-            return null;
-        }
-
-        using var buffer = new MemoryStream();
-        var chunk = new byte[16 * 1024];
-        int read;
-        while ((read = await request.Body.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
-        {
-            if (buffer.Length + read > MaxBodyBytes)
-            {
-                return null;
-            }
-
-            buffer.Write(chunk, 0, read);
-        }
-
-        return buffer.ToArray();
     }
 
     private static JsonDocument? TryParse(byte[] body)
