@@ -107,7 +107,7 @@ public sealed class TenantResolutionMiddleware : IMiddleware
             return;
         }
 
-        initializer.Initialize(result.TenantId, result.Slug);
+        initializer.Initialize(result.TenantId, result.Slug, result.ClerkOrganizationId);
         await next(context).ConfigureAwait(false);
     }
 

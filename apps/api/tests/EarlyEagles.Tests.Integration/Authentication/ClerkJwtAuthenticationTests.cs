@@ -22,12 +22,10 @@ namespace EarlyEagles.Tests.Integration.Authentication;
 // or network is involved; everything after key discovery is the real pipeline.
 public sealed class ClerkJwtAuthenticationTests
 {
-    private const string Issuer = "https://test-instance.clerk.accounts.dev";
-    private const string AllowedOrigin = "https://earlyeagles.club";
+    private const string Issuer = ClerkTestTokens.Issuer;
+    private const string AllowedOrigin = ClerkTestTokens.AllowedOrigin;
     private const string UserId = "user_2abcJwtCheck";
     private const string SessionId = "sess_2abcJwtCheck";
-
-    private static readonly RsaSecurityKey InstanceKey = NewKey("ins_key_1");
 
     [Fact]
     public async Task A_Request_Without_A_Token_Is_Unauthorized()
@@ -48,7 +46,7 @@ public sealed class ClerkJwtAuthenticationTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<MeResponse>();
-        Assert.Equal(new MeResponse(UserId, SessionId, Organization: null), body);
+        Assert.Equal(new MeResponse(UserId, SessionId, Organization: null, TenantRole: null), body);
     }
 
     [Fact]
@@ -231,38 +229,10 @@ public sealed class ClerkJwtAuthenticationTests
         SigningCredentials? credentials = null,
         DateTime? notBefore = null,
         DateTime? expires = null,
-        Dictionary<string, object>? extra = null)
-    {
-        var now = DateTime.UtcNow;
-        var claims = new Dictionary<string, object>
-        {
-            ["sub"] = UserId,
-            ["sid"] = SessionId,
-            ["v"] = 2,
-        };
-        if (azp is not null)
-        {
-            claims["azp"] = azp;
-        }
+        Dictionary<string, object>? extra = null) =>
+        ClerkTestTokens.Create(UserId, SessionId, issuer, azp, key, credentials, notBefore, expires, extra);
 
-        foreach (var (name, value) in extra ?? [])
-        {
-            claims[name] = value;
-        }
-
-        var start = notBefore ?? now.AddSeconds(-10);
-        return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
-        {
-            Issuer = issuer,
-            IssuedAt = start,
-            NotBefore = start,
-            Expires = expires ?? now.AddSeconds(60),
-            Claims = claims,
-            SigningCredentials = credentials ?? new SigningCredentials(key ?? InstanceKey, SecurityAlgorithms.RsaSha256),
-        });
-    }
-
-    private static RsaSecurityKey NewKey(string keyId) => new(RSA.Create(2048)) { KeyId = keyId };
+    private static RsaSecurityKey NewKey(string keyId) => ClerkTestTokens.NewKey(keyId);
 
     private sealed class ClerkJwtFactory : WebApplicationFactory<Program>
     {
@@ -278,19 +248,7 @@ public sealed class ClerkJwtAuthenticationTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Development");
-            builder.UseSetting("Clerk:Issuer", issuer ?? string.Empty);
-            builder.UseSetting("Clerk:AuthorizedParties:0", authorizedParty);
-            builder.ConfigureServices(services =>
-            {
-                // Stand-in for the instance's JWKS: the signing key is served
-                // from memory instead of {issuer}/.well-known/openid-configuration.
-                services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
-                {
-                    var configuration = new OpenIdConnectConfiguration { Issuer = issuer };
-                    configuration.SigningKeys.Add(InstanceKey);
-                    options.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(configuration);
-                });
-            });
+            ClerkTestTokens.UseTestIssuer(builder, issuer, authorizedParty);
         }
     }
 }

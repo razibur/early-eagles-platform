@@ -15,6 +15,7 @@ public interface ITenantLookup
 
 /// <summary>
 /// Result of a tenant slug lookup. Carries the canonical slug as stored — the
-/// caller may have provided a differently-cased input.
+/// caller may have provided a differently-cased input — and the tenant's Clerk
+/// organization, when linked.
 /// </summary>
-public sealed record TenantLookupResult(Guid TenantId, string Slug);
+public sealed record TenantLookupResult(Guid TenantId, string Slug, string? ClerkOrganizationId = null);

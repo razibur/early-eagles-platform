@@ -20,7 +20,9 @@ namespace EarlyEagles.Api.Authentication;
 /// <para>A pending session (<c>sts: pending</c>, e.g. a user who still has to
 /// pick an organization) is refused, as Clerk's own SDKs treat it as signed out.</para>
 /// <para>Claims keep their JWT names (<c>sub</c>, <c>sid</c>, <c>o</c>); nothing
-/// is remapped to the long WS-Federation URIs.</para>
+/// is remapped to the long WS-Federation URIs. A <see cref="TenantRoles.ClaimType"/>
+/// claim in the token itself (a custom session claim) is dropped: that role is
+/// only ever granted by <see cref="TenantRoleClaimsTransformation"/>.</para>
 /// </remarks>
 public sealed class ClerkJwtBearerOptionsSetup : IConfigureNamedOptions<JwtBearerOptions>
 {
@@ -88,6 +90,15 @@ public sealed class ClerkJwtBearerOptionsSetup : IConfigureNamedOptions<JwtBeare
                 if (principal.FindFirst(ClerkClaims.SessionStatus)?.Value == PendingSessionStatus)
                 {
                     context.Fail("The session is pending.");
+                    return Task.CompletedTask;
+                }
+
+                foreach (var identity in principal.Identities)
+                {
+                    foreach (var claim in identity.FindAll(TenantRoles.ClaimType).ToList())
+                    {
+                        identity.TryRemoveClaim(claim);
+                    }
                 }
 
                 return Task.CompletedTask;

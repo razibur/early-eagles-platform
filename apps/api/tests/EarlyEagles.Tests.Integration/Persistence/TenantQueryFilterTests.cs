@@ -92,5 +92,7 @@ public class TenantQueryFilterTests
         public string Slug => tenantId is not null
             ? "test-tenant"
             : throw new InvalidOperationException("Not resolved.");
+
+        public string? ClerkOrganizationId => null;
     }
 }
