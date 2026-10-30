@@ -947,6 +947,12 @@ as `tenantRole`.
 token could arrive with its own `ee_tenant_role: tenant-admin`. The bearer handler drops that
 claim on validation; only the transformation grants it. A test pins this.
 
+**Policies (P0-038.2).** [`TenantPolicies`](../apps/api/src/EarlyEagles.Api/Authentication/TenantPolicies.cs):
+`TenantMember` (role `member` or `tenant-admin`) and `TenantAdmin` (`tenant-admin`), both on top of
+an authenticated user. Guard an endpoint with `.RequireAuthorization(TenantPolicies.Admin)`. No
+token → **401**; signed in without the role (another club, no active org, plain member on an
+admin endpoint) → **403**.
+
 **Testing without Clerk.** [`ClerkJwtAuthenticationTests`](../apps/api/tests/EarlyEagles.Tests.Integration/Authentication/ClerkJwtAuthenticationTests.cs)
 signs tokens with a local RSA key and swaps the bearer options' `ConfigurationManager` for a
 `StaticConfigurationManager` holding that key: only key discovery is faked. Covered: valid → 200
@@ -2528,7 +2534,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 |---|---|---|
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
 | **Audit endpoint in Production** (P0-048.2) | waits on P0-038 | `/audit-events` exists outside Production; tenant-admin authorization needs Clerk role claims |
-| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); and grants `tenant-admin` / `member` only on the session's own club (P0-038.1); next: authorization policies (P0-038.2) |
+| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); and grants `tenant-admin` / `member` only on the session's own club (P0-038.1); `TenantMember` / `TenantAdmin` policies (P0-038.2) |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
