@@ -1,9 +1,10 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Domain.Auditing;
 using EarlyEagles.Domain.Tenants;
 using EarlyEagles.Infrastructure.Tenancy;
+using EarlyEagles.Tests.Integration.Authentication;
 using EarlyEagles.Tests.Integration.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -17,11 +18,16 @@ namespace EarlyEagles.Tests.Integration.Auditing;
 // P0-048.1 — GET /audit-events against the real query filter and keyset
 // paging. Uses its own two tenants (Gamma, Delta) so the rows it seeds don't
 // disturb the shared Alpha/Beta fixtures other tests count against.
+// P0-048.2 — tenant admins only, in every environment: requests carry a signed
+// Clerk session token whose active organization is the tenant's, and the
+// tenants resolve through the real EfTenantLookup.
 [Collection(PostgresCollectionDefinition.Name)]
 public class AuditEventsEndpointTests : IAsyncLifetime
 {
     private const string GammaSlug = "gamma-audit";
     private const string DeltaSlug = "delta-audit";
+    private const string GammaOrg = "org_gamma_audit";
+    private const string DeltaOrg = "org_delta_audit";
 
     private static readonly Guid GammaTenantId = new("cccccccc-0048-0000-0000-000000000001");
     private static readonly Guid DeltaTenantId = new("dddddddd-0048-0000-0000-000000000001");
@@ -42,9 +48,11 @@ public class AuditEventsEndpointTests : IAsyncLifetime
         // row, so a plain lookup would never see an earlier test's seed.
         if (!await db.Tenants.IgnoreQueryFilters().AnyAsync(t => t.Id == GammaTenantId))
         {
-            db.Tenants.AddRange(
-                Tenant.Create(GammaTenantId, GammaSlug, "Gamma Club"),
-                Tenant.Create(DeltaTenantId, DeltaSlug, "Delta Club"));
+            var gammaTenant = Tenant.Create(GammaTenantId, GammaSlug, "Gamma Club");
+            gammaTenant.LinkClerkOrganization(GammaOrg);
+            var deltaTenant = Tenant.Create(DeltaTenantId, DeltaSlug, "Delta Club");
+            deltaTenant.LinkClerkOrganization(DeltaOrg);
+            db.Tenants.AddRange(gammaTenant, deltaTenant);
 
             // Gamma: seven events, three of them sharing one timestamp so the
             // id tie-break is exercised across a page boundary.
@@ -146,31 +154,73 @@ public class AuditEventsEndpointTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Unresolved_Tenant_Returns_400()
+    public async Task Without_A_Token_Returns_401()
     {
         using var factory = new AuditFactory(fixture.ConnectionString);
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Host = $"{GammaSlug}.earlyeagles.club";
 
-        var response = await factory.CreateClient().GetAsync(new Uri("/audit-events", UriKind.Relative));
+        var response = await client.GetAsync(new Uri("/audit-events", UriKind.Relative));
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
-    public async Task Not_Mapped_In_Production_Until_Admin_Only()
+    public async Task A_Plain_Member_Gets_403()
+    {
+        using var factory = new AuditFactory(fixture.ConnectionString);
+
+        var response = await ClientFor(factory, GammaSlug, GammaOrg, "member").GetAsync(new Uri("/audit-events", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task An_Admin_Of_Another_Club_Gets_403()
+    {
+        using var factory = new AuditFactory(fixture.ConnectionString);
+
+        var response = await ClientFor(factory, GammaSlug, DeltaOrg).GetAsync(new Uri("/audit-events", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Without_A_Tenant_Even_A_Signed_In_Admin_Gets_403()
+    {
+        // Bare host: no tenant, so no tenant role, whatever the token says.
+        using var factory = new AuditFactory(fixture.ConnectionString);
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Bearer(GammaOrg, "admin");
+
+        var response = await client.GetAsync(new Uri("/audit-events", UriKind.Relative));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task In_Production_A_Tenant_Admin_Reads_The_Log()
     {
         using var factory = new AuditFactory(fixture.ConnectionString, environment: "Production");
 
-        var response = await ClientFor(factory, GammaSlug).GetAsync(new Uri("/audit-events", UriKind.Relative));
+        var page = await ClientFor(factory, DeltaSlug, DeltaOrg).GetFromJsonAsync<PageDto>(new Uri("/audit-events", UriKind.Relative));
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.NotNull(page);
+        Assert.Equal(3, page!.Items.Count);
     }
 
-    private static HttpClient ClientFor(AuditFactory factory, string slug)
+    // A client on the slug's subdomain, signed in with an organization active
+    // (default: the slug's own, as admin).
+    private static HttpClient ClientFor(AuditFactory factory, string slug, string? organization = null, string role = "admin")
     {
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Host = $"{slug}.earlyeagles.club";
+        client.DefaultRequestHeaders.Authorization = Bearer(organization ?? (slug == GammaSlug ? GammaOrg : DeltaOrg), role);
         return client;
     }
+
+    private static AuthenticationHeaderValue Bearer(string organization, string role) =>
+        new("Bearer", ClerkTestTokens.Create("user_audit_reader", "sess_audit_reader", extra: ClerkTestTokens.ActiveOrganization(organization, role)));
 
     private sealed record PageDto(IReadOnlyList<ItemDto> Items, string? NextCursor);
 
@@ -190,24 +240,12 @@ public class AuditEventsEndpointTests : IAsyncLifetime
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(environment);
+            ClerkTestTokens.UseTestIssuer(builder);
             builder.ConfigureServices(services =>
             {
-                services.RemoveAll<ITenantLookup>();
-                services.AddSingleton<ITenantLookup>(new SlugLookup());
                 services.RemoveAll<NpgsqlDataSource>();
                 services.AddSingleton(_ => NpgsqlDataSource.Create(connectionString));
             });
         }
-    }
-
-    private sealed class SlugLookup : ITenantLookup
-    {
-        public Task<TenantLookupResult?> FindBySlugAsync(string slug, CancellationToken cancellationToken) =>
-            Task.FromResult(slug switch
-            {
-                GammaSlug => new TenantLookupResult(GammaTenantId, GammaSlug),
-                DeltaSlug => new TenantLookupResult(DeltaTenantId, DeltaSlug),
-                _ => (TenantLookupResult?)null,
-            });
     }
 }
