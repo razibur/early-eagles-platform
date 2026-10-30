@@ -1404,9 +1404,10 @@ follows the existing `(tenant_id, occurred_at DESC)` index. Offset paging would 
 log grows and skip or repeat rows when new events arrive between pages. The handler fetches
 `limit + 1` rows to learn whether another page exists, so it never needs a `COUNT`.
 
-**Not in Production yet.** The task says *tenant-admin only*, and admin role claims come from
-Clerk (P0-038). Until P0-048.2 adds that policy, `Program.cs` maps the endpoint only outside
-Production, and a test pins the 404 in Production.
+**Tenant admins only (P0-048.2).** The endpoint carries `.RequireAuthorization(TenantPolicies.Admin)`
+(§8.6) and is mapped in every environment. No token → 401; a plain member, another club's admin,
+or a request with no tenant → 403. The tests sign admin tokens for tenants linked to Clerk
+organizations and resolve them through the real `EfTenantLookup`.
 
 ▶ Reference: [`ListAuditEventsQueryHandler.cs`](../apps/api/src/EarlyEagles.Application/Auditing/ListAuditEventsQueryHandler.cs),
 [`EfAuditLogReader.cs`](../apps/api/src/EarlyEagles.Infrastructure/Auditing/EfAuditLogReader.cs),
@@ -2533,7 +2534,6 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | Area | Status | Where it plugs in |
 |---|---|---|
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
-| **Audit endpoint in Production** (P0-048.2) | waits on P0-038 | `/audit-events` exists outside Production; tenant-admin authorization needs Clerk role claims |
 | **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); and grants `tenant-admin` / `member` only on the session's own club (P0-038.1); `TenantMember` / `TenantAdmin` policies (P0-038.2) |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |

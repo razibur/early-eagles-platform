@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using EarlyEagles.Application.Abstractions.Tenancy;
+using EarlyEagles.Tests.Integration.Authentication;
 using EarlyEagles.Tests.Integration.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -13,9 +14,14 @@ namespace EarlyEagles.Tests.Integration.Observability;
 // P0-090 — log lines written while a tenant request runs carry TenantId and
 // TenantSlug from the enrichment middleware's scope. Drives a real query
 // through the Mediator pipeline, whose LoggingBehavior logs "Handling …".
+// The endpoint is tenant-admin only (P0-048.2), so the request carries a signed
+// admin session and the scope carries its user id too.
 [Collection(PostgresCollectionDefinition.Name)]
 public class TenantLogScopeTests
 {
+    private const string AlphaOrg = "org_scope_alpha";
+    private const string UserId = "user_scope_check";
+
     private readonly PostgresFixture fixture;
 
     public TenantLogScopeTests(PostgresFixture fixture) => this.fixture = fixture;
@@ -28,13 +34,15 @@ public class TenantLogScopeTests
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Host = $"{PostgresFixture.AlphaSlug}.localhost";
 
-        var response = await client.GetAsync(new Uri("/audit-events", UriKind.Relative));
+        var token = ClerkTestTokens.Create(UserId, "sess_scope_check", extra: ClerkTestTokens.ActiveOrganization(AlphaOrg, "admin"));
+
+        var response = await client.SendAsync(ClerkTestTokens.Get("/audit-events", token));
         response.EnsureSuccessStatusCode();
 
         var handling = Assert.Single(provider.Entries, e => e.Message.StartsWith("Handling ListAuditEventsQuery", StringComparison.Ordinal));
         Assert.Equal(PostgresFixture.AlphaTenantId, handling.Scope["TenantId"]);
         Assert.Equal(PostgresFixture.AlphaSlug, handling.Scope["TenantSlug"]);
-        Assert.False(handling.Scope.ContainsKey("UserId"));
+        Assert.Equal(UserId, handling.Scope["UserId"]);
     }
 
     private sealed record Entry(string Message, IReadOnlyDictionary<string, object?> Scope);
@@ -54,6 +62,7 @@ public class TenantLogScopeTests
         {
             builder.UseEnvironment("Development");
             builder.ConfigureLogging(logging => logging.AddProvider(provider));
+            ClerkTestTokens.UseTestIssuer(builder);
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<ITenantLookup>();
@@ -67,7 +76,7 @@ public class TenantLogScopeTests
     private sealed class AlphaLookup : ITenantLookup
     {
         public Task<TenantLookupResult?> FindBySlugAsync(string slug, CancellationToken cancellationToken) =>
-            Task.FromResult(slug == PostgresFixture.AlphaSlug ? new TenantLookupResult(PostgresFixture.AlphaTenantId, slug) : null);
+            Task.FromResult(slug == PostgresFixture.AlphaSlug ? new TenantLookupResult(PostgresFixture.AlphaTenantId, slug, AlphaOrg) : null);
     }
 
     // Records every log line with the key/value pairs of every scope active

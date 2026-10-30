@@ -1,3 +1,4 @@
+using EarlyEagles.Api.Authentication;
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Application.Auditing;
 using Mediator;
@@ -11,10 +12,8 @@ namespace EarlyEagles.Api.Auditing;
 /// (the previous page's <c>nextCursor</c>).
 /// </summary>
 /// <remarks>
-/// Not mapped in Production yet: the log must be tenant-admin only, and admin
-/// role claims arrive with Clerk (P0-038). P0-048.2 adds that policy and maps
-/// the endpoint everywhere. Until then an unauthenticated audit endpoint must
-/// never reach a real tenant.
+/// Tenant admins only (P0-048.2, <see cref="TenantPolicies.Admin"/>): no token
+/// -> 401, a member or another club's admin -> 403. Mapped in every environment.
 /// </remarks>
 public static class AuditEventsEndpoints
 {
@@ -24,6 +23,7 @@ public static class AuditEventsEndpoints
 
         routes
             .MapGet("/audit-events", ListAuditEvents)
+            .RequireAuthorization(TenantPolicies.Admin)
             .WithName("ListAuditEvents")
             .WithTags("Auditing");
 

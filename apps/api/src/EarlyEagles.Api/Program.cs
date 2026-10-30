@@ -87,12 +87,8 @@ app.MapMeEndpoints();
 // signature (P0-037).
 app.MapClerkWebhookEndpoints();
 
-// Audit log query (P0-048.1). Outside Production only until it is restricted
-// to tenant admins (P0-048.2, needs Clerk role claims from P0-038).
-if (!app.Environment.IsProduction())
-{
-    app.MapAuditEventsEndpoints();
-}
+// Audit log query (P0-048.1), tenant admins only (P0-048.2).
+app.MapAuditEventsEndpoints();
 
 app.Run();
 
