@@ -1,11 +1,14 @@
+using System.Net.Http.Headers;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using EarlyEagles.Application.Abstractions.Auditing;
+using EarlyEagles.Application.Abstractions.Email;
 using EarlyEagles.Application.Abstractions.Messaging;
 using EarlyEagles.Application.Abstractions.Persistence;
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Infrastructure.Auditing;
+using EarlyEagles.Infrastructure.Email;
 using EarlyEagles.Infrastructure.Identity;
 using EarlyEagles.Infrastructure.Messaging;
 using EarlyEagles.Infrastructure.Outbox;
@@ -16,6 +19,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace EarlyEagles.Infrastructure;
@@ -33,6 +37,9 @@ public static class DependencyInjection
     // Also used by the design-time factory when no override env var is set.
     internal const string DefaultConnectionString =
         "Host=localhost;Port=5432;Database=earlyeagles;Username=postgres;Password=postgres";
+
+    private static readonly string UserAgentVersion =
+        typeof(DependencyInjection).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
@@ -129,6 +136,7 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
 
+        AddEmailSender(services, configuration);
         AddOutboxPublisher(services, configuration);
 
         services.AddHostedService<OutboxProcessor>();
@@ -146,6 +154,37 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(configuration);
         return !string.IsNullOrWhiteSpace(configuration.GetConnectionString(ServiceBusOptions.ConnectionStringName))
             || !string.IsNullOrWhiteSpace(configuration[$"{ServiceBusOptions.SectionName}:{nameof(ServiceBusOptions.FullyQualifiedNamespace)}"]);
+    }
+
+    // Transactional email (P0-053.1). With an API key: Resend, over a typed
+    // HttpClient carrying the key and the User-Agent Resend insists on. A key
+    // without a valid From fails at startup. Without a key: the logging
+    // stand-in, so a laptop runs every email path and sends nothing.
+    private static void AddEmailSender(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<ResendOptions>()
+            .Bind(configuration.GetSection(ResendOptions.SectionName))
+            .Validate(
+                options => string.IsNullOrEmpty(options.ApiKey) || options.ApiKey.StartsWith(ResendOptions.ApiKeyPrefix, StringComparison.Ordinal),
+                $"{ResendOptions.SectionName}:{nameof(ResendOptions.ApiKey)} must look like '{ResendOptions.ApiKeyPrefix}…'.")
+            .Validate(
+                options => string.IsNullOrEmpty(options.ApiKey) || ResendOptions.IsValidFrom(options.From),
+                $"{ResendOptions.SectionName}:{nameof(ResendOptions.From)} must be set to a sender on a verified domain, e.g. 'Early Eagles <no-reply@earlyeagles.club>'.")
+            .ValidateOnStart();
+
+        if (string.IsNullOrEmpty(configuration[$"{ResendOptions.SectionName}:{nameof(ResendOptions.ApiKey)}"]))
+        {
+            services.AddSingleton<IEmailSender, LoggingEmailSender>();
+            return;
+        }
+
+        services.AddHttpClient<IEmailSender, ResendEmailSender>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<ResendOptions>>().Value;
+            client.BaseAddress = ResendOptions.BaseAddress;
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiKey);
+            client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("EarlyEagles", UserAgentVersion));
+        });
     }
 
     // Where outbox rows go (P0-050.2.2), and who listens (P0-052). Azure: the namespace from config,

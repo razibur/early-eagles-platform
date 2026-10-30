@@ -1429,6 +1429,49 @@ checks "already there?" must use `IgnoreQueryFilters()`.
 order differ. The tie-break is valid only because the ordering *and* the cursor comparison both
 run in SQL. Tests compute the expected order with a SQL `ORDER BY`.
 
+### 9.9 Transactional email — `IEmailSender` (P0-053.1)
+
+Application code sends email through one port, `IEmailSender.SendAsync(EmailMessage)`. The message
+has recipients, subject, HTML and optionally plain text, reply-to and an **idempotency key**. It
+has no sender: every email goes out as the configured `Resend:From`, so a handler can't send as
+anyone else. Call it from outbox consumers rather than request handlers. Then a Resend outage
+delays an email instead of failing a request, and a key such as `payment-confirmed/{outboxId}`
+stops a redelivered message from sending twice. Resend keeps keys for 24 hours.
+
+Infrastructure registers one of two implementations:
+
+| `Resend:ApiKey` | Registered | Behaviour |
+|---|---|---|
+| unset | `LoggingEmailSender` | logs the subject and recipient count (event 1501), sends nothing, returns `null` |
+| `re_…` | `ResendEmailSender` | `POST https://api.resend.com/emails` with a typed `HttpClient`, returns Resend's email id |
+
+No Resend SDK: one endpoint doesn't justify the dependency. The typed client gets the base
+address, `Authorization: Bearer <key>` and a `User-Agent` at registration. The body is snake_case
+JSON (`from`, `to`, `subject`, `html`, `text`, `reply_to`), with empty fields left out, and the key
+goes in an `Idempotency-Key` header.
+
+A refusal throws `EmailDeliveryException` with the HTTP status, Resend's error `name`
+(`validation_error`, `rate_limit_exceeded`, …) and **`IsTransient`**. Rate limits (429), 5xx, a
+timeout or an unreachable host are transient: retry later. Anything else (an unverified domain,
+a malformed address) will fail again unchanged. The caller's own cancellation is passed through,
+not wrapped. Requests with no recipients or more than 50, or with an idempotency key over 256
+characters, are refused before anything is sent. Addresses and bodies never reach a log line or
+an exception message.
+
+Settings (`Resend__ApiKey` from user-secrets / Key Vault, never appsettings):
+
+```pwsh
+dotnet user-secrets set "Resend:ApiKey" "re_..." --project apps/api/src/EarlyEagles.Api
+dotnet user-secrets set "Resend:From" "Early Eagles <no-reply@earlyeagles.club>" --project apps/api/src/EarlyEagles.Api
+```
+
+A key not starting `re_`, or a key with a missing or unparseable `From`, stops the API at startup.
+The first real send is P0-055, after the Resend account (P0-011) and a verified domain.
+
+⚠ **Gotcha — Resend answers 403 (error 1010) to a request without `User-Agent`.** `HttpClient`
+sends none by default, and the error looks like a bad key. The registration adds
+`EarlyEagles/<version>`.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
@@ -2537,6 +2580,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 |---|---|---|
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
 | **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); and grants `tenant-admin` / `member` only on the session's own club (P0-038.1); `TenantMember` / `TenantAdmin` policies (P0-038.2) |
+| **Email (Resend)** | sender built | `IEmailSender` with a Resend and a logging implementation (P0-053.1, §9.9); the first real send waits for the account (P0-011, P0-055) |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
@@ -2576,6 +2620,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | xunit / runner | 2.9.3 / 3.1.4 |
 | Microsoft.NET.Test.Sdk | 17.14.1 |
 | Microsoft.AspNetCore.Authentication.JwtBearer | 10.0.13 |
+| Microsoft.Extensions.Http (typed `HttpClient`, Infrastructure) | 10.0.13 |
 | Microsoft.AspNetCore.Mvc.Testing | 10.0.9 |
 | Testcontainers.PostgreSql | 4.14.0 |
 | Next.js / React | 16.4.1 / 19.2.4 |
@@ -2656,6 +2701,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Swagger UI's *Authorize* token isn't sent / generated client omits the token | the operation has no `security` requirement | it comes from `BearerSecurityRequirementOperationTransformer`; guard the endpoint with `RequireAuthorization` (§7) |
 | Role from a v2 session token is `admin`, webhook role is `org:admin` | v2's compact `o.rol` omits the prefix | read it through `ClerkActiveOrganization.From`, which restores it (§8.6) |
 | Every Clerk session token → 401 though the signature is right | `Clerk:AuthorizedParties` missing the web origin the token's `azp` names (e.g. `http://localhost:3000`) | add the exact origin, no trailing slash (§8.6) |
+| Resend → 403 with error 1010 though the API key is right | the request has no `User-Agent` header | send one; the typed client registration adds `EarlyEagles/<version>` (§9.9) |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
 
 ---
