@@ -829,6 +829,14 @@ its 40-line verification is needed. If Clerk ever moves to the *Standard Webhook
 (`webhook-id`, `webhook-timestamp`, `webhook-signature`), the algorithm is identical and only the
 header names change.
 
+**Members (P0-036.3).** A Clerk organization membership is a `tenant_members` row, keyed by
+`(tenant_id, clerk_user_id)`, so the same person is a separate member in each club.
+[`AddTenantMemberCommand`](../apps/api/src/EarlyEagles.Application/TenantMembers/AddTenantMemberCommand.cs)
+inserts the member, or on a redelivery sets the role to whatever Clerk sent: Clerk owns the role.
+Like `ProvisionTenantCommand`, it refuses to run unless the ambient tenant is the member's tenant,
+so the audit row lands in that club's log. `EfTenantMemberRepository` has the same
+context-snapshot guard as `EfTenantRepository` (see the gotcha above).
+
 ---
 
 ## 9. Persistence — EF Core, the query filter & migrations

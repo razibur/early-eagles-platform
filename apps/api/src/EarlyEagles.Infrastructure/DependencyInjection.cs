@@ -85,6 +85,9 @@ public static class DependencyInjection
         services.AddScoped<ITenantRepository, EfTenantRepository>();
         services.AddScoped<IClerkTenantDirectory, EfClerkTenantDirectory>();
 
+        // Tenant member write side (P0-036.3.1), same request-scoped context.
+        services.AddScoped<ITenantMemberRepository, EfTenantMemberRepository>();
+
         // Unit of work (P0-024.3) backing TransactionBehavior. Scoped so it
         // shares the request's ApplicationDbContext — the transaction it opens
         // covers everything that context saves.

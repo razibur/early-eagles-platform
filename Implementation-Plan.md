@@ -881,6 +881,16 @@ webhook wiring, each with its own failure modes:
 | P0-036.2.1 | `Tenant.ClerkOrganizationId` (unique, set once), `Rename`, slug/name pre-check helpers; expand-only migration | P0-033.1 | Unit tests; migrations apply to a fresh Postgres |
 | P0-036.2.2 | `ProvisionTenantCommand` (create or rename, idempotent) with `ITenantRepository` + `IClerkTenantDirectory` | P0-036.2.1, P0-047.2 | Integration via the pipeline: created + audited in the tenant's own log; redelivery → one row |
 | P0-036.2.3 | Webhook dispatches `organization.created`: pre-check, set the ambient tenant, send the command | P0-036.1, P0-036.2.2 | Signed delivery → tenant row; unusable or taken slug → 200 and no row |
+
+### P0-036.3 split (2026-10-29)
+
+"Handle `organizationMembership.created` → upsert `tenant_members`" is a command and the webhook
+wiring. The entity and table already exist (P0-029.1, P0-033.2).
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-036.3.1 | `AddTenantMemberCommand` (create, or take Clerk's role on redelivery) with `ITenantMemberRepository` | P0-036.2.2 | Integration via the pipeline: created + audited in the tenant's log; redelivery → one row; wrong ambient tenant refused |
+| P0-036.3.2 | Webhook dispatches `organizationMembership.created`: map the Clerk role, find the tenant, set the ambient tenant, send the command | P0-036.2.3, P0-036.3.1 | Signed delivery → member row; unknown organization → retried (non-2xx); missing user id → 200 and no row |
 ---
 
 ## Sequencing notes
