@@ -865,6 +865,12 @@ users have a phone number as their identifier) becomes `null`. Values are droppe
 or thrown: the profile is cosmetic, and it must never fail a membership. Migration
 `AddTenantMemberProfile` adds the three nullable columns (expand-only).
 
+The membership event seeds the profile from `data.public_user_data`: `first_name` + `last_name`
+become the display name, `identifier` the email, `image_url` the avatar. It seeds **new members
+only**. Svix may redeliver a membership event after a `user.updated` has already changed the
+profile, and the older payload must not win. `user.created` is acknowledged and stores nothing:
+the user isn't in a club yet, so there is no row to write.
+
 ---
 
 ## 9. Persistence — EF Core, the query filter & migrations

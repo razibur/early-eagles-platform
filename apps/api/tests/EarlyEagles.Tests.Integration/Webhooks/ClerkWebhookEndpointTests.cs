@@ -18,7 +18,8 @@ namespace EarlyEagles.Tests.Integration.Webhooks;
 
 // P0-036.1 / P0-037 — the Clerk webhook endpoint accepts a Svix-signed raw body
 // and nothing else; P0-036.2.3 — organization.created provisions a tenant;
-// P0-036.3.2 — organizationMembership.created adds a tenant member.
+// P0-036.3.2 — organizationMembership.created adds a tenant member;
+// P0-036.4.2 — it seeds the member's profile, and user.created stores nothing.
 // Requests are signed here exactly as Svix signs them. The signature tests use
 // an event type with no handler, so they don't depend on what handlers write.
 [Collection(PostgresCollectionDefinition.Name)]
@@ -310,6 +311,60 @@ public sealed class ClerkWebhookEndpointTests
         var joined = await db.TenantMembers.IgnoreQueryFilters()
             .SingleAsync(m => m.TenantId == tenant!.Id && m.ClerkUserId == PostgresFixture.AlphaAdminUserId);
         Assert.Equal(TenantMemberRole.Member, joined.Role);
+    }
+
+    [Fact]
+    public async Task Membership_Created_Seeds_The_Members_Profile()
+    {
+        var (orgId, slug) = NewOrganization();
+        var userId = NewUserId();
+        using var factory = new ClerkFactory(fixture, Secret);
+        var client = factory.CreateClient();
+        await client.SendAsync(Signed(OrganizationEvent(orgId, slug, "Profile Club")));
+        var body = $$$$"""{"type":"organizationMembership.created","data":{"role":"org:member","organization":{"id":"{{{{orgId}}}}"},"public_user_data":{"user_id":"{{{{userId}}}}","first_name":" Rahim ","last_name":"Uddin","identifier":"rahim@example.com","image_url":"https://img.clerk.com/rahim"}}}""";
+
+        var response = await client.SendAsync(Signed(body));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var member = await FindMemberAsync(userId);
+        Assert.Equal("Rahim Uddin", member!.DisplayName);
+        Assert.Equal("rahim@example.com", member.Email);
+        Assert.Equal("https://img.clerk.com/rahim", member.ImageUrl);
+    }
+
+    [Fact]
+    public async Task A_Phone_Only_Member_Gets_A_Profile_Without_An_Email()
+    {
+        // A phone-OTP user's identifier is their phone number, not an email.
+        var (orgId, slug) = NewOrganization();
+        var userId = NewUserId();
+        using var factory = new ClerkFactory(fixture, Secret);
+        var client = factory.CreateClient();
+        await client.SendAsync(Signed(OrganizationEvent(orgId, slug, "Phone Club")));
+        var body = $$$$"""{"type":"organizationMembership.created","data":{"role":"org:member","organization":{"id":"{{{{orgId}}}}"},"public_user_data":{"user_id":"{{{{userId}}}}","first_name":"Karim","last_name":null,"identifier":"+15555550100"}}}""";
+
+        var response = await client.SendAsync(Signed(body));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var member = await FindMemberAsync(userId);
+        Assert.Equal("Karim", member!.DisplayName);
+        Assert.Null(member.Email);
+        Assert.Null(member.ImageUrl);
+    }
+
+    [Fact]
+    public async Task User_Created_Is_Acknowledged_And_Stores_Nothing()
+    {
+        // A new user is in no club yet; the membership event creates the member.
+        var userId = NewUserId();
+        using var factory = new ClerkFactory(fixture, Secret);
+        var client = factory.CreateClient();
+        var body = $$$"""{"type":"user.created","object":"event","data":{"id":"{{{userId}}}","object":"user","first_name":"New","last_name":"User"}}""";
+
+        var response = await client.SendAsync(Signed(body));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(await FindMemberAsync(userId));
     }
 
     private static (string OrgId, string Slug) NewOrganization()

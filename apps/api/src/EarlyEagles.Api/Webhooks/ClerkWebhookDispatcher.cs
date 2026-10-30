@@ -49,7 +49,11 @@ public sealed class ClerkWebhookDispatcher
             "organization.created" => ProvisionTenantAsync(data, svixId, cancellationToken),
             "organizationMembership.created" => AddTenantMemberAsync(data, svixId, cancellationToken),
 
-            // No handler yet (users: P0-036.4–.5). Acknowledged.
+            // A new user belongs to no club yet, and profiles live on the
+            // member row (P0-036.4): the membership event seeds it.
+            "user.created" => Task.FromResult(ClerkWebhookOutcome.Acknowledged),
+
+            // No handler yet (user.updated: P0-036.5.2). Acknowledged.
             _ => Task.FromResult(ClerkWebhookOutcome.Acknowledged),
         };
 
@@ -67,6 +71,13 @@ public sealed class ClerkWebhookDispatcher
         && !string.IsNullOrWhiteSpace(value.GetString())
             ? value.GetString()
             : null;
+
+    /// <summary>"First Last" from Clerk's name fields, or <c>null</c> when both are blank.</summary>
+    private static string? ReadDisplayName(JsonElement data)
+    {
+        var name = $"{ReadString(data, "first_name")?.Trim()} {ReadString(data, "last_name")?.Trim()}".Trim();
+        return name.Length > 0 ? name : null;
+    }
 
     private async Task<ClerkWebhookOutcome> ProvisionTenantAsync(JsonElement data, string svixId, CancellationToken cancellationToken)
     {
@@ -120,7 +131,8 @@ public sealed class ClerkWebhookDispatcher
     private async Task<ClerkWebhookOutcome> AddTenantMemberAsync(JsonElement data, string svixId, CancellationToken cancellationToken)
     {
         var organizationId = ReadString(ReadObject(data, "organization"), "id");
-        var clerkUserId = ReadString(ReadObject(data, "public_user_data"), "user_id");
+        var user = ReadObject(data, "public_user_data");
+        var clerkUserId = ReadString(user, "user_id");
         if (organizationId is null || clerkUserId is null)
         {
             ClerkWebhookLog.MembershipSkipped(logger, organizationId ?? "(none)", clerkUserId ?? "(none)", "missing organization or user id", svixId);
@@ -150,7 +162,15 @@ public sealed class ClerkWebhookDispatcher
 
         var role = ClerkOrganizationRoles.ToTenantMemberRole(ReadString(data, "role"));
         var result = await sender
-            .Send(new AddTenantMemberCommand(tenant.TenantId, clerkUserId, role), cancellationToken)
+            .Send(
+                new AddTenantMemberCommand(
+                    tenant.TenantId,
+                    clerkUserId,
+                    role,
+                    ReadDisplayName(user),
+                    Email: ReadString(user, "identifier"),
+                    ImageUrl: ReadString(user, "image_url")),
+                cancellationToken)
             .ConfigureAwait(false);
         ClerkWebhookLog.MemberAdded(logger, result, clerkUserId, role, tenant.TenantId, svixId);
         return ClerkWebhookOutcome.Acknowledged;
