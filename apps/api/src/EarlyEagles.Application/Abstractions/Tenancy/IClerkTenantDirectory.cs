@@ -16,4 +16,10 @@ public interface IClerkTenantDirectory
     /// membership and user events (P0-036.3.2 onward).
     /// </summary>
     Task<ClerkLinkedTenant?> FindTenantAsync(string clerkOrganizationId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Every tenant the Clerk user is a member of (P0-036.5.1): <c>user.updated</c>
+    /// patches the profile in each. Empty when the user is in no club.
+    /// </summary>
+    Task<IReadOnlyList<ClerkLinkedTenant>> FindTenantsOfUserAsync(string clerkUserId, CancellationToken cancellationToken);
 }
