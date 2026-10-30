@@ -53,4 +53,16 @@ public sealed class EfClerkTenantDirectory : IClerkTenantDirectory
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
     }
+
+    public async Task<IReadOnlyList<ClerkLinkedTenant>> FindTenantsOfUserAsync(string clerkUserId, CancellationToken cancellationToken)
+    {
+        await using var context = new ApplicationDbContext(options, new TenantContext());
+        return await context.TenantMembers
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(m => m.ClerkUserId == clerkUserId)
+            .Join(context.Tenants.IgnoreQueryFilters(), m => m.TenantId, t => t.Id, (m, t) => new ClerkLinkedTenant(t.Id, t.Slug))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
 }
