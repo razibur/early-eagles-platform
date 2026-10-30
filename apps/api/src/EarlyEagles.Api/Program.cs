@@ -29,6 +29,7 @@ builder.Services.AddClerkAuthentication();
 builder.Services.AddTransient<TenantResolutionMiddleware>();
 builder.Services.AddTransient<TelemetryEnrichmentMiddleware>();
 builder.Services.AddScoped<ClerkWebhookDispatcher>();
+builder.Services.AddScoped<StripeWebhookDispatcher>();
 
 // Readiness checks behind /ready (P0-026.2). Each has its own timeout so one
 // slow dependency fails the probe quickly instead of hanging it. The bus is

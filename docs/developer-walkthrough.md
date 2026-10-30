@@ -987,9 +987,9 @@ Steps for each delivery:
 4. Only then is the body parsed. A signed body that isn't an event (no `id`, `type` or
    `api_version`) → **400 malformed**. A signed event from another **API release train** than
    the SDK's → **400** naming the version the endpoint expects, logged as an error.
-5. Otherwise the event is logged (type, id, live mode) and acknowledged with **200**. Handlers for
-   `checkout.session.completed`, `customer.subscription.*` and `invoice.payment_failed` are
-   P0-043.2–.4.
+5. Otherwise the event is logged (type, id, live mode), handed to `StripeWebhookDispatcher`, and
+   acknowledged with **200** unless the dispatcher throws (a database fault → 500 → Stripe
+   retries). Event types it doesn't handle yet are acknowledged too.
 
 Stripe retries anything that isn't 2xx for up to three days, so a refusal only drops the event
 for good once those retries run out.
@@ -1000,6 +1000,27 @@ customer can never pay for two clubs. They change only through `Tenant.LinkStrip
 Linking the ids already recorded returns `false`, so a redelivered checkout does nothing. A new
 subscription for the same customer replaces the old one (resubscribing after a cancellation). A
 different customer, or a deactivated tenant, throws.
+
+**`checkout.session.completed` → `SubscriptionStarted` (P0-043.2).** Which tenant paid? Stripe
+knows only what we gave it. The platform sets the Checkout Session's **`client_reference_id` to
+the tenant id** when it creates the session (P2-008), and Stripe returns it on the completed
+session. Later events (`customer.subscription.*`, invoices) don't carry it, which is why the
+customer id is stored on the tenant: they find the tenant by customer (P0-045.2).
+
+The dispatcher ignores sessions whose `mode` isn't `subscription`. For the rest:
+
+1. `IBillingTenantDirectory` (its own context, ignoring the query filter, like the Clerk
+   directory) checks that the tenant exists, isn't deactivated, and isn't already billed to
+   another customer.
+2. It sets the ambient tenant and sends `StartTenantSubscriptionCommand`. The audit row lands in
+   that tenant's log.
+3. The handler calls `Tenant.LinkStripeSubscription`, which raises `SubscriptionStarted`. On save,
+   the outbox interceptor stages it in the same transaction as the new ids.
+
+A redelivery links nothing new, so nothing is raised or queued. A session that can't be matched
+(no or unknown `client_reference_id`, missing ids, a deactivated tenant, another customer) is
+logged as an **error** (event 1606) and acknowledged: someone paid and no club recorded it, and
+three days of retries wouldn't change that.
 
 Stripe.net is in Infrastructure (it will also call Stripe's API for checkout in Phase 2). It pins
 an API version: 53.1.0 reads **`2026-10-28.endive`** events. Version checks compare only the
@@ -2653,7 +2674,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
 | **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); and grants `tenant-admin` / `member` only on the session's own club (P0-038.1); `TenantMember` / `TenantAdmin` policies (P0-038.2) |
 | **Email (Resend)** | sender built | `IEmailSender` with a Resend and a logging implementation (P0-053.1, §9.9); the first real send waits for the account (P0-011, P0-055) |
-| **Stripe Billing** | started | signed webhook endpoint (P0-043.1, P0-044, §8.7); event handlers P0-043.2–.4 and the tenant plan update P0-045 next; checkout UI Phase 2. Tenant *subscription* billing only — **not** member dues |
+| **Stripe Billing** | started | signed webhook endpoint (P0-043.1, P0-044, §8.7); tenant Stripe ids (P0-045.1); checkout → `SubscriptionStarted` (P0-043.2); subscription / invoice handlers P0-043.3–.4 and the plan update P0-045.2 next; checkout UI Phase 2. Tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
 | **CD to Azure** (P0-086/087/088) | waits on Azure | CI, image push, Dependabot and SBOMs exist (§12A); staging/prod deploys and the migration runner need the subscription and an OIDC identity |
@@ -2777,6 +2798,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Resend → 403 with error 1010 though the API key is right | the request has no `User-Agent` header | send one; the typed client registration adds `EarlyEagles/<version>` (§9.9) |
 | Every Stripe webhook → 400 "Unsupported Stripe API version" | the dashboard endpoint sends another API release train than Stripe.net pins | set the endpoint's API version to the one in the error, or upgrade Stripe.net (§8.7) |
 | Stripe webhooks → 400 "Invalid webhook signature" locally | `stripe listen` signs with its own session secret, not the dashboard endpoint's | use the `whsec_` the CLI prints (§8.7) |
+| Stripe checkout paid but the tenant has no `stripe_customer_id`; log event 1606 | the session had no `client_reference_id`, or not the tenant id (e.g. a Payment Link or a dashboard checkout) | create sessions through the platform, which sets it (P2-008); link the tenant by hand (§8.7) |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
 
 ---

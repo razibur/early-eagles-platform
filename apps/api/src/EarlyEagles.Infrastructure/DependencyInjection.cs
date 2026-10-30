@@ -92,6 +92,9 @@ public static class DependencyInjection
         services.AddScoped<ITenantRepository, EfTenantRepository>();
         services.AddScoped<IClerkTenantDirectory, EfClerkTenantDirectory>();
 
+        // Platform tenant reads for Stripe webhooks (P0-043.2), own context.
+        services.AddScoped<IBillingTenantDirectory, EfBillingTenantDirectory>();
+
         // Tenant member write side (P0-036.3.1), same request-scoped context.
         services.AddScoped<ITenantMemberRepository, EfTenantMemberRepository>();
 

@@ -49,6 +49,32 @@ public class TenantStripeLinkTests
     }
 
     [Fact]
+    public void Linking_Raises_Subscription_Started_Once()
+    {
+        var tenant = NewTenant();
+
+        tenant.LinkStripeSubscription(Customer, Subscription);
+        tenant.LinkStripeSubscription(Customer, Subscription);
+
+        var raised = Assert.IsType<SubscriptionStarted>(Assert.Single(tenant.DomainEvents));
+        Assert.Equal(tenant.Id, raised.TenantId);
+        Assert.Equal(Customer, raised.StripeCustomerId);
+        Assert.Equal(Subscription, raised.StripeSubscriptionId);
+    }
+
+    [Fact]
+    public void A_Replacement_Subscription_Raises_Another_Event()
+    {
+        var tenant = NewTenant();
+        tenant.LinkStripeSubscription(Customer, Subscription);
+        tenant.ClearDomainEvents();
+
+        tenant.LinkStripeSubscription(Customer, "sub_second");
+
+        Assert.Equal("sub_second", Assert.IsType<SubscriptionStarted>(Assert.Single(tenant.DomainEvents)).StripeSubscriptionId);
+    }
+
+    [Fact]
     public void Another_Customer_Is_Refused()
     {
         var tenant = NewTenant();
