@@ -14,7 +14,7 @@ using Npgsql;
 
 namespace EarlyEagles.Tests.Integration.TenantMembers;
 
-// P0-036.3.1 — AddTenantMemberCommand through the real Mediator pipeline
+// P0-036.3.1 / P0-036.4.2 — AddTenantMemberCommand through the real Mediator pipeline
 // (audit, transaction) against Postgres. Each test provisions its own tenant,
 // so its audit log holds only what the test wrote.
 [Collection(PostgresCollectionDefinition.Name)]
@@ -61,6 +61,37 @@ public sealed class AddTenantMemberCommandTests : IDisposable
         await using var db = fixture.CreateContext(new TenantContext());
         var member = await db.TenantMembers.IgnoreQueryFilters().SingleAsync(m => m.TenantId == tenantId);
         Assert.Equal(TenantMemberRole.TenantAdmin, member.Role);
+    }
+
+    [Fact]
+    public async Task A_New_Member_Is_Stored_With_Its_Profile()
+    {
+        var tenantId = await ProvisionTenantAsync();
+
+        await SendAsync(tenantId, new AddTenantMemberCommand(
+            tenantId, "user_profile", TenantMemberRole.Member, "Rahim Uddin", "rahim@example.com", "https://img.clerk.com/r"));
+
+        await using var db = fixture.CreateContext(new TenantContext());
+        var member = await db.TenantMembers.IgnoreQueryFilters().SingleAsync(m => m.TenantId == tenantId);
+        Assert.Equal("Rahim Uddin", member.DisplayName);
+        Assert.Equal("rahim@example.com", member.Email);
+        Assert.Equal("https://img.clerk.com/r", member.ImageUrl);
+    }
+
+    [Fact]
+    public async Task A_Redelivery_Does_Not_Overwrite_The_Profile()
+    {
+        // A redelivered membership event can be older than a user.updated that
+        // already changed the profile; only a new member is seeded.
+        var tenantId = await ProvisionTenantAsync();
+        await SendAsync(tenantId, new AddTenantMemberCommand(tenantId, "user_seeded", TenantMemberRole.Member, "Current Name", "now@example.com"));
+
+        await SendAsync(tenantId, new AddTenantMemberCommand(tenantId, "user_seeded", TenantMemberRole.Member, "Stale Name", "old@example.com"));
+
+        await using var db = fixture.CreateContext(new TenantContext());
+        var member = await db.TenantMembers.IgnoreQueryFilters().SingleAsync(m => m.TenantId == tenantId);
+        Assert.Equal("Current Name", member.DisplayName);
+        Assert.Equal("now@example.com", member.Email);
     }
 
     [Fact]

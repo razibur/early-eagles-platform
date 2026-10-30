@@ -31,7 +31,9 @@ public sealed class AddTenantMemberCommandHandler : ICommandHandler<AddTenantMem
         AddTenantMemberResult result;
         if (member is null)
         {
-            members.Add(TenantMember.Create(command.TenantId, command.ClerkUserId, command.Role));
+            member = TenantMember.Create(command.TenantId, command.ClerkUserId, command.Role);
+            member.UpdateProfile(command.DisplayName, command.Email, command.ImageUrl);
+            members.Add(member);
             result = AddTenantMemberResult.Created;
         }
         else
