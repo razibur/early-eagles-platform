@@ -994,6 +994,13 @@ Steps for each delivery:
 Stripe retries anything that isn't 2xx for up to three days, so a refusal only drops the event
 for good once those retries run out.
 
+**The tenant's Stripe ids (P0-045.1).** `tenants.stripe_customer_id` (`cus_…`) and
+`stripe_subscription_id` (`sub_…`) are nullable, ≤ 255 characters, and unique, so one Stripe
+customer can never pay for two clubs. They change only through `Tenant.LinkStripeSubscription`.
+Linking the ids already recorded returns `false`, so a redelivered checkout does nothing. A new
+subscription for the same customer replaces the old one (resubscribing after a cancellation). A
+different customer, or a deactivated tenant, throws.
+
 Stripe.net is in Infrastructure (it will also call Stripe's API for checkout in Phase 2). It pins
 an API version: 53.1.0 reads **`2026-10-28.endive`** events. Version checks compare only the
 release-train name (`endive`), so other dates in the same train are accepted.

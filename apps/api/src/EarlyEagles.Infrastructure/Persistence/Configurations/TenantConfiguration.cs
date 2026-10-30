@@ -59,6 +59,18 @@ public sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             .HasMaxLength(Tenant.ClerkOrganizationIdMaxLength);
         builder.HasIndex(t => t.ClerkOrganizationId).IsUnique();
 
+        // Stripe billing (P0-045.1). Unique: subscription webhooks find the
+        // tenant by customer (P0-045.2), and one customer pays for one tenant.
+        builder.Property(t => t.StripeCustomerId)
+            .HasColumnName("stripe_customer_id")
+            .HasMaxLength(Tenant.StripeIdMaxLength);
+        builder.HasIndex(t => t.StripeCustomerId).IsUnique();
+
+        builder.Property(t => t.StripeSubscriptionId)
+            .HasColumnName("stripe_subscription_id")
+            .HasMaxLength(Tenant.StripeIdMaxLength);
+        builder.HasIndex(t => t.StripeSubscriptionId).IsUnique();
+
         builder.OwnsOne(t => t.Branding, branding =>
         {
             branding.Property(b => b.LogoUrl)
