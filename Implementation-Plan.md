@@ -932,6 +932,17 @@ at most 60 s old.
 | P0-038.1 | Tenant role claim: when the token's active org is the resolved tenant's Clerk org, add `tenant-admin` or `member`; otherwise none | P0-035.3, P0-031.5 | Admin token on its own club → `tenant-admin`; same token on another club → no role |
 | P0-038.2 | `TenantMember` / `TenantAdmin` authorization policies | P0-038.1 | No token → 401; member on an admin endpoint → 403; admin → 200 |
 | P0-027.3 | Operation transformer: endpoints that require authorization get the `Bearer` security requirement (Microsoft.AspNetCore.OpenApi doesn't add it) | P0-027.2, P0-038.2 | Guarded operations list `security: [{Bearer: []}]`; public ones none |
+### Email sender without the account (2026-10-30)
+
+The sender is a typed `HttpClient` against one documented endpoint, so it can be written and
+tested before the Resend account exists. Only a real delivery needs P0-011.
+
+| ID | Change |
+|---|---|
+| P0-053.1 | **Depends on** nothing (was P0-011). No Resend SDK: one endpoint, one typed `HttpClient`. Without `Resend:ApiKey` a logging sender is registered, so email paths run on a laptop. |
+| P0-053.2 | Request shape checked against a mock handler swapped into the host's client; no account needed. |
+| P0-055 | Unchanged: the first real send, and the only email task that needs P0-011 (and a verified domain, P0-002). |
+
 ---
 
 ## Sequencing notes

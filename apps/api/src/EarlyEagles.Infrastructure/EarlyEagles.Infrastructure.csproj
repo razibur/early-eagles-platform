@@ -26,6 +26,8 @@
     <!-- BackgroundService + AddHostedService for the outbox drain (P0-050.1),
          and options binding/validation for its configuration section. -->
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.13" />
+    <!-- Typed HttpClient for the Resend email sender (P0-053.1). -->
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.13" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.13" />
     <!-- IHealthCheck for the database readiness check (P0-026.2). The API
          registers it; the full HealthChecks package comes with ASP.NET Core. -->
