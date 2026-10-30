@@ -59,4 +59,17 @@ internal static partial class ClerkWebhookLog
         Level = LogLevel.Warning,
         Message = "Clerk membership of {ClerkUserId} in {OrganizationId} deferred: no tenant for the organization yet ({SvixId})")]
     public static partial void MembershipDeferred(ILogger logger, string organizationId, string clerkUserId, string svixId);
+
+    [LoggerMessage(
+        EventId = 1409,
+        Level = LogLevel.Information,
+        Message = "Member profile {Result}: Clerk user {ClerkUserId} in tenant {TenantId} ({SvixId})")]
+    public static partial void MemberProfileUpdated(ILogger logger, UpdateTenantMemberProfileResult result, string clerkUserId, Guid tenantId, string svixId);
+
+    // Error: the user's profile stays stale in every club, and nothing retries it.
+    [LoggerMessage(
+        EventId = 1410,
+        Level = LogLevel.Error,
+        Message = "Clerk user update not applied: {Reason} ({SvixId})")]
+    public static partial void UserUpdateSkipped(ILogger logger, string reason, string svixId);
 }
