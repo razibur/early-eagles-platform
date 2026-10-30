@@ -871,6 +871,21 @@ only**. Svix may redeliver a membership event after a `user.updated` has already
 profile, and the older payload must not win. `user.created` is acknowledged and stores nothing:
 the user isn't in a club yet, so there is no row to write.
 
+`user.updated` goes to every club the user is in. `IClerkTenantDirectory.FindTenantsOfUserAsync`
+lists them, and the dispatcher sends one
+[`UpdateTenantMemberProfileCommand`](../apps/api/src/EarlyEagles.Application/TenantMembers/UpdateTenantMemberProfileCommand.cs)
+per tenant, each in a **fresh DI scope**. A scope's ambient tenant can be set only once, and the
+DbContext snapshots it when it's created, so one scope can't serve two tenants. Each club's audit
+row lands in that club's own log. The email is the entry in `email_addresses` whose `id` matches
+`primary_email_address_id`; if there is none (phone-only), the email is cleared.
+
+| Outcome | Response | Why |
+|---|---|---|
+| patched / unchanged / not a member (per tenant) | 200, log 1409 | a member who left in between is never re-added |
+| user in no club | 200 | nothing to patch |
+| missing or oversized user id | **200**, log **1410 (Error)** | a retry would fail the same way |
+| database failure in any tenant | 500 | Svix redelivers the whole event; tenants already patched report `Unchanged` |
+
 ---
 
 ## 9. Persistence — EF Core, the query filter & migrations
@@ -2445,7 +2460,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
 | **EF-backed `ITenantLookup`** | deferred | replaces `NullTenantLookup` once a seeded DB exists |
 | **Audit endpoint in Production** (P0-048.2) | waits on P0-038 | `/audit-events` exists outside Production; tenant-admin authorization needs Clerk role claims |
-| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); next: profiles (P0-036.4–.5), then JWT bearer and `[Authorize]` (P0-035) |
+| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); next: JWT bearer and `[Authorize]` (P0-035) |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |

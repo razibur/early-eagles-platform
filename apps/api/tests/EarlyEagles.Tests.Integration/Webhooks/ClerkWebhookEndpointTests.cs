@@ -19,7 +19,8 @@ namespace EarlyEagles.Tests.Integration.Webhooks;
 // P0-036.1 / P0-037 — the Clerk webhook endpoint accepts a Svix-signed raw body
 // and nothing else; P0-036.2.3 — organization.created provisions a tenant;
 // P0-036.3.2 — organizationMembership.created adds a tenant member;
-// P0-036.4.2 — it seeds the member's profile, and user.created stores nothing.
+// P0-036.4.2 — it seeds the member's profile, and user.created stores nothing;
+// P0-036.5.2 — user.updated patches the profile in every club the user is in.
 // Requests are signed here exactly as Svix signs them. The signature tests use
 // an event type with no handler, so they don't depend on what handlers write.
 [Collection(PostgresCollectionDefinition.Name)]
@@ -367,6 +368,83 @@ public sealed class ClerkWebhookEndpointTests
         Assert.Null(await FindMemberAsync(userId));
     }
 
+    [Fact]
+    public async Task User_Updated_Patches_The_Profile_In_Every_Club_And_Audits_Each_In_Its_Own_Tenant()
+    {
+        var userId = NewUserId();
+        using var factory = new ClerkFactory(fixture, Secret);
+        var client = factory.CreateClient();
+        var first = await JoinNewClubAsync(client, userId, "org:admin");
+        var second = await JoinNewClubAsync(client, userId, "org:member");
+
+        var response = await client.SendAsync(Signed(UserUpdatedEvent(userId, "Rahim", "Uddin", "rahim@new.example.com", "https://img.clerk.com/new")));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await using var db = fixture.CreateContext(new TenantContext());
+        var members = await db.TenantMembers.IgnoreQueryFilters().Where(m => m.ClerkUserId == userId).ToListAsync();
+        Assert.Equal(2, members.Count);
+        Assert.All(members, m =>
+        {
+            Assert.Equal("Rahim Uddin", m.DisplayName);
+            Assert.Equal("rahim@new.example.com", m.Email);
+            Assert.Equal("https://img.clerk.com/new", m.ImageUrl);
+        });
+        Assert.Equal(TenantMemberRole.TenantAdmin, members.Single(m => m.TenantId == first).Role);
+
+        var audited = await db.AuditEvents.IgnoreQueryFilters()
+            .Where(e => e.Action == "UpdateTenantMemberProfileCommand" && (e.TenantId == first || e.TenantId == second))
+            .Select(e => e.TenantId)
+            .ToListAsync();
+        Assert.Equal(new[] { first, second }.Order(), audited.Order());
+    }
+
+    [Fact]
+    public async Task User_Updated_Without_A_Primary_Email_Clears_The_Email()
+    {
+        // A user who removed their email and signs in by phone.
+        var userId = NewUserId();
+        using var factory = new ClerkFactory(fixture, Secret);
+        var client = factory.CreateClient();
+        await JoinNewClubAsync(client, userId, "org:member");
+        var body = $$$$"""{"type":"user.updated","data":{"id":"{{{{userId}}}}","first_name":"Karim","primary_email_address_id":null,"email_addresses":[],"phone_numbers":[{"id":"idn_1","phone_number":"+15555550100"}]}}""";
+
+        var response = await client.SendAsync(Signed(body));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var member = await FindMemberAsync(userId);
+        Assert.Equal("Karim", member!.DisplayName);
+        Assert.Null(member.Email);
+    }
+
+    [Fact]
+    public async Task User_Updated_For_A_User_In_No_Club_Is_Acknowledged()
+    {
+        var userId = NewUserId();
+        using var factory = new ClerkFactory(fixture, Secret);
+        var client = factory.CreateClient();
+
+        var response = await client.SendAsync(Signed(UserUpdatedEvent(userId, "Lone", "User", "lone@example.com", null)));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Null(await FindMemberAsync(userId));
+    }
+
+    [Fact]
+    public async Task User_Updated_Without_An_Id_Is_Acknowledged_And_Changes_Nothing()
+    {
+        using var factory = new ClerkFactory(fixture, Secret);
+        var client = factory.CreateClient();
+
+        var response = await client.SendAsync(Signed("""{"type":"user.updated","data":{"first_name":"Nobody"}}"""));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await using var db = fixture.CreateContext(new TenantContext());
+        Assert.False(await db.TenantMembers.IgnoreQueryFilters().AnyAsync(m => m.DisplayName == "Nobody"));
+    }
+
+    private static string UserUpdatedEvent(string userId, string firstName, string lastName, string email, string? imageUrl) =>
+        $$$$"""{"type":"user.updated","object":"event","data":{"id":"{{{{userId}}}}","object":"user","first_name":"{{{{firstName}}}}","last_name":"{{{{lastName}}}}","image_url":{{{{(imageUrl is null ? "null" : $"\"{imageUrl}\"")}}}},"primary_email_address_id":"idn_primary","email_addresses":[{"id":"idn_other","email_address":"other@example.com"},{"id":"idn_primary","email_address":"{{{{email}}}}"}]}}""";
+
     private static (string OrgId, string Slug) NewOrganization()
     {
         var suffix = Guid.NewGuid().ToString("N")[..12];
@@ -395,6 +473,14 @@ public sealed class ClerkWebhookEndpointTests
     }
 
     private static StringContent Json(string body) => new(body, Encoding.UTF8, "application/json");
+
+    private async Task<Guid> JoinNewClubAsync(HttpClient client, string userId, string role)
+    {
+        var (orgId, slug) = NewOrganization();
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(Signed(OrganizationEvent(orgId, slug, "Profile Club")))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(Signed(MembershipEvent(orgId, userId, role)))).StatusCode);
+        return (await FindTenantAsync(orgId))!.Id;
+    }
 
     private async Task<Tenant?> FindTenantAsync(string orgId)
     {

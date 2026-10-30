@@ -20,6 +20,9 @@ namespace EarlyEagles.Api.Webhooks;
 /// Svix retries. An event that refers to an organization not provisioned yet
 /// returns <see cref="ClerkWebhookOutcome.RetryLater"/>: Svix doesn't guarantee
 /// order, and the creator's membership routinely races the organization.
+/// <c>user.updated</c> touches every club the user is in, so it sends one
+/// command per tenant, each in a fresh DI scope: a scope's ambient tenant (and
+/// the DbContext's snapshot of it) can be set only once.
 /// </remarks>
 public sealed class ClerkWebhookDispatcher
 {
@@ -27,6 +30,7 @@ public sealed class ClerkWebhookDispatcher
     private readonly ITenantContext tenantContext;
     private readonly ITenantContextInitializer tenantInitializer;
     private readonly ISender sender;
+    private readonly IServiceScopeFactory scopeFactory;
     private readonly ILogger<ClerkWebhookDispatcher> logger;
 
     public ClerkWebhookDispatcher(
@@ -34,12 +38,14 @@ public sealed class ClerkWebhookDispatcher
         ITenantContext tenantContext,
         ITenantContextInitializer tenantInitializer,
         ISender sender,
+        IServiceScopeFactory scopeFactory,
         ILogger<ClerkWebhookDispatcher> logger)
     {
         this.directory = directory;
         this.tenantContext = tenantContext;
         this.tenantInitializer = tenantInitializer;
         this.sender = sender;
+        this.scopeFactory = scopeFactory;
         this.logger = logger;
     }
 
@@ -52,8 +58,9 @@ public sealed class ClerkWebhookDispatcher
             // A new user belongs to no club yet, and profiles live on the
             // member row (P0-036.4): the membership event seeds it.
             "user.created" => Task.FromResult(ClerkWebhookOutcome.Acknowledged),
+            "user.updated" => UpdateMemberProfilesAsync(data, svixId, cancellationToken),
 
-            // No handler yet (user.updated: P0-036.5.2). Acknowledged.
+            // Events we don't handle. Acknowledged.
             _ => Task.FromResult(ClerkWebhookOutcome.Acknowledged),
         };
 
@@ -77,6 +84,31 @@ public sealed class ClerkWebhookDispatcher
     {
         var name = $"{ReadString(data, "first_name")?.Trim()} {ReadString(data, "last_name")?.Trim()}".Trim();
         return name.Length > 0 ? name : null;
+    }
+
+    /// <summary>
+    /// The address whose id is <c>primary_email_address_id</c>, or <c>null</c>
+    /// for a user without one (phone-only sign-in).
+    /// </summary>
+    private static string? ReadPrimaryEmail(JsonElement data)
+    {
+        var primaryId = ReadString(data, "primary_email_address_id");
+        if (primaryId is null
+            || !data.TryGetProperty("email_addresses", out var addresses)
+            || addresses.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var address in addresses.EnumerateArray())
+        {
+            if (ReadString(address, "id") == primaryId)
+            {
+                return ReadString(address, "email_address");
+            }
+        }
+
+        return null;
     }
 
     private async Task<ClerkWebhookOutcome> ProvisionTenantAsync(JsonElement data, string svixId, CancellationToken cancellationToken)
@@ -173,6 +205,43 @@ public sealed class ClerkWebhookDispatcher
                 cancellationToken)
             .ConfigureAwait(false);
         ClerkWebhookLog.MemberAdded(logger, result, clerkUserId, role, tenant.TenantId, svixId);
+        return ClerkWebhookOutcome.Acknowledged;
+    }
+
+    private async Task<ClerkWebhookOutcome> UpdateMemberProfilesAsync(JsonElement data, string svixId, CancellationToken cancellationToken)
+    {
+        var clerkUserId = ReadString(data, "id");
+        if (clerkUserId is null || !TenantMember.IsValidClerkUserId(clerkUserId))
+        {
+            ClerkWebhookLog.UserUpdateSkipped(logger, clerkUserId is null ? "missing user id" : "user id is too long", svixId);
+            return ClerkWebhookOutcome.Acknowledged;
+        }
+
+        if (tenantContext.IsResolved)
+        {
+            throw new InvalidOperationException("Clerk webhooks must target the bare API host, not a tenant subdomain.");
+        }
+
+        var displayName = ReadDisplayName(data);
+        var email = ReadPrimaryEmail(data);
+        var imageUrl = ReadString(data, "image_url");
+
+        // A failure part-way throws, the endpoint answers 500 and Svix
+        // redelivers the whole event; tenants already patched report Unchanged.
+        var tenants = await directory.FindTenantsOfUserAsync(clerkUserId, cancellationToken).ConfigureAwait(false);
+        foreach (var tenant in tenants)
+        {
+            var scope = scopeFactory.CreateAsyncScope();
+            await using (scope.ConfigureAwait(false))
+            {
+                scope.ServiceProvider.GetRequiredService<ITenantContextInitializer>().Initialize(tenant.TenantId, tenant.Slug);
+                var result = await scope.ServiceProvider.GetRequiredService<ISender>()
+                    .Send(new UpdateTenantMemberProfileCommand(tenant.TenantId, clerkUserId, displayName, email, imageUrl), cancellationToken)
+                    .ConfigureAwait(false);
+                ClerkWebhookLog.MemberProfileUpdated(logger, result, clerkUserId, tenant.TenantId, svixId);
+            }
+        }
+
         return ClerkWebhookOutcome.Acknowledged;
     }
 }
