@@ -78,6 +78,33 @@ public class SwaggerEndpointTests : IClassFixture<WebApplicationFactory<Program>
         Assert.False(string.IsNullOrWhiteSpace(bearer.GetProperty("description").GetString()));
     }
 
+    [Theory]
+    [InlineData("/me", true)]
+    [InlineData("/audit-events", true)]
+    [InlineData("/health", false)]
+    [InlineData("/whoami", false)]
+    public async Task Only_Operations_That_Require_Authorization_Reference_The_Bearer_Scheme(string path, bool secured)
+    {
+        // P0-027.3 — Microsoft.AspNetCore.OpenApi doesn't add the requirement itself.
+        using var client = factory
+            .WithWebHostBuilder(b => b.UseEnvironment("Development"))
+            .CreateClient();
+
+        using var document = JsonDocument.Parse(await client.GetStringAsync(new Uri("/openapi/v1.json", UriKind.Relative)));
+        var operation = document.RootElement.GetProperty("paths").GetProperty(path).GetProperty("get");
+
+        if (secured)
+        {
+            var requirement = Assert.Single(operation.GetProperty("security").EnumerateArray());
+            Assert.True(requirement.TryGetProperty("Bearer", out var scopes), "requirement names the Bearer scheme");
+            Assert.Equal(0, scopes.GetArrayLength());
+        }
+        else
+        {
+            Assert.False(operation.TryGetProperty("security", out _), $"{path} must not require a token");
+        }
+    }
+
     [Fact]
     public async Task Swagger_Ui_Is_Not_Mapped_In_Production()
     {
