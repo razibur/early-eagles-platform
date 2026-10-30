@@ -20,6 +20,9 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
     public const int DisplayNameMaxLength = 200;
     public const int ClerkOrganizationIdMaxLength = 64;
 
+    /// <summary>Stripe object ids (<c>cus_…</c>, <c>sub_…</c>) are at most 255 characters.</summary>
+    public const int StripeIdMaxLength = 255;
+
     private Tenant(Guid id, string slug, string displayName)
         : base(id)
     {
@@ -63,6 +66,19 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
     /// </summary>
     public string? ClerkOrganizationId { get; private set; }
 
+    /// <summary>
+    /// The Stripe customer that pays for this tenant's subscription (P0-045.1),
+    /// <c>cus_…</c>. <c>null</c> until the tenant's first checkout. Set once:
+    /// later subscriptions bill the same customer.
+    /// </summary>
+    public string? StripeCustomerId { get; private set; }
+
+    /// <summary>
+    /// The tenant's current Stripe subscription, <c>sub_…</c>. Replaced when the
+    /// tenant subscribes again after a cancellation.
+    /// </summary>
+    public string? StripeSubscriptionId { get; private set; }
+
     /// <summary>True when <paramref name="slug"/> satisfies the subdomain rules <see cref="Create"/> enforces.</summary>
     public static bool IsValidSlug(string? slug) => slug is not null && SlugProblem(slug) is null;
 
@@ -104,6 +120,38 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
         }
 
         ClerkOrganizationId = clerkOrganizationId;
+    }
+
+    /// <summary>
+    /// Records the Stripe customer and subscription a completed checkout
+    /// created (P0-045.1). Returns <c>false</c> when they are already recorded:
+    /// Stripe delivers webhooks at least once. A different customer is a bug
+    /// (one tenant, one customer); a different subscription replaces the old one.
+    /// </summary>
+    public bool LinkStripeSubscription(string customerId, string subscriptionId)
+    {
+        ValidateStripeId(customerId, nameof(customerId));
+        ValidateStripeId(subscriptionId, nameof(subscriptionId));
+
+        if (Status is TenantStatus.Deactivated)
+        {
+            throw new InvalidOperationException("Cannot link a subscription to a deactivated tenant.");
+        }
+
+        if (StripeCustomerId is not null && StripeCustomerId != customerId)
+        {
+            throw new InvalidOperationException(
+                $"Tenant is already billed to Stripe customer '{StripeCustomerId}'.");
+        }
+
+        if (StripeCustomerId == customerId && StripeSubscriptionId == subscriptionId)
+        {
+            return false;
+        }
+
+        StripeCustomerId = customerId;
+        StripeSubscriptionId = subscriptionId;
+        return true;
     }
 
     public void Rename(string displayName)
@@ -194,6 +242,17 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
     public void Deactivate()
     {
         Status = TenantStatus.Deactivated;
+    }
+
+    private static void ValidateStripeId(string id, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id, parameterName);
+        if (id.Length > StripeIdMaxLength)
+        {
+            throw new ArgumentException(
+                $"Stripe id must be at most {StripeIdMaxLength} characters; got {id.Length}.",
+                parameterName);
+        }
     }
 
     private static void ValidateSlug(string slug)

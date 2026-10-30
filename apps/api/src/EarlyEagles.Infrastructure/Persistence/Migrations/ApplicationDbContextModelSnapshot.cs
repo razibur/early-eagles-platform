@@ -99,12 +99,28 @@ namespace EarlyEagles.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("status");
 
+                    b.Property<string>("StripeCustomerId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("stripe_customer_id");
+
+                    b.Property<string>("StripeSubscriptionId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("stripe_subscription_id");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ClerkOrganizationId")
                         .IsUnique();
 
                     b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.HasIndex("StripeCustomerId")
+                        .IsUnique();
+
+                    b.HasIndex("StripeSubscriptionId")
                         .IsUnique();
 
                     b.ToTable("tenants", (string)null);

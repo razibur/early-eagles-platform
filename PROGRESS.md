@@ -20,7 +20,7 @@ Last updated: 2026-10-30
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~79% (168 / ~214 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~79% (169 / ~214 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -270,7 +270,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 - `[ ]` **P0-043.4** Handle `invoice.payment_failed` → `PaymentFailed` event
 - `[x]` **P0-044** Stripe webhook signature verification
   ↳ verify: [`StripeWebhookVerifier`](./apps/api/src/EarlyEagles.Infrastructure/Billing/StripeWebhookVerifier.cs) wraps Stripe.net's `EventUtility.ValidateSignature` with the clock from `TimeProvider`, then parses only a signed body. No header / wrong secret / changed body / timestamp >300 s either way → 400 "Invalid webhook signature" (reason logged, not returned); signed but not an event (no `id`, `type` or `api_version`) → 400 malformed; signed event from another API release train → 400 naming the expected version, logged as an error. Unit 20 (headers from Stripe.net's `GenerateSignatureHeader`, ±299 s accepted, ±301 s refused); mutation-checked: dropping the signature check, the tolerance, the version check or the secret validation each fail tests. Unit 376, integration 210 + 5 skipped. Live check with `stripe listen` waits for the Stripe account (P0-041.2).
-- `[ ]` **P0-045.1** Migration: add `stripe_customer_id`, `stripe_subscription_id` to `tenants`
+- `[x]` **P0-045.1** Migration: add `stripe_customer_id`, `stripe_subscription_id` to `tenants`
+  ↳ verify: [`Tenant`](./apps/api/src/EarlyEagles.Domain/Tenants/Tenant.cs) gains `StripeCustomerId` / `StripeSubscriptionId` (≤ 255, nullable), set only through `LinkStripeSubscription`: returns `false` for the ids already recorded (redelivery), replaces the subscription for the same customer, refuses another customer or a deactivated tenant. Migration `AddTenantStripeIds`: expand-only (two nullable columns, each with a unique index). Unit 10 (`TenantStripeLinkTests`); integration: round trip through Postgres, and a second tenant with the same customer → `IX_tenants_stripe_customer_id` violation. Mutation-checked. Unit 386 · integration 212 + 5 skipped.
 - `[ ]` **P0-045.2** Subscription event → look up tenant → update Plan
 - `[ ]` **P0-045.3** Integration test: simulated webhook updates tenant plan
 
