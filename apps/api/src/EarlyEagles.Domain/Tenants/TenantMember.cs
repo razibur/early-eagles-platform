@@ -20,6 +20,9 @@ namespace EarlyEagles.Domain.Tenants;
 public sealed class TenantMember : Entity<TenantMemberId>, ITenantScoped
 {
     public const int ClerkUserIdMaxLength = 256;
+    public const int DisplayNameMaxLength = 200;
+    public const int EmailMaxLength = 320;
+    public const int ImageUrlMaxLength = 2048;
 
     // EF Core binds this constructor on materialisation: the parameter names
     // match the mapped columns (tenant_id, clerk_user_id, role). Domain callers
@@ -42,6 +45,18 @@ public sealed class TenantMember : Entity<TenantMemberId>, ITenantScoped
     public string ClerkUserId { get; }
 
     public TenantMemberRole Role { get; private set; }
+
+    /// <summary>
+    /// Name shown in the club (P0-036.4.1), copied from Clerk. <c>null</c> until
+    /// Clerk sends one. Kept per tenant — there is no platform-wide user table.
+    /// </summary>
+    public string? DisplayName { get; private set; }
+
+    /// <summary>Primary email from Clerk; <c>null</c> for a phone-only sign-in.</summary>
+    public string? Email { get; private set; }
+
+    /// <summary>Avatar URL from Clerk (Clerk hosts the image).</summary>
+    public string? ImageUrl { get; private set; }
 
     /// <summary>
     /// True when <paramref name="clerkUserId"/> would pass <see cref="Create"/>'s
@@ -76,6 +91,32 @@ public sealed class TenantMember : Entity<TenantMemberId>, ITenantScoped
 
         Role = role;
     }
+
+    /// <summary>
+    /// Replaces the profile with what Clerk holds. Clerk is the source of truth
+    /// and the profile is cosmetic, so a value that doesn't fit is dropped
+    /// rather than failing the membership: blank, oversized, or (for the email)
+    /// without an <c>@</c> becomes <c>null</c>. Returns whether anything changed.
+    /// </summary>
+    public bool UpdateProfile(string? displayName, string? email, string? imageUrl)
+    {
+        var newDisplayName = Fit(displayName, DisplayNameMaxLength);
+        var newEmail = Fit(email, EmailMaxLength) is { } e && e.Contains('@', StringComparison.Ordinal) ? e : null;
+        var newImageUrl = Fit(imageUrl, ImageUrlMaxLength);
+
+        if (newDisplayName == DisplayName && newEmail == Email && newImageUrl == ImageUrl)
+        {
+            return false;
+        }
+
+        DisplayName = newDisplayName;
+        Email = newEmail;
+        ImageUrl = newImageUrl;
+        return true;
+    }
+
+    private static string? Fit(string? value, int maxLength) =>
+        value?.Trim() is { Length: > 0 } trimmed && trimmed.Length <= maxLength ? trimmed : null;
 
     private static void ValidateClerkUserId(string clerkUserId)
     {
