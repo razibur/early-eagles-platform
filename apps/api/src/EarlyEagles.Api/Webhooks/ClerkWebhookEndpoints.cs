@@ -19,7 +19,8 @@ namespace EarlyEagles.Api.Webhooks;
 ///   <see cref="ClerkWebhookDispatcher"/>.</item>
 ///   <item>Any 2xx tells Svix the delivery succeeded; anything else is retried
 ///   with backoff. Event types with no handler yet are acknowledged (200) so
-///   they aren't retried for days.</item>
+///   they aren't retried for days. An event that arrived ahead of the one it
+///   depends on answers 503, so it is retried.</item>
 ///   <item>Not in the OpenAPI document: it's an integration endpoint, not
 ///   something API clients call.</item>
 /// </list>
@@ -100,7 +101,15 @@ public static class ClerkWebhookEndpoints
 
         ClerkWebhookLog.Received(logger, eventType, messageId);
         var data = document.RootElement.TryGetProperty("data", out var value) ? value : default;
-        await dispatcher.DispatchAsync(eventType, data, messageId, cancellationToken).ConfigureAwait(false);
+        var outcome = await dispatcher.DispatchAsync(eventType, data, messageId, cancellationToken).ConfigureAwait(false);
+        if (outcome == ClerkWebhookOutcome.RetryLater)
+        {
+            return TypedResults.Problem(
+                statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "Webhook deferred",
+                detail: "The event depends on one not processed yet; retry later.");
+        }
+
         return TypedResults.Ok();
     }
 

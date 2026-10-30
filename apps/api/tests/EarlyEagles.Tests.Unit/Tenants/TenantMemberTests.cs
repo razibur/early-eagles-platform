@@ -136,4 +136,39 @@ public class TenantMemberTests
 
         Assert.IsAssignableFrom<Entity<TenantMemberId>>(member);
     }
+
+    [Theory]
+    [InlineData("user_abc", true)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    [InlineData(null, false)]
+    public void IsValidClerkUserId_Agrees_With_Create(string? clerkUserId, bool expected)
+    {
+        Assert.Equal(expected, TenantMember.IsValidClerkUserId(clerkUserId));
+        AssertCreateAgrees(clerkUserId, expected);
+    }
+
+    [Theory]
+    [InlineData(TenantMember.ClerkUserIdMaxLength, true)]
+    [InlineData(TenantMember.ClerkUserIdMaxLength + 1, false)]
+    public void IsValidClerkUserId_Agrees_With_Create_At_The_Length_Limit(int length, bool expected)
+    {
+        var clerkUserId = new string('u', length);
+
+        Assert.Equal(expected, TenantMember.IsValidClerkUserId(clerkUserId));
+        AssertCreateAgrees(clerkUserId, expected);
+    }
+
+    private static void AssertCreateAgrees(string? clerkUserId, bool valid)
+    {
+        var create = () => TenantMember.Create(Guid.NewGuid(), clerkUserId!, TenantMemberRole.Member);
+        if (valid)
+        {
+            Assert.NotNull(create());
+        }
+        else
+        {
+            Assert.ThrowsAny<ArgumentException>(create);
+        }
+    }
 }

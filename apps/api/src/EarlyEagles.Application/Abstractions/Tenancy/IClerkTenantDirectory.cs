@@ -9,4 +9,11 @@ namespace EarlyEagles.Application.Abstractions.Tenancy;
 public interface IClerkTenantDirectory
 {
     Task<ClerkTenantDirectoryEntry> FindAsync(string clerkOrganizationId, string slug, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The tenant linked to the organization, or <c>null</c> when it hasn't been
+    /// provisioned (yet: Clerk doesn't guarantee delivery order). Used by the
+    /// membership and user events (P0-036.3.2 onward).
+    /// </summary>
+    Task<ClerkLinkedTenant?> FindTenantAsync(string clerkOrganizationId, CancellationToken cancellationToken);
 }

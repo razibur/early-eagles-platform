@@ -1,7 +1,9 @@
 using System.Text.Json;
 using EarlyEagles.Application.Abstractions.Tenancy;
+using EarlyEagles.Application.TenantMembers;
 using EarlyEagles.Application.Tenants;
 using EarlyEagles.Domain.Tenants;
+using EarlyEagles.Infrastructure.Identity;
 using Mediator;
 
 namespace EarlyEagles.Api.Webhooks;
@@ -15,7 +17,9 @@ namespace EarlyEagles.Api.Webhooks;
 /// another tenant owns, missing fields) is logged as an error and acknowledged:
 /// Svix would otherwise retry it for days with the same result. Failures that
 /// might pass on a retry (the database) throw, the endpoint answers 500, and
-/// Svix retries.
+/// Svix retries. An event that refers to an organization not provisioned yet
+/// returns <see cref="ClerkWebhookOutcome.RetryLater"/>: Svix doesn't guarantee
+/// order, and the creator's membership routinely races the organization.
 /// </remarks>
 public sealed class ClerkWebhookDispatcher
 {
@@ -39,14 +43,22 @@ public sealed class ClerkWebhookDispatcher
         this.logger = logger;
     }
 
-    public Task DispatchAsync(string eventType, JsonElement data, string svixId, CancellationToken cancellationToken) =>
+    public Task<ClerkWebhookOutcome> DispatchAsync(string eventType, JsonElement data, string svixId, CancellationToken cancellationToken) =>
         eventType switch
         {
             "organization.created" => ProvisionTenantAsync(data, svixId, cancellationToken),
+            "organizationMembership.created" => AddTenantMemberAsync(data, svixId, cancellationToken),
 
-            // No handler yet (memberships and users: P0-036.3–.5). Acknowledged.
-            _ => Task.CompletedTask,
+            // No handler yet (users: P0-036.4–.5). Acknowledged.
+            _ => Task.FromResult(ClerkWebhookOutcome.Acknowledged),
         };
+
+    private static JsonElement ReadObject(JsonElement data, string property) =>
+        data.ValueKind == JsonValueKind.Object
+        && data.TryGetProperty(property, out var value)
+        && value.ValueKind == JsonValueKind.Object
+            ? value
+            : default;
 
     private static string? ReadString(JsonElement data, string property) =>
         data.ValueKind == JsonValueKind.Object
@@ -56,7 +68,7 @@ public sealed class ClerkWebhookDispatcher
             ? value.GetString()
             : null;
 
-    private async Task ProvisionTenantAsync(JsonElement data, string svixId, CancellationToken cancellationToken)
+    private async Task<ClerkWebhookOutcome> ProvisionTenantAsync(JsonElement data, string svixId, CancellationToken cancellationToken)
     {
         var organizationId = ReadString(data, "id");
         var slug = ReadString(data, "slug");
@@ -64,26 +76,26 @@ public sealed class ClerkWebhookDispatcher
         if (organizationId is null || slug is null || name is null)
         {
             ClerkWebhookLog.ProvisioningSkipped(logger, organizationId ?? "(none)", "missing id, slug or name", svixId);
-            return;
+            return ClerkWebhookOutcome.Acknowledged;
         }
 
         if (!Tenant.IsValidSlug(slug))
         {
             ClerkWebhookLog.ProvisioningSkipped(logger, organizationId, $"slug '{slug}' is not a valid subdomain label", svixId);
-            return;
+            return ClerkWebhookOutcome.Acknowledged;
         }
 
         if (!Tenant.IsValidDisplayName(name))
         {
             ClerkWebhookLog.ProvisioningSkipped(logger, organizationId, "name is blank or too long", svixId);
-            return;
+            return ClerkWebhookOutcome.Acknowledged;
         }
 
         var entry = await directory.FindAsync(organizationId, slug, cancellationToken).ConfigureAwait(false);
         if (entry.TenantId is null && entry.SlugTakenByAnotherTenant)
         {
             ClerkWebhookLog.ProvisioningSkipped(logger, organizationId, $"slug '{slug}' belongs to another tenant", svixId);
-            return;
+            return ClerkWebhookOutcome.Acknowledged;
         }
 
         // The command runs as the tenant it provisions, so its audit row is
@@ -102,5 +114,45 @@ public sealed class ClerkWebhookDispatcher
             .Send(new ProvisionTenantCommand(tenantId, organizationId, slug, name), cancellationToken)
             .ConfigureAwait(false);
         ClerkWebhookLog.TenantProvisioned(logger, result, tenantId, organizationId, svixId);
+        return ClerkWebhookOutcome.Acknowledged;
+    }
+
+    private async Task<ClerkWebhookOutcome> AddTenantMemberAsync(JsonElement data, string svixId, CancellationToken cancellationToken)
+    {
+        var organizationId = ReadString(ReadObject(data, "organization"), "id");
+        var clerkUserId = ReadString(ReadObject(data, "public_user_data"), "user_id");
+        if (organizationId is null || clerkUserId is null)
+        {
+            ClerkWebhookLog.MembershipSkipped(logger, organizationId ?? "(none)", clerkUserId ?? "(none)", "missing organization or user id", svixId);
+            return ClerkWebhookOutcome.Acknowledged;
+        }
+
+        if (!TenantMember.IsValidClerkUserId(clerkUserId))
+        {
+            ClerkWebhookLog.MembershipSkipped(logger, organizationId, "(too long)", "user id is too long", svixId);
+            return ClerkWebhookOutcome.Acknowledged;
+        }
+
+        var tenant = await directory.FindTenantAsync(organizationId, cancellationToken).ConfigureAwait(false);
+        if (tenant is null)
+        {
+            ClerkWebhookLog.MembershipDeferred(logger, organizationId, clerkUserId, svixId);
+            return ClerkWebhookOutcome.RetryLater;
+        }
+
+        // As for organizations: the command runs as the member's tenant.
+        if (tenantContext.IsResolved)
+        {
+            throw new InvalidOperationException("Clerk webhooks must target the bare API host, not a tenant subdomain.");
+        }
+
+        tenantInitializer.Initialize(tenant.TenantId, tenant.Slug);
+
+        var role = ClerkOrganizationRoles.ToTenantMemberRole(ReadString(data, "role"));
+        var result = await sender
+            .Send(new AddTenantMemberCommand(tenant.TenantId, clerkUserId, role), cancellationToken)
+            .ConfigureAwait(false);
+        ClerkWebhookLog.MemberAdded(logger, result, clerkUserId, role, tenant.TenantId, svixId);
+        return ClerkWebhookOutcome.Acknowledged;
     }
 }
