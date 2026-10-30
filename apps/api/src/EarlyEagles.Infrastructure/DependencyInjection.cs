@@ -8,6 +8,7 @@ using EarlyEagles.Application.Abstractions.Messaging;
 using EarlyEagles.Application.Abstractions.Persistence;
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Infrastructure.Auditing;
+using EarlyEagles.Infrastructure.Billing;
 using EarlyEagles.Infrastructure.Email;
 using EarlyEagles.Infrastructure.Identity;
 using EarlyEagles.Infrastructure.Messaging;
@@ -135,6 +136,14 @@ public static class DependencyInjection
                 $"{ClerkOptions.SectionName}:{nameof(ClerkOptions.AuthorizedParties)} entries must be origins, e.g. 'https://earlyeagles.club' (no path or trailing slash).")
             .ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
+
+        // Stripe webhooks (P0-043.1, P0-044): same rule as Clerk's secret.
+        services.AddOptions<StripeOptions>()
+            .Bind(configuration.GetSection(StripeOptions.SectionName))
+            .Validate(
+                options => string.IsNullOrEmpty(options.WebhookSigningSecret) || StripeOptions.IsValidWebhookSecret(options.WebhookSigningSecret),
+                $"{StripeOptions.SectionName}:{nameof(StripeOptions.WebhookSigningSecret)} must look like '{StripeOptions.WebhookSecretPrefix}…'.")
+            .ValidateOnStart();
 
         AddEmailSender(services, configuration);
         AddOutboxPublisher(services, configuration);

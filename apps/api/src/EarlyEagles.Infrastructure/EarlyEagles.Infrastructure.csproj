@@ -32,6 +32,10 @@
     <!-- IHealthCheck for the database readiness check (P0-026.2). The API
          registers it; the full HealthChecks package comes with ASP.NET Core. -->
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.13" />
+    <!-- Stripe webhook signature check + typed events (P0-043.1, P0-044); the
+         backend half of P0-041.1. Pins Stripe API version 2026-10-28.endive: the
+         webhook endpoint in Stripe must send the same release train (endive). -->
+    <PackageReference Include="Stripe.net" Version="53.1.0" />
   </ItemGroup>
 
   <PropertyGroup>

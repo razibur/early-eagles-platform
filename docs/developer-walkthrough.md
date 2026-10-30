@@ -965,6 +965,59 @@ fails its test.
 
 ---
 
+### 8.7 Stripe webhooks — signed, tenant-agnostic (P0-043.1, P0-044)
+
+Stripe reports subscription changes (checkout completed, subscription updated, invoice failed) by
+POSTing events to `POST /api/webhooks/stripe`. Like Clerk's endpoint (§8.5), it is anonymous, not
+in the OpenAPI document, and on the tenant-resolution allow-list: Stripe calls the bare API host,
+and the tenant will come from the Stripe customer (P0-045.2). Stripe only bills tenants for their
+subscription. Member dues are never collected through it.
+
+Steps for each delivery:
+
+1. `Stripe:WebhookSigningSecret` unset → **503** (nothing is processed). A secret that isn't
+   `whsec_…` stops the API at startup.
+2. Read the raw body, capped at 1 MB → **413** beyond that. `WebhookBody` is shared with the Clerk
+   endpoint.
+3. [`StripeWebhookVerifier`](../apps/api/src/EarlyEagles.Infrastructure/Billing/StripeWebhookVerifier.cs)
+   runs Stripe.net's `EventUtility.ValidateSignature`. The `Stripe-Signature` header (`t=…,v1=…`)
+   must hold an HMAC-SHA256 of `"{t}.{body}"` under the secret, with `t` within 300 s of now (the
+   clock is `TimeProvider`, so tests can move it). Any failure → **400 "Invalid webhook
+   signature"**; the reason is logged, not returned.
+4. Only then is the body parsed. A signed body that isn't an event (no `id`, `type` or
+   `api_version`) → **400 malformed**. A signed event from another **API release train** than
+   the SDK's → **400** naming the version the endpoint expects, logged as an error.
+5. Otherwise the event is logged (type, id, live mode) and acknowledged with **200**. Handlers for
+   `checkout.session.completed`, `customer.subscription.*` and `invoice.payment_failed` are
+   P0-043.2–.4.
+
+Stripe retries anything that isn't 2xx for up to three days, so a refusal only drops the event
+for good once those retries run out.
+
+Stripe.net is in Infrastructure (it will also call Stripe's API for checkout in Phase 2). It pins
+an API version: 53.1.0 reads **`2026-10-28.endive`** events. Version checks compare only the
+release-train name (`endive`), so other dates in the same train are accepted.
+
+**Local testing**, once the Stripe account exists (P0-041.2):
+
+```pwsh
+stripe listen --forward-to http://localhost:5174/api/webhooks/stripe   # prints a whsec_ secret
+dotnet user-secrets set "Stripe:WebhookSigningSecret" "whsec_..." --project apps/api/src/EarlyEagles.Api
+stripe trigger checkout.session.completed
+```
+
+Until then, the integration tests sign deliveries with Stripe.net's own
+`EventUtility.GenerateSignatureHeader`, the same scheme `stripe listen` uses.
+
+⚠ **Gotcha — every delivery gets 400 "Unsupported Stripe API version".** The endpoint in the
+Stripe dashboard sends events in its own API version, and Stripe.net refuses events from another
+release train. Set the endpoint's API version to the one in the error (Workbench → Webhooks →
+endpoint → API version), or upgrade Stripe.net to match. Then the retries go through.
+
+⚠ **Gotcha — `stripe listen` and the dashboard endpoint have different secrets.** The CLI prints
+its own `whsec_…` for each session; the dashboard endpoint's secret is on its page. Use the one
+that matches whoever is sending.
+
 ## 9. Persistence — EF Core, the query filter & migrations
 
 ### 9.1 The `ITenantScoped` marker
@@ -2593,7 +2646,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
 | **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); and grants `tenant-admin` / `member` only on the session's own club (P0-038.1); `TenantMember` / `TenantAdmin` policies (P0-038.2) |
 | **Email (Resend)** | sender built | `IEmailSender` with a Resend and a logging implementation (P0-053.1, §9.9); the first real send waits for the account (P0-011, P0-055) |
-| **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
+| **Stripe Billing** | started | signed webhook endpoint (P0-043.1, P0-044, §8.7); event handlers P0-043.2–.4 and the tenant plan update P0-045 next; checkout UI Phase 2. Tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
 | **CD to Azure** (P0-086/087/088) | waits on Azure | CI, image push, Dependabot and SBOMs exist (§12A); staging/prod deploys and the migration runner need the subscription and an OIDC identity |
@@ -2633,6 +2686,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Microsoft.NET.Test.Sdk | 17.14.1 |
 | Microsoft.AspNetCore.Authentication.JwtBearer | 10.0.13 |
 | Microsoft.Extensions.Http (typed `HttpClient`, Infrastructure) | 10.0.13 |
+| Stripe.net (pins Stripe API `2026-10-28.endive`) | 53.1.0 |
 | Microsoft.AspNetCore.Mvc.Testing | 10.0.9 |
 | Testcontainers.PostgreSql | 4.14.0 |
 | Next.js / React | 16.4.1 / 19.2.4 |
@@ -2714,6 +2768,8 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Role from a v2 session token is `admin`, webhook role is `org:admin` | v2's compact `o.rol` omits the prefix | read it through `ClerkActiveOrganization.From`, which restores it (§8.6) |
 | Every Clerk session token → 401 though the signature is right | `Clerk:AuthorizedParties` missing the web origin the token's `azp` names (e.g. `http://localhost:3000`) | add the exact origin, no trailing slash (§8.6) |
 | Resend → 403 with error 1010 though the API key is right | the request has no `User-Agent` header | send one; the typed client registration adds `EarlyEagles/<version>` (§9.9) |
+| Every Stripe webhook → 400 "Unsupported Stripe API version" | the dashboard endpoint sends another API release train than Stripe.net pins | set the endpoint's API version to the one in the error, or upgrade Stripe.net (§8.7) |
+| Stripe webhooks → 400 "Invalid webhook signature" locally | `stripe listen` signs with its own session secret, not the dashboard endpoint's | use the `whsec_` the CLI prints (§8.7) |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
 
 ---

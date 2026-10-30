@@ -943,6 +943,18 @@ tested before the Resend account exists. Only a real delivery needs P0-011.
 | P0-053.2 | Request shape checked against a mock handler swapped into the host's client; no account needed. |
 | P0-055 | Unchanged: the first real send, and the only email task that needs P0-011 (and a verified domain, P0-002). |
 
+### Stripe webhook without the account (2026-10-30)
+
+Receiving and verifying a Stripe webhook needs only the SDK and a signing secret, and tests can
+sign deliveries with Stripe.net's own `GenerateSignatureHeader`. The account is needed for real
+deliveries (`stripe listen`, the dashboard endpoint) and for the API keys.
+
+| ID | Change |
+|---|---|
+| P0-041.1 | **Split in practice:** `Stripe.net` lands with P0-043.1 (account-free). API keys and `@stripe/stripe-js` stay here. |
+| P0-043.1 | **Depends on** nothing (was P0-041.1). Committed with P0-044: an endpoint that took unverified bodies would never be correct on its own. |
+| P0-044 | Also refuses a signed event from another API release train than the SDK's: its objects may not match the typed models. 400 so Stripe keeps retrying once the endpoint's version is fixed. |
+
 ---
 
 ## Sequencing notes
