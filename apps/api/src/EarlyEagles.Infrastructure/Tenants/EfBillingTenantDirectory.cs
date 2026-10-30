@@ -1,4 +1,6 @@
+using System.Linq.Expressions;
 using EarlyEagles.Application.Abstractions.Tenancy;
+using EarlyEagles.Domain.Tenants;
 using EarlyEagles.Infrastructure.Persistence;
 using EarlyEagles.Infrastructure.Tenancy;
 using Microsoft.EntityFrameworkCore;
@@ -20,13 +22,20 @@ public sealed class EfBillingTenantDirectory : IBillingTenantDirectory
         this.options = options;
     }
 
-    public async Task<BillingTenant?> FindAsync(Guid tenantId, CancellationToken cancellationToken)
+    public Task<BillingTenant?> FindAsync(Guid tenantId, CancellationToken cancellationToken) =>
+        FindSingleAsync(t => t.Id == tenantId, cancellationToken);
+
+    // stripe_customer_id is unique (P0-045.1), so at most one row matches.
+    public Task<BillingTenant?> FindByStripeCustomerAsync(string stripeCustomerId, CancellationToken cancellationToken) =>
+        FindSingleAsync(t => t.StripeCustomerId == stripeCustomerId, cancellationToken);
+
+    private async Task<BillingTenant?> FindSingleAsync(Expression<Func<Tenant, bool>> predicate, CancellationToken cancellationToken)
     {
         await using var context = new ApplicationDbContext(options, new TenantContext());
         return await context.Tenants
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(t => t.Id == tenantId)
+            .Where(predicate)
             .Select(t => new BillingTenant(t.Id, t.Slug, t.Status, t.StripeCustomerId))
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);

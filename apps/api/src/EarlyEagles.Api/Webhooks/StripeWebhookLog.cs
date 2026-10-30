@@ -40,4 +40,17 @@ internal static partial class StripeWebhookLog
         Level = LogLevel.Error,
         Message = "Checkout session {SessionId} not recorded: {Reason} ({EventId})")]
     public static partial void CheckoutSkipped(ILogger logger, string sessionId, string reason, string eventId);
+
+    [LoggerMessage(
+        EventId = 1607,
+        Level = LogLevel.Information,
+        Message = "Tenant {TenantId} invoice {InvoiceId} payment failed; marked past due: {MarkedPastDue} ({EventId})")]
+    public static partial void PaymentFailed(ILogger logger, Guid tenantId, string invoiceId, bool markedPastDue, string eventId);
+
+    // Error: a customer's payment failed and no tenant reflects it. Someone has to look.
+    [LoggerMessage(
+        EventId = 1608,
+        Level = LogLevel.Error,
+        Message = "Failed invoice {InvoiceId} not recorded: {Reason} ({EventId})")]
+    public static partial void PaymentFailureSkipped(ILogger logger, string invoiceId, string reason, string eventId);
 }

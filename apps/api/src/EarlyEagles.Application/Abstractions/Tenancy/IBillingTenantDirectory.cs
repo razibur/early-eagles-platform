@@ -8,4 +8,11 @@ public interface IBillingTenantDirectory
 {
     /// <summary>The tenant with <paramref name="tenantId"/>, or <c>null</c> when there is none.</summary>
     Task<BillingTenant?> FindAsync(Guid tenantId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The tenant billed to Stripe customer <paramref name="stripeCustomerId"/>
+    /// (P0-043.4), or <c>null</c> when none is. Invoice and subscription events
+    /// name the customer, not the tenant.
+    /// </summary>
+    Task<BillingTenant?> FindByStripeCustomerAsync(string stripeCustomerId, CancellationToken cancellationToken);
 }
