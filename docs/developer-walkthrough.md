@@ -917,7 +917,20 @@ an `AuthorizedParties` entry that isn't a bare origin → the host **fails at st
 set with no authorized parties refuses every token that carries `azp`.
 
 `GET /me` ([`MeEndpoints`](../apps/api/src/EarlyEagles.Api/Authentication/MeEndpoints.cs)) is the
-first endpoint that requires a user: it echoes `{ userId, sessionId }`, 401 without a valid token.
+first endpoint that requires a user: it echoes `{ userId, sessionId, organization }`, 401 without a
+valid token.
+
+**The active organization (P0-035.3).** A Clerk user can belong to several clubs; the session has
+at most one *active* organization.
+[`ClerkActiveOrganization.From`](../apps/api/src/EarlyEagles.Api/Authentication/ClerkActiveOrganization.cs)
+reads it from the v2 `o` claim (`{ id, slg, rol, per, fpm }`, a JSON object) and falls back to v1's
+`org_id` / `org_slug` / `org_role`. No active org, no `id`, or an `o` that isn't an object → `null`.
+
+⚠ **Gotcha — v2 drops the role prefix.** In a v2 token `o.rol` is `admin`, but webhooks and v1
+tokens say `org:admin`. `From` adds the `org:` prefix back so one mapping
+(`ClerkOrganizationRoles`) serves both. The token's org is **not yet matched against the request's
+tenant**: an admin of club A must not act on club B's subdomain. P0-038 adds that check along
+with the `tenant-admin` policy.
 
 **Testing without Clerk.** [`ClerkJwtAuthenticationTests`](../apps/api/tests/EarlyEagles.Tests.Integration/Authentication/ClerkJwtAuthenticationTests.cs)
 signs tokens with a local RSA key and swaps the bearer options' `ConfigurationManager` for a
@@ -2501,7 +2514,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
 | **EF-backed `ITenantLookup`** | deferred | replaces `NullTenantLookup` once a seeded DB exists |
 | **Audit endpoint in Production** (P0-048.2) | waits on P0-038 | `/audit-events` exists outside Production; tenant-admin authorization needs Clerk role claims |
-| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer (P0-035.2, §8.6); next: org role claims → `tenant-admin` (P0-038) |
+| **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); next: org role claims → `tenant-admin` (P0-038) |
 | **Stripe Billing** | Phase 2 | tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
@@ -2617,6 +2630,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Webhook redelivery → 500, duplicate key on `IX_tenants_clerk_organization_id` | the request's `ApplicationDbContext` was created before the tenant was set, so the filter hid the existing row | platform reads use their own context; set the tenant before touching the request's (§8.5) |
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 | gitleaks misses a planted secret | an allowlist with `paths` + `regexes` (OR'd), or a placeholder-looking test value | `condition = "AND"` or regex only; plant a random value (§12A) |
+| Role from a v2 session token is `admin`, webhook role is `org:admin` | v2's compact `o.rol` omits the prefix | read it through `ClerkActiveOrganization.From`, which restores it (§8.6) |
 | Every Clerk session token → 401 though the signature is right | `Clerk:AuthorizedParties` missing the web origin the token's `azp` names (e.g. `http://localhost:3000`) | add the exact origin, no trailing slash (§8.6) |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
 

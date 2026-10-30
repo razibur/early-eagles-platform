@@ -16,7 +16,8 @@ namespace EarlyEagles.Tests.Integration.Authentication;
 
 // P0-035.2 — Clerk session tokens are accepted only with a valid RS256
 // signature from the instance's keys, the configured issuer, a live lifetime,
-// an allowed (or absent) azp and an active session. Tokens are signed here with
+// an allowed (or absent) azp and an active session. P0-035.3 — an accepted
+// token's user, session and active organization reach the request. Tokens are signed here with
 // a local RSA key that stands in for the instance's JWKS, so no Clerk account
 // or network is involved; everything after key discovery is the real pipeline.
 public sealed class ClerkJwtAuthenticationTests
@@ -47,7 +48,54 @@ public sealed class ClerkJwtAuthenticationTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<MeResponse>();
-        Assert.Equal(new MeResponse(UserId, SessionId), body);
+        Assert.Equal(new MeResponse(UserId, SessionId, Organization: null), body);
+    }
+
+    [Fact]
+    public async Task The_V2_Organization_Claim_Gives_The_Active_Organization_With_A_Prefixed_Role()
+    {
+        using var factory = new ClerkJwtFactory(Issuer);
+        var organization = new Dictionary<string, object> { ["id"] = "org_2abcClub", ["slg"] = "early-eagles", ["rol"] = "admin", ["per"] = string.Empty, ["fpm"] = string.Empty };
+
+        var body = await MeAsync(factory, Token(extra: new Dictionary<string, object> { ["o"] = organization }));
+
+        Assert.Equal(new ClerkActiveOrganization("org_2abcClub", "early-eagles", "org:admin"), body.Organization);
+    }
+
+    [Fact]
+    public async Task The_V1_Organization_Claims_Give_The_Active_Organization()
+    {
+        using var factory = new ClerkJwtFactory(Issuer);
+        var claims = new Dictionary<string, object> { ["org_id"] = "org_2abcClub", ["org_slug"] = "early-eagles", ["org_role"] = "org:member" };
+
+        var body = await MeAsync(factory, Token(extra: claims));
+
+        Assert.Equal(new ClerkActiveOrganization("org_2abcClub", "early-eagles", "org:member"), body.Organization);
+    }
+
+    [Theory]
+    [InlineData("not-an-object")]
+    [InlineData("{}")]
+    public async Task An_Unreadable_Organization_Claim_Means_No_Active_Organization(string value)
+    {
+        // A JSON string; the second is an object written as a string, which
+        // Clerk never sends. Neither may produce an organization.
+        using var factory = new ClerkJwtFactory(Issuer);
+
+        var body = await MeAsync(factory, Token(extra: new Dictionary<string, object> { ["o"] = value }));
+
+        Assert.Null(body.Organization);
+    }
+
+    [Fact]
+    public async Task An_Organization_Without_An_Id_Means_No_Active_Organization()
+    {
+        using var factory = new ClerkJwtFactory(Issuer);
+        var organization = new Dictionary<string, object> { ["slg"] = "early-eagles", ["rol"] = "admin" };
+
+        var body = await MeAsync(factory, Token(extra: new Dictionary<string, object> { ["o"] = organization }));
+
+        Assert.Null(body.Organization);
     }
 
     [Fact]
@@ -167,6 +215,13 @@ public sealed class ClerkJwtAuthenticationTests
         var request = new HttpRequestMessage(HttpMethod.Get, MeEndpoints.Route);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return factory.CreateClient().SendAsync(request);
+    }
+
+    private static async Task<MeResponse> MeAsync(WebApplicationFactory<Program> factory, string token)
+    {
+        var response = await SendAsync(factory, token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<MeResponse>())!;
     }
 
     private static string Token(

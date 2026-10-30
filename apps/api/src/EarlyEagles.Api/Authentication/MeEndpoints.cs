@@ -4,8 +4,9 @@ using Microsoft.AspNetCore.Http.HttpResults;
 namespace EarlyEagles.Api.Authentication;
 
 /// <summary>
-/// <c>GET /me</c> echoes the signed-in Clerk user (P0-035.2). The smallest
-/// endpoint that requires a user: no token → 401.
+/// <c>GET /me</c> echoes the signed-in Clerk user (P0-035.2) and the
+/// organization their session has active (P0-035.3). The smallest endpoint
+/// that requires a user: no token → 401.
 /// </summary>
 public static class MeEndpoints
 {
@@ -27,5 +28,6 @@ public static class MeEndpoints
     private static Ok<MeResponse> Me(ClaimsPrincipal user) =>
         TypedResults.Ok(new MeResponse(
             user.FindFirstValue(ClerkClaims.Subject)!,
-            user.FindFirstValue(ClerkClaims.SessionId)));
+            user.FindFirstValue(ClerkClaims.SessionId),
+            ClerkActiveOrganization.From(user)));
 }
