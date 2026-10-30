@@ -1468,6 +1468,18 @@ dotnet user-secrets set "Resend:From" "Early Eagles <no-reply@earlyeagles.club>"
 A key not starting `re_`, or a key with a missing or unparseable `From`, stops the API at startup.
 The first real send is P0-055, after the Resend account (P0-011) and a verified domain.
 
+**Tests.** Unit tests (`Tests.Unit/Email`) cover which sender is registered, the startup checks
+and how each Resend answer maps to `EmailDeliveryException`. `ResendRequestShapeTests` (P0-053.2)
+boots the real API with a key set and swaps only the network: re-registering the same typed
+client adds to its configuration, so
+
+```csharp
+services.AddHttpClient<IEmailSender, ResendEmailSender>()
+    .ConfigurePrimaryHttpMessageHandler(() => new RecordingHandler(requests));
+```
+
+keeps the host's base address, key and `User-Agent` and records what would have gone to Resend.
+
 ⚠ **Gotcha — Resend answers 403 (error 1010) to a request without `User-Agent`.** `HttpClient`
 sends none by default, and the error looks like a bad key. The registration adds
 `EarlyEagles/<version>`.

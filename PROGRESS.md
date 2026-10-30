@@ -20,7 +20,7 @@ Last updated: 2026-10-30
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~77% (165 / ~214 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~78% (166 / ~214 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -324,7 +324,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 
 - `[x]` **P0-053.1** `IEmailSender` interface + `ResendEmailSender` implementation
   ↳ verify: [`IEmailSender`](./apps/api/src/EarlyEagles.Application/Abstractions/Email/IEmailSender.cs) + `EmailMessage` (to, subject, HTML, optional text / reply-to / idempotency key; the sender is always the configured `Resend:From`) + `EmailDeliveryException` (status, Resend error name, `IsTransient`). [`ResendEmailSender`](./apps/api/src/EarlyEagles.Infrastructure/Email/ResendEmailSender.cs): typed `HttpClient` on `POST https://api.resend.com/emails`, no SDK; 429 / 5xx / timeout / unreachable → transient, other refusals not; 0 or >50 recipients and keys over 256 chars refused before sending; no addresses in logs or exceptions. `Resend:ApiKey` unset → `LoggingEmailSender` (logs subject + count, sends nothing); a key not starting `re_`, or a key without a valid `Resend:From`, stops startup. Unit 356/356 (18 new: registration, validation, failure mapping); each rule mutation-checked. Built without a Resend account: the real send is P0-055.
-- `[ ]` **P0-053.2** Integration test: send via Resend; mock verifies request shape
+- `[x]` **P0-053.2** Integration test: send via Resend; mock verifies request shape
+  ↳ verify: [`ResendRequestShapeTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Email/ResendRequestShapeTests.cs) boots the API with `Resend:ApiKey` / `Resend:From` set and only the typed client's primary handler swapped for a recorder, then sends through the host's own `IEmailSender`: one `POST https://api.resend.com/emails`, `Authorization: Bearer <key>`, `User-Agent: EarlyEagles/<version>`, `Idempotency-Key` when given, JSON body exactly `from` (the configured sender), `to`, `subject`, `html`, `text`, `reply_to`; with only the required fields, the body is exactly `from`/`to`/`subject`/`html` and the header is absent; Resend's `id` is returned. Mutation-checked: dropping the User-Agent, camelCase names, writing nulls, or dropping the header each fail a test. Integration 200 passed + 5 skipped.
 - `[-]` **P0-054** Email template rendering with i18n — deferred per [ADR-0003](docs/adr/0003-defer-i18n.md). English-only templates.
 - `[ ]` **P0-055** Smoke-test email from dev → owner inbox
 
