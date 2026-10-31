@@ -109,15 +109,6 @@ public sealed class StripeWebhookEndpointTests
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 
-    [Fact]
-    public void A_Malformed_Signing_Secret_Stops_The_Host_At_Startup()
-    {
-        using var factory = new StripeFactory("sk_test_not_a_webhook_secret");
-
-        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
-        Assert.Contains("Stripe:WebhookSigningSecret", exception.Message, StringComparison.Ordinal);
-    }
-
     private static string Event(string type, string apiVersion) =>
         "{\"id\":\"evt_integration\",\"object\":\"event\",\"api_version\":\"" + apiVersion
         + "\",\"created\":1793361600,\"livemode\":false,\"pending_webhooks\":1,\"type\":\"" + type

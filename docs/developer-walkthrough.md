@@ -2812,6 +2812,8 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Stripe webhooks → 400 "Invalid webhook signature" locally | `stripe listen` signs with its own session secret, not the dashboard endpoint's | use the `whsec_` the CLI prints (§8.7) |
 | `invoice.payment_failed` leaves the tenant active; log event 1608 "no tenant is billed to customer" | the tenant never recorded that customer (checkout made outside the platform, see the row below) | link the tenant to the customer first (§8.7) |
 | Stripe checkout paid but the tenant has no `stripe_customer_id`; log event 1606 | the session had no `client_reference_id`, or not the tenant id (e.g. a Payment Link or a dashboard checkout) | create sessions through the platform, which sets it (P2-008); link the tenant by hand (§8.7) |
+| A "bad setting stops the host" test passes locally but fails on CI with `ObjectDisposedException: IServiceProvider` | `WebApplicationFactory` races a host that fails to start: the app's thread can dispose it before the factory reads it | test the `ValidateOnStart` checks through `AddInfrastructure` + `IStartupValidator.Validate()` instead (`StartupSettingsValidationTests`) |
+| `secrets (gitleaks)` flags a made-up key in a test | gitleaks scans all of history, so editing the test doesn't clear it | allowlist that exact value in `.gitleaks.toml`, then run the planted-secret check (runbook §4) |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
 
 ---

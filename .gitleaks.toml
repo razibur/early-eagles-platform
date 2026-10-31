@@ -28,6 +28,14 @@ regexes = [
 ]
 
 [[allowlists]]
+description = "A made-up Resend API key in a unit test (EmailSenderRegistrationTests, commit 842aa73); never a real key"
+# The secret itself, only this exact value. It stays in git history, so
+# changing the test would not clear the finding.
+regexes = [
+  '''^re_test_123456789$''',
+]
+
+[[allowlists]]
 description = "The example signing secret from Svix's public documentation, used as a test vector (SvixWebhookVerifierTests)"
 # Matches the secret itself (the default target), and only this exact value.
 regexes = [
