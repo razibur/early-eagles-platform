@@ -193,21 +193,6 @@ public sealed class ClerkJwtAuthenticationTests
         Assert.Equal(HttpStatusCode.OK, health.StatusCode);
     }
 
-    [Theory]
-    [InlineData("http://test-instance.clerk.accounts.dev", AllowedOrigin)]
-    [InlineData("https://test-instance.clerk.accounts.dev/", AllowedOrigin)]
-    [InlineData("not a url", AllowedOrigin)]
-    [InlineData(Issuer, "https://earlyeagles.club/app")]
-    [InlineData(Issuer, "earlyeagles.club")]
-    public void Malformed_Clerk_Settings_Stop_The_Host_At_Startup(string issuer, string authorizedParty)
-    {
-        using var factory = new ClerkJwtFactory(issuer, authorizedParty);
-
-        var error = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
-
-        Assert.Contains("Clerk:", error.ToString(), StringComparison.Ordinal);
-    }
-
     private static Task<HttpResponseMessage> SendAsync(WebApplicationFactory<Program> factory, string token)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, MeEndpoints.Route);

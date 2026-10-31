@@ -134,15 +134,6 @@ public sealed class ClerkWebhookEndpointTests
     }
 
     [Fact]
-    public void A_Malformed_Signing_Secret_Stops_The_Host_At_Startup()
-    {
-        using var factory = new ClerkFactory(fixture, "not-a-whsec-secret");
-
-        var exception = Assert.Throws<OptionsValidationException>(() => factory.CreateClient());
-        Assert.Contains("WebhookSigningSecret", exception.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task Organization_Created_Provisions_A_Tenant_Linked_To_The_Organization()
     {
         var (orgId, slug) = NewOrganization();

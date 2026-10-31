@@ -97,7 +97,8 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(cygpath -w /tmp/leak):/repo" -v "$(pwd 
 Expect exactly one finding: `stripe-access-token` on line 1. The role ID on line 2 must stay
 allowed. Add a random `whsec_<base64>` line too and it must be reported by the repo's own rule
 `svix-webhook-signing-secret`. The default rules miss it. Only the Svix documentation example
-(`whsec_MfKQ9r8…`), used as a test vector, is allowlisted. Use a random value, because gitleaks ignores keys that look like placeholders
+(`whsec_MfKQ9r8…`), used as a test vector, is allowlisted, along with the made-up Resend key
+`re_test_123456789` from a unit test. A random `re_…` key on a line of its own must still be reported. Use a random value, because gitleaks ignores keys that look like placeholders
 (`…abcd0123456789`).
 
 ## 5. Keeping the tools current
