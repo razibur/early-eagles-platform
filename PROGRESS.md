@@ -20,7 +20,7 @@ Last updated: 2026-11-02
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~81% (173 / ~214 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~81% (174 / ~214 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -323,8 +323,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: topics decided: one `domain-events` topic for every domain event, one subscription per consumer, routed by a correlation filter on `Subject` (the short event name). First subscription: `payments` (`Subject = PaymentConfirmed`, for P0-052); the provisional `smoke` subscription is gone. Declared in [`infra/local/servicebus/Config.json`](./infra/local/servicebus/Config.json) (valid JSON; emulator `Correlation`/`Label` rule) and as the `serviceBusTopics` default in [`main.dev.bicep`](./infra/main.dev.bicep); staging/prod stay `[]` until they get Service Bus (P0-086/087). [`serviceBus.bicep`](./infra/modules/serviceBus.bicep) gains an optional `subject` per subscription, written as the subscription's **`$Default`** rule (a second rule would be OR-ed with the match-all). `az bicep build` + lint clean on all three `main.<env>.bicep`; the compiled dev template has the topic, the subscription and a conditional `$Default` `CorrelationFilter` rule with `label: PaymentConfirmed`. Message contract (MessageId = outbox id, Subject, `EventType`/`TenantId` properties, JSON body) documented in walkthrough §12.9 for P0-050.2.2. **Live checks carried:** emulator run needs `ACCEPT_EULA=Y` in your `.env` (P0-059.5); `az servicebus topic show` needs the subscription (P0-059.3).
 - `[x]` **P0-052.1** `PaymentConfirmedHandler` subscribes to topic
   ↳ verify: [`PaymentConfirmedHandler`](./apps/api/src/EarlyEagles.Infrastructure/Messaging/PaymentConfirmedHandler.cs): a `BackgroundService` owning a `ServiceBusProcessor` on `domain-events/payments` (the subscription + `Subject = PaymentConfirmed` filter from P0-051), manual settle after the handler returns, logs `EventType`/`MessageId`/`TenantId`/delivery count (EventId 1301). Registered only when a bus is configured, sharing the one `ServiceBusClient`. Unit: log contents from a `ServiceBusModelFactory` message, fallback to `Subject` when properties are missing, registered with an emulator connection string and absent without one. Unit 252/252.
-- `[~]` **P0-052.2** Handler logs the event; integration test verifies firing
-  ↳ verify: **written, not yet run.** [`PaymentConfirmedHandlerTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Messaging/PaymentConfirmedHandlerTests.cs) starts the handler, publishes a `PaymentConfirmed` through `ServiceBusOutboxPublisher`, and waits (log-line handshake, 30 s cap) for the handler's line naming the event type and tenant. `[ServiceBusEmulatorFact]`: skipped without `EE_SERVICEBUS_EMULATOR`, so it finishes together with P0-050.3 once the emulator runs. Shares the Postgres collection with `OutboxToServiceBusTests` so the two don't compete for `payments`.
+- `[x]` **P0-052.2** Handler logs the event; integration test verifies firing
+  ↳ verify: **run green.** Run 2026-11-02 against the compose emulator (Docker Desktop 29.8.2): integration 222/222, **0 skipped**; unit 404. [`PaymentConfirmedHandlerTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Messaging/PaymentConfirmedHandlerTests.cs) starts the handler, publishes a `PaymentConfirmed` through `ServiceBusOutboxPublisher`, and waits (log-line handshake, 30 s cap) for the handler's line naming the event type and tenant. `[ServiceBusEmulatorFact]`: skipped without `EE_SERVICEBUS_EMULATOR`, so it finishes together with P0-050.3 once the emulator runs. Shares the Postgres collection with `OutboxToServiceBusTests` so the two don't compete for `payments`.
 
 ### Email + notifications scaffolding
 
