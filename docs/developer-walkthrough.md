@@ -1408,6 +1408,12 @@ $env:EE_SERVICEBUS_EMULATOR = "Endpoint=sb://localhost;SharedAccessKeyName=RootM
 dotnet test apps/api/tests/EarlyEagles.Tests.Integration --filter "FullyQualifiedName~Messaging"
 ```
 
+⚠ **Gotcha — the emulator caps duplicate detection at 5 minutes.** A topic with
+`DuplicateDetectionHistoryTimeWindow` above `PT5M` stops the emulator at startup: the container
+exits with code 139 and the log says "Max Duplicate detection window supported 5m". The local
+`Config.json` uses `PT5M`; Azure keeps the module's `PT10M`. The tests only re-send within seconds,
+so both windows cover them.
+
 ⚠ **Gotcha — two tests on one subscription steal each other's messages.** Both bus test classes
 read `payments`; run in parallel, one receives the other's message. They share the Postgres
 collection, which xUnit runs serially.
@@ -2794,6 +2800,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `BCP318: The value of type "module | null" may be null` | reading an output of a module that has an `if` | use `mod.?outputs.?x ?? <fallback>` |
 | API in Azure gets `ManagedIdentityCredential authentication unavailable` / no identity found | user-assigned identity attached but `AZURE_CLIENT_ID` not set | pass `identity` to `containerApp.bicep` — it sets the variable (§12.18) |
 | Container App can't pull the `ghcr.io` image (`UNAUTHORIZED`) | image is private; the app has no registry credentials, or the `read:packages` token expired | wire / rotate the token (P0-062.4, [ADR-0010](./adr/0010-ghcr-instead-of-acr.md)) |
+| Service Bus emulator container exits (139) right after start; log: "Max Duplicate detection window supported 5m" | a topic in `Config.json` asks for more than `PT5M` | set `DuplicateDetectionHistoryTimeWindow` to `PT5M` or less locally (Azure allows longer) |
 | `docker compose up` fails with `iptables … DOCKER-ISOLATION-STAGE-1 does not exist`, or host ports don't reach containers | Rancher Desktop's VM networking (seen 2026-10) | use Docker Desktop (verified on engine 29.8.2: network, health check and migrations over 55432 all work) |
 | Migrations / `psql` "succeed" but the container DB is empty | a native Windows Postgres owns `localhost:5432` and took the connection | use the compose port 55432 + `ConnectionStrings__Postgres` (§11) |
 | `dotnet ef`: startup project doesn't reference `Microsoft.EntityFrameworkCore.Design` | Api project used as startup | `--startup-project apps/api/src/EarlyEagles.Infrastructure` |
