@@ -2,6 +2,7 @@ using EarlyEagles.Api.Auditing;
 using EarlyEagles.Api.Authentication;
 using EarlyEagles.Api.ExceptionHandling;
 using EarlyEagles.Api.Health;
+using EarlyEagles.Api.Notifications;
 using EarlyEagles.Api.Observability;
 using EarlyEagles.Api.OpenApi;
 using EarlyEagles.Api.Tenancy;
@@ -95,6 +96,9 @@ app.MapStripeWebhookEndpoints();
 
 // Audit log query (P0-048.1), tenant admins only (P0-048.2).
 app.MapAuditEventsEndpoints();
+
+// Web Push subscriptions (P0-068.3.2), members of the request's tenant only.
+app.MapPushEndpoints();
 
 app.Run();
 
