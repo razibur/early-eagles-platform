@@ -16,11 +16,11 @@ Each task carries a one-line **verify:** with the exact thing to check / command
 to run. If a verify step requires external accounts (Azure, Stripe, Clerk),
 that's noted — the rest you can verify on your laptop.
 
-Last updated: 2026-11-02
+Last updated: 2026-11-03
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~82% (175 / ~214 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~82% (176 / ~214 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -414,7 +414,10 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: `npx tsc --noEmit`, `npm run lint` and `npm run build` pass. Under `next start` in headless Chrome, all 23 X-axis tick labels carry `style="text-transform: uppercase"` and compute to `uppercase` (screenshot: MAR 9 … MAY 25), and `/sw.js` still registers in the production build. The old code passed `textTransform` as an SVG attribute, which browsers ignore, so the uppercase styling is now actually applied.
 - `[ ]` **P0-068.1** Generate VAPID keys; store public in env, private in vault
 - `[ ]` **P0-068.2** Service worker registers push subscription
-- `[ ]` **P0-068.3** API endpoint `POST /api/push/subscribe` stores subscription per user
+- `[~]` **P0-068.3** API endpoint `POST /api/push/subscribe` stores subscription per user — **split** 2026-11-03, see [Implementation-Plan appendix](./Implementation-Plan.md#web-push-subscriptions-without-the-keys-2026-11-03)
+- `[x]` **P0-068.3.1** `PushSubscription` entity + `push_subscriptions` table
+  ↳ verify: [`PushSubscription`](./apps/api/src/EarlyEagles.Domain/Notifications/PushSubscription.cs) (`ITenantScoped`): endpoint + `p256dh` + `auth` for one member in one club. Endpoints must be `https` on a named host (no IP literals, `localhost` or single-label hosts, no user info), because the API will POST to them. Keys must be base64url. `Renew` hands the browser to whoever subscribes on it next. Migration `AddPushSubscriptions` only creates the table: unique `(tenant_id, endpoint)`, index `(tenant_id, clerk_user_id)`, FK to `tenants` (cascade). Port [`IPushSubscriptionRepository`](./apps/api/src/EarlyEagles.Application/Abstractions/Notifications/IPushSubscriptionRepository.cs) + EF implementation (same tenant guard as the member repository). Unit [`PushSubscriptionTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Notifications/PushSubscriptionTests.cs) (29) + the `TenantScopedMarkerTests` reflection guard; integration [`PushSubscriptionStorageTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Notifications/PushSubscriptionStorageTests.cs) (3): round trip, invisible to another tenant, one row per browser per tenant, the same browser allowed in two tenants. Mutation-checked (host guard, https check, renew no-op).
+- `[ ]` **P0-068.3.2** `POST /api/push/subscribe` endpoint + `SubscribeToPushCommand` (with P0-068.4)
 - `[ ]` **P0-068.4** Integration test: subscribe → endpoint → DB row exists
 - `[-]` **P0-069** Bangla font — deferred per [ADR-0003](docs/adr/0003-defer-i18n.md)
 - `[x]` **P0-070.1** Top-bar component (masthead with logo slot + user dropdown)
