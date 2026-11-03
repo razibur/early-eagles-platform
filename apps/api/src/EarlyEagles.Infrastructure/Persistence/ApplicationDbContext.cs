@@ -1,6 +1,7 @@
 using System.Reflection;
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Domain.Auditing;
+using EarlyEagles.Domain.Notifications;
 using EarlyEagles.Domain.Primitives;
 using EarlyEagles.Domain.Tenants;
 using EarlyEagles.Infrastructure.Outbox;
@@ -67,6 +68,8 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
     /// <summary>
     /// Attaches the save-time interceptors: the domain-event outbox drain

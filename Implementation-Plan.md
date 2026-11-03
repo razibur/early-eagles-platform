@@ -958,6 +958,16 @@ deliveries (`stripe listen`, the dashboard endpoint) and for the API keys.
 | P0-043.4 | The tenant is found by the invoice's customer, so it depends on P0-045.1. An active tenant goes past due; an already past-due one doesn't raise `PaymentFailed` again (Stripe retries a failing invoice several times). Suspended and deactivated tenants are left alone and logged. Nothing here suspends a tenant or reactivates it after payment: that waits for the subscription events (P0-043.3) and the dunning policy. |
 | P0-045.1 | **Moved ahead of** P0-043.2: recording the ids on the tenant is what makes a redelivered `checkout.session.completed` a no-op (`LinkStripeSubscription` returns `false`), so the event handler depends on it. Adds unique indexes on both ids. |
 
+### Web Push subscriptions without the keys (2026-11-03)
+
+Storing a browser's push subscription needs no VAPID keys: the keys sign what the API *sends*
+(P1-026), not what a browser hands over. So the API side of P0-068 goes ahead of P0-068.1/.2.
+
+| ID | Change |
+|---|---|
+| P0-068.3 | **Split:** .3.1 the `PushSubscription` entity and table, .3.2 the endpoint and command. Subscriptions are **tenant-scoped** (a club's notifications only reach devices registered with that club), one row per browser per tenant; the same browser in a second club is a second row. The endpoint must be `https` on a named host, because the sender will POST to it. |
+| P0-068.3.2 | **Committed with** P0-068.4: the integration test is the endpoint's verification. Needs the `TenantMember` policy (P0-038.2), not only a signed-in user. |
+
 ---
 
 ## Sequencing notes

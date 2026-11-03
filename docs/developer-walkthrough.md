@@ -1583,6 +1583,24 @@ keeps the host's base address, key and `User-Agent` and records what would have 
 sends none by default, and the error looks like a bad key. The registration adds
 `EarlyEagles/<version>`.
 
+### 9.10 Web Push subscriptions (P0-068.3)
+
+A browser that allows notifications hands the page a `PushSubscription`: a push service
+**endpoint** (FCM for Chrome, Mozilla's for Firefox, Apple's for Safari, WNS for Edge on Windows)
+and two keys, `p256dh` and `auth`, that the sender encrypts each message with. The API stores
+them in `push_subscriptions` so it can notify the member later (P1-026).
+
+- **Per club.** The row is `ITenantScoped`, like everything else: a club's notifications only
+  reach devices registered with that club. The same browser in two clubs is two rows.
+- **One row per browser.** `(tenant_id, endpoint)` is unique. If someone else signs in on that
+  browser and subscribes, `Renew` hands the row to them instead of notifying both people.
+- **The endpoint is a URL the API will POST to.** So the domain only accepts `https` on a named
+  host: no IP literals, `localhost` or single-label hosts, and no user info. No real push service
+  uses those, and they would point the sender at the API's own network.
+
+VAPID keys (P0-068.1) aren't needed to *store* a subscription, only to send one, so this part
+works before the keys exist.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
@@ -2689,7 +2707,8 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 
 | Area | Status | Where it plugs in |
 |---|---|---|
-| **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | written, skipped | tests exist and skip until the emulator runs (`EE_SERVICEBUS_EMULATOR`; you accept its licence in `.env`) |
+| **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | done locally (2026-11-02) | green against the compose emulator; CI still skips them (no `EE_SERVICEBUS_EMULATOR` there) |
+| **Web Push** (P0-068) | storage built | `push_subscriptions` table (P0-068.3.1, §9.10); the subscribe endpoint next; VAPID keys (P0-068.1) and the service worker half (P0-068.2) wait on the vault; sending is P1-026 |
 | **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); and grants `tenant-admin` / `member` only on the session's own club (P0-038.1); `TenantMember` / `TenantAdmin` policies (P0-038.2) |
 | **Email (Resend)** | sender built | `IEmailSender` with a Resend and a logging implementation (P0-053.1, §9.9); the first real send waits for the account (P0-011, P0-055) |
 | **Stripe Billing** | started | signed webhook endpoint (P0-043.1, P0-044, §8.7); tenant Stripe ids (P0-045.1); checkout → `SubscriptionStarted` (P0-043.2); failed payment → past due (P0-043.4); subscription handlers P0-043.3 and the plan update P0-045.2 wait for the dashboard prices (P0-042); checkout UI Phase 2. Tenant *subscription* billing only — **not** member dues |
