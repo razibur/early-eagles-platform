@@ -1598,6 +1598,19 @@ them in `push_subscriptions` so it can notify the member later (P1-026).
   host: no IP literals, `localhost` or single-label hosts, and no user info. No real push service
   uses those, and they would point the sender at the API's own network.
 
+**The endpoint (P0-068.3.2).** `POST /api/push/subscribe` on the club's subdomain takes the
+browser's `subscription.toJSON()` unchanged:
+
+```json
+{ "endpoint": "https://fcm.googleapis.com/fcm/send/…", "expirationTime": null,
+  "keys": { "p256dh": "BNcR…", "auth": "tBHI…" } }
+```
+
+It is behind the `TenantMember` policy (no token → 401, a session in another club → 403) and
+answers `200 { "id": … }`. A second post from the same browser returns the same id. The command's
+validator applies the domain's endpoint and key rules, so a malformed subscription is a 400 that
+names the field. The command is audited like every other.
+
 VAPID keys (P0-068.1) aren't needed to *store* a subscription, only to send one, so this part
 works before the keys exist.
 
@@ -2708,7 +2721,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | Area | Status | Where it plugs in |
 |---|---|---|
 | **Service Bus end-to-end runs** (P0-050.3, P0-052.2, P0-026.2.2) | done locally (2026-11-02) | green against the compose emulator; CI still skips them (no `EE_SERVICEBUS_EMULATOR` there) |
-| **Web Push** (P0-068) | storage built | `push_subscriptions` table (P0-068.3.1, §9.10); the subscribe endpoint next; VAPID keys (P0-068.1) and the service worker half (P0-068.2) wait on the vault; sending is P1-026 |
+| **Web Push** (P0-068) | subscribe built | `push_subscriptions` table and `POST /api/push/subscribe` (P0-068.3, P0-068.4, §9.10); VAPID keys (P0-068.1) and the service worker half (P0-068.2) wait on the vault; sending is P1-026 |
 | **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); and grants `tenant-admin` / `member` only on the session's own club (P0-038.1); `TenantMember` / `TenantAdmin` policies (P0-038.2) |
 | **Email (Resend)** | sender built | `IEmailSender` with a Resend and a logging implementation (P0-053.1, §9.9); the first real send waits for the account (P0-011, P0-055) |
 | **Stripe Billing** | started | signed webhook endpoint (P0-043.1, P0-044, §8.7); tenant Stripe ids (P0-045.1); checkout → `SubscriptionStarted` (P0-043.2); failed payment → past due (P0-043.4); subscription handlers P0-043.3 and the plan update P0-045.2 wait for the dashboard prices (P0-042); checkout UI Phase 2. Tenant *subscription* billing only — **not** member dues |
