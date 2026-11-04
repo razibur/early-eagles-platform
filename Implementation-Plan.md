@@ -968,6 +968,12 @@ Storing a browser's push subscription needs no VAPID keys: the keys sign what th
 | P0-068.3 | **Split:** .3.1 the `PushSubscription` entity and table, .3.2 the endpoint and command. Subscriptions are **tenant-scoped** (a club's notifications only reach devices registered with that club), one row per browser per tenant; the same browser in a second club is a second row. The endpoint must be `https` on a named host, because the sender will POST to it. |
 | P0-068.3.2 | **Committed with** P0-068.4: the integration test is the endpoint's verification. Needs the `TenantMember` policy (P0-038.2), not only a signed-in user. |
 
+### Phase 0 gate: audit coverage rule (2026-11-03)
+
+| ID | Change |
+|---|---|
+| (gate) | **Added**, no task id: `AuditCoverageRulesTests` turns the gate item "audit row for every state-changing command" into a test (messages are commands or queries; queries and the API host never touch write ports). Small and account-free; recorded here instead of renumbering. |
+
 ---
 
 ## Sequencing notes
