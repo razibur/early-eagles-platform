@@ -4,13 +4,16 @@ using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using EarlyEagles.Application.Abstractions.Auditing;
 using EarlyEagles.Application.Abstractions.Email;
+using EarlyEagles.Application.Abstractions.FeatureFlags;
 using EarlyEagles.Application.Abstractions.Messaging;
 using EarlyEagles.Application.Abstractions.Notifications;
 using EarlyEagles.Application.Abstractions.Persistence;
 using EarlyEagles.Application.Abstractions.Tenancy;
+using EarlyEagles.Domain.Tenants;
 using EarlyEagles.Infrastructure.Auditing;
 using EarlyEagles.Infrastructure.Billing;
 using EarlyEagles.Infrastructure.Email;
+using EarlyEagles.Infrastructure.FeatureFlags;
 using EarlyEagles.Infrastructure.Identity;
 using EarlyEagles.Infrastructure.Messaging;
 using EarlyEagles.Infrastructure.Notifications;
@@ -150,6 +153,16 @@ public static class DependencyInjection
                 options => string.IsNullOrEmpty(options.WebhookSigningSecret) || StripeOptions.IsValidWebhookSecret(options.WebhookSigningSecret),
                 $"{StripeOptions.SectionName}:{nameof(StripeOptions.WebhookSigningSecret)} must look like '{StripeOptions.WebhookSecretPrefix}…'.")
             .ValidateOnStart();
+
+        // Feature flags (P1-031). An opted-in tenant that isn't a valid slug
+        // could never match, so it fails at startup instead of silently.
+        services.AddOptions<FeatureFlagOptions>()
+            .Bind(configuration.GetSection(FeatureFlagOptions.SectionName))
+            .Validate(
+                options => options.Features.Values.All(f => f.Tenants.All(Tenant.IsValidSlug)),
+                $"{FeatureFlagOptions.SectionName}:Features:<feature>:Tenants entries must be tenant slugs, e.g. 'early-eagles'.")
+            .ValidateOnStart();
+        services.AddScoped<IFeatureFlags, ConfigurationFeatureFlags>();
 
         AddEmailSender(services, configuration);
         AddOutboxPublisher(services, configuration);
