@@ -3,6 +3,7 @@ using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Domain.Auditing;
 using EarlyEagles.Domain.Notifications;
 using EarlyEagles.Domain.Primitives;
+using EarlyEagles.Domain.Sessions;
 using EarlyEagles.Domain.Tenants;
 using EarlyEagles.Infrastructure.Outbox;
 using EarlyEagles.Infrastructure.Persistence.Interceptors;
@@ -70,6 +71,8 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
+
+    public DbSet<Session> Sessions => Set<Session>();
 
     /// <summary>
     /// Attaches the save-time interceptors: the domain-event outbox drain
