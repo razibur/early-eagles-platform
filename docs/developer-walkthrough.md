@@ -1650,6 +1650,19 @@ Flagsmith can replace:
 To turn a feature on for Early Eagles in an environment, set
 `FeatureFlags__Features__sessions__Tenants__0=early-eagles` on the app.
 
+### 9.12 Sessions (P1-001.1)
+
+A **session** is one club play date, usually Sunday morning. The admin creates each one; there is
+no recurring schedule (owner's call, 2026-11-03).
+
+- **Local wall clock.** `Date` is a `DateOnly` and `StartTime` a `TimeOnly`, stored as Postgres
+  `date` and `time`: "Sunday 8 November, 7:00" as the club reads it. The tenant's time zone will
+  be added when something needs the actual instant (the RSVP cut-off, P1-001.2).
+- **Fee in whole cents.** `int` cents avoids rounding and keeps the currency out of the type for
+  now (US dollars for Early Eagles). Default 1500 ($15); 0 means free; above $1,000 is refused as
+  a typo.
+- **Scheduled until cancelled.** A cancelled session stays as history and can't be edited.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:

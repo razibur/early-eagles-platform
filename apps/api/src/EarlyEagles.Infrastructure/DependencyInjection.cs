@@ -8,6 +8,7 @@ using EarlyEagles.Application.Abstractions.FeatureFlags;
 using EarlyEagles.Application.Abstractions.Messaging;
 using EarlyEagles.Application.Abstractions.Notifications;
 using EarlyEagles.Application.Abstractions.Persistence;
+using EarlyEagles.Application.Abstractions.Sessions;
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Domain.Tenants;
 using EarlyEagles.Infrastructure.Auditing;
@@ -19,6 +20,7 @@ using EarlyEagles.Infrastructure.Messaging;
 using EarlyEagles.Infrastructure.Notifications;
 using EarlyEagles.Infrastructure.Outbox;
 using EarlyEagles.Infrastructure.Persistence;
+using EarlyEagles.Infrastructure.Sessions;
 using EarlyEagles.Infrastructure.Tenancy;
 using EarlyEagles.Infrastructure.Tenants;
 using Microsoft.EntityFrameworkCore;
@@ -103,6 +105,7 @@ public static class DependencyInjection
         // Tenant member write side (P0-036.3.1), same request-scoped context.
         services.AddScoped<ITenantMemberRepository, EfTenantMemberRepository>();
         services.AddScoped<IPushSubscriptionRepository, EfPushSubscriptionRepository>();
+        services.AddScoped<ISessionRepository, EfSessionRepository>();
 
         // Unit of work (P0-024.3) backing TransactionBehavior. Scoped so it
         // shares the request's ApplicationDbContext — the transaction it opens
