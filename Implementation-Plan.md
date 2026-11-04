@@ -974,6 +974,45 @@ Storing a browser's push subscription needs no VAPID keys: the keys sign what th
 |---|---|
 | (gate) | **Added**, no task id: `AuditCoverageRulesTests` turns the gate item "audit row for every state-changing command" into a test (messages are commands or queries; queries and the API host never touch write ports). Small and account-free; recorded here instead of renumbering. |
 
+
+### Phase 1 re-plan (2026-11-03)
+
+Phase 1 was sketched before Phase 0 landed. Re-planned now because its **backend needs no
+third-party account**: entities, migrations, commands and endpoints can be built and tested with
+the signed test tokens Phase 0 already uses. The web pages wait for Clerk (P0-039).
+
+**Product decisions (owner, 2026-11-03):**
+
+- **Fees are per Sunday session.** Each session carries a fee (default $15, the admin can change
+  it per session). A member reports a Zelle payment for a session they played; an admin confirms
+  or rejects it. No monthly dues.
+- **The admin creates each session.** No recurring schedule or scheduler job. "Copy last week"
+  can come later as a small task.
+- **The leaderboard is for club members only.** "Times paid" is semi-financial, so it stays
+  inside the club. Supersedes "public leaderboard" in project-scope.md.
+- **No guest role in Phase 1.** Members and admins only, as today. Guests come with Phase 4.
+
+**Changes to the original rows** (originals above are left as written):
+
+| ID | Change |
+|---|---|
+| P1-001 | **Split** into P1-001.1 to .4, one aggregate each. Each carries its EF configuration, its migration (only adds tables), unit tests for its rules and an integration storage + isolation test. |
+| P1-002 | **Folded into** P1-001.1 to .4: one migration per aggregate. |
+| P1-003 | **Done in Phase 0**: `TenantMember` is the member, created and updated by Clerk webhooks (P0-036.3 to .5). |
+| P1-004 | **Split**: .1 a development-only seed (Tenant 0, an admin, sample members, next Sunday); .2 inviting the real Early Eagles members through Clerk (needs the account; no personal data in the repo). |
+| P1-005 to P1-013 | Each endpoint task is the command or query, its validator, the endpoint and its integration test (200, 400, 401, 403, another club sees nothing). New: P1-005.2 session detail, P1-006.2 edit / cancel, P1-007.2 admin RSVP grid, P1-009.2 reject a payment, P1-009.3 admin unpaid list, P1-012.2 comments, P1-012.3 comment moderation. |
+| P1-010 | English only (ADR-0003). Sends through `IEmailSender`, so it logs locally until Resend is set up (P0-011). |
+| P1-011 | Members only (decision above). |
+| P1-015, P1-021 | English only. The profile's name and avatar belong to Clerk (P0-036.4); P1-021 becomes a page showing them with a link to Clerk's profile. Bangla name and language preference are dropped (ADR-0003). |
+| P1-022 | **Deferred** by ADR-0003. The acceptance line "Bangla and English UIs reviewed" is deferred with it. |
+| P1-027, P1-028 | **Folded into** each entity and endpoint task: every task carries its own tests. |
+| P1-031 (new) | `IFeatureFlags` port with a configuration-backed implementation, so Phase 1 endpoints ship behind flags (off by default in production) before Flagsmith exists. P0-075 later adds the Flagsmith provider. |
+| P1-032 to P1-035 (new) | The ADR-0004 landing work: member `/`, admin `/admin`, charts moved to `/insights`, role redirect after sign-in. |
+
+**Order.** Account-free backend first: P1-031, then P1-001.1, P1-006, P1-005, P1-005.2, P1-006.2,
+P1-001.2, P1-007, P1-007.2, P1-001.3, P1-008, P1-009, P1-009.2, P1-009.3, P1-010, P1-011,
+P1-001.4, P1-012, P1-012.2, P1-012.3, P1-013, P1-004.1. The web pages follow once Clerk is set up.
+
 ---
 
 ## Sequencing notes

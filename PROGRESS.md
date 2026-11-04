@@ -544,7 +544,55 @@ All of these must be true before declaring Phase 0 done:
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
 
-Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phase-1--attendance-core-tenant-0-only) — will expand into PROGRESS.md when Phase 0 acceptance is met.
+Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phase-1--attendance-core-tenant-0-only). **Re-planned 2026-11-03** ([appendix](./Implementation-Plan.md#phase-1-re-plan-2026-11-03)): fees per Sunday session, admin creates each session, leaderboard for members only, no guest role yet. The backend needs no account, so it starts now; pages wait for Clerk (P0-039).
+
+**Backend (no account needed)**
+
+- `[ ]` **P1-031** `IFeatureFlags` port + configuration-backed implementation; Phase 1 endpoints off by default in production
+- `[ ]` **P1-001.1** `Session` aggregate (date, start time, venue, fee default $15, Scheduled / Cancelled) + `sessions` table
+- `[ ]` **P1-006** `POST /sessions` (admin) creates a session
+- `[ ]` **P1-005** `GET /sessions?week=YYYY-Www` (member) lists the week's sessions
+- `[ ]` **P1-005.2** `GET /sessions/{id}` (member): details, RSVP counts, my RSVP, my payment status
+- `[ ]` **P1-006.2** Edit and cancel a session (admin)
+- `[ ]` **P1-001.2** `Rsvp` (Yes / No / Maybe, one per member per session, closed once the session starts or is cancelled) + table
+- `[ ]` **P1-007** `PUT /sessions/{id}/rsvp` (member)
+- `[ ]` **P1-007.2** `GET /sessions/{id}/rsvps` (admin): the full RSVP grid
+- `[ ]` **P1-001.3** `SessionPayment` (Reported → Confirmed / Rejected, sender name + Zelle reference; raises `PaymentReported`, `PaymentConfirmed`) + table
+- `[ ]` **P1-008** `POST /sessions/{id}/payment-report` (member)
+- `[ ]` **P1-009** Confirm a reported payment (admin); raises `PaymentConfirmed`
+- `[ ]` **P1-009.2** Reject a reported payment with a reason (admin); the member can report again
+- `[ ]` **P1-009.3** Unpaid / reported list for a session (admin)
+- `[ ]` **P1-010** `PaymentConfirmed` handler emails the admins (English; logs until Resend, P0-011)
+- `[ ]` **P1-011** `GET /leaderboard?period=year` (members only): sessions attended, times paid, last played
+- `[ ]` **P1-001.4** `Announcement` + `AnnouncementComment` + tables
+- `[ ]` **P1-012** `POST /announcements` (admin)
+- `[ ]` **P1-012.2** `POST /announcements/{id}/comments` (member)
+- `[ ]` **P1-012.3** Delete a comment: your own, or any as admin
+- `[ ]` **P1-013** `GET /announcements` (member): newest first, keyset paged, with comments
+- `[ ]` **P1-004.1** Development seed: Tenant 0, an admin, sample members, next Sunday's session
+
+**Needs an account, a device or Phase 0 frontend work**
+
+- `[ ]` **P1-004.2** Invite the real Early Eagles members through Clerk (P0-006)
+- `[ ]` **P1-014** "This Sunday" home card with RSVP buttons
+- `[ ]` **P1-015** Week navigator ("Wednesday, January 1, 2025"; forward arrow greyed at today)
+- `[ ]` **P1-016** Payment self-report form
+- `[ ]` **P1-017** Admin payment-confirm UI (one click per member per session)
+- `[ ]` **P1-018** Member roster page
+- `[ ]` **P1-019** Leaderboard page (sortable, three metrics)
+- `[ ]` **P1-020** Announcements feed, create, comment
+- `[ ]` **P1-021** Profile page: Clerk name + avatar, link to Clerk's profile
+- `[ ]` **P1-032** Member `/` landing (ADR-0004): RSVP-first hero, dues status, attendance, latest announcement
+- `[ ]` **P1-033** Admin `/admin` (ADR-0004): RSVP grid, unpaid list, announcement composer
+- `[ ]` **P1-034** Move the chart dashboard from `/` to `/insights` (admin only)
+- `[ ]` **P1-035** Redirect tenant admins to `/admin` after sign-in
+- `[ ]` **P1-023** PWA install prompt card
+- `[ ]` **P1-024** Mobile responsive QA pass
+- `[ ]` **P1-025** Empty states + skeletons
+- `[ ]` **P1-026** Web Push to admins on `PaymentReported` (needs VAPID keys, P0-068.1)
+- `[ ]` **P1-029** Playwright E2E: sign in → RSVP → pay → admin confirm → leaderboard
+- `[ ]` **P1-030** Owner dry run on staging: one real Sunday
+- `[-]` **P1-022** Bangla translation pass, deferred by [ADR-0003](./docs/adr/0003-defer-i18n.md)
 
 **This is also when the role-based landing pages land** per [ADR-0004](docs/adr/0004-role-based-landing-and-routing.md):
 
