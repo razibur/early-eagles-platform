@@ -528,9 +528,11 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
 All of these must be true before declaring Phase 0 done:
 
 - `[ ]` `dotnet test` is green for unit + integration + acceptance suites
-- `[ ]` Tenant isolation test (P0-034) is in CI and green
+- `[x]` Tenant isolation test (P0-034) is in CI and green
+  ↳ verified 2026-11-03: `integration tests (tenant-isolation gate)` in [`backend.yml`](./.github/workflows/backend.yml) runs the P0-034 suite (`TenantIsolationTests`, `CrossTenantEndpointTests`, …) against Testcontainers Postgres, and is a **required status check** on `main` (branch protection lists it). Green on PR #34's merge commit.
 - `[ ]` dev + staging + prod envs all deploy from main via GH Actions
-- `[ ]` Audit row is written for every state-changing command
+- `[x]` Audit row is written for every state-changing command
+  ↳ verified 2026-11-03: `AuditBehavior` audits every `ICommand` (success and failure, in its own transaction; `AuditBehaviorTests`). New [`AuditCoverageRulesTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Architecture/AuditCoverageRulesTests.cs) keeps state changes on that path: every Mediator message is a command or a query, query handlers take no write port (repositories, `IUnitOfWork`), and the API host depends on no write port, so it can only change state by sending a command. Checked by planting a plain `IRequest` and an API class taking `ITenantRepository`: each fails its rule. (Outbox stamping in `OutboxProcessor` is delivery bookkeeping, not domain state, and is deliberately outside the rule.)
 - `[ ]` Authenticated user can sign in via Clerk in dev and reach a tenant-scoped page
 - `[ ]` Sentry + App Insights show traffic from a dev smoke test
 - `[ ]` Stripe webhook flows through to a Plan change in `tenants`

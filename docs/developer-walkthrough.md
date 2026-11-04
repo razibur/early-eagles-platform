@@ -555,6 +555,17 @@ on Application or Infrastructure, Application must not depend on Infrastructure.
 
 ▶ Reference: [`CleanArchitectureRulesTests.cs`](../apps/api/tests/EarlyEagles.Tests.Unit/Architecture/CleanArchitectureRulesTests.cs)
 
+**So is the audit rule** ("every state change writes an audit row"). `AuditBehavior` audits
+every `ICommand`, so the rule holds as long as state only changes through commands.
+[`AuditCoverageRulesTests.cs`](../apps/api/tests/EarlyEagles.Tests.Unit/Architecture/AuditCoverageRulesTests.cs)
+fails the build when:
+
+- a Mediator message is neither a command nor a query (a plain `IRequest` skips the audit),
+- a query handler takes a write port (a repository or `IUnitOfWork`), or
+- anything in the API host depends on a write port instead of sending a command.
+
+The Unit project references the Api project for that last rule.
+
 Each source project has an `AssemblyMarker.cs` (an empty public marker type) so tests and DI
 can reference the assembly by `typeof(AssemblyMarker).Assembly`.
 

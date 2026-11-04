@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\EarlyEagles.Domain\EarlyEagles.Domain.csproj" />
     <ProjectReference Include="..\..\src\EarlyEagles.Application\EarlyEagles.Application.csproj" />
     <ProjectReference Include="..\..\src\EarlyEagles.Infrastructure\EarlyEagles.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\EarlyEagles.Api\EarlyEagles.Api.csproj" />
   </ItemGroup>
 
 </Project>
