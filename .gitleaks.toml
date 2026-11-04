@@ -36,6 +36,14 @@ regexes = [
 ]
 
 [[allowlists]]
+description = "Made-up Web Push auth secrets in push subscription tests (PushSubscriptionTests, PushSubscriptionStorageTests, PushSubscribeEndpointTests); never real keys"
+# The secrets themselves, only these exact values (in git history since abe57b7 / 3c71fb7).
+regexes = [
+  '''^tBHItJI5svbpez7KI4CCXg$''',
+  '''^bmV3IGF1dGggc2VjcmV0$''',
+]
+
+[[allowlists]]
 description = "The example signing secret from Svix's public documentation, used as a test vector (SvixWebhookVerifierTests)"
 # Matches the secret itself (the default target), and only this exact value.
 regexes = [
