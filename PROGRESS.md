@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  0%
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~2% (1 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -548,7 +548,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
 
 **Backend (no account needed)**
 
-- `[ ]` **P1-031** `IFeatureFlags` port + configuration-backed implementation; Phase 1 endpoints off by default in production
+- `[x]` **P1-031** `IFeatureFlags` port + configuration-backed implementation; Phase 1 endpoints off by default in production
+  ↳ verify: [`IFeatureFlags`](./apps/api/src/EarlyEagles.Application/Abstractions/FeatureFlags/IFeatureFlags.cs) answers for the ambient tenant. [`ConfigurationFeatureFlags`](./apps/api/src/EarlyEagles.Infrastructure/FeatureFlags/ConfigurationFeatureFlags.cs) reads `FeatureFlags:Features:<name>`: `Enabled` (everyone) or `Tenants` (opted-in slugs, checked at startup); an unconfigured feature is off. Endpoints opt in with [`.RequireFeature(...)`](./apps/api/src/EarlyEagles.Api/FeatureFlags/FeatureGate.cs), which answers 404 while the feature is off. [`FeatureNames.Sessions`](./apps/api/src/EarlyEagles.Application/FeatureFlags/FeatureNames.cs) is on in `appsettings.Development.json` only. Unit [`ConfigurationFeatureFlagsTests`](./apps/api/tests/EarlyEagles.Tests.Unit/FeatureFlags/ConfigurationFeatureFlagsTests.cs) (5); integration [`FeatureGateTests`](./apps/api/tests/EarlyEagles.Tests.Integration/FeatureFlags/FeatureGateTests.cs) (3, minimal test host). Mutation-checked (tenant opt-in, gate).
 - `[ ]` **P1-001.1** `Session` aggregate (date, start time, venue, fee default $15, Scheduled / Cancelled) + `sessions` table
 - `[ ]` **P1-006** `POST /sessions` (admin) creates a session
 - `[ ]` **P1-005** `GET /sessions?week=YYYY-Www` (member) lists the week's sessions

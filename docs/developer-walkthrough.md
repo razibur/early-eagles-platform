@@ -1625,6 +1625,31 @@ names the field. The command is audited like every other.
 VAPID keys (P0-068.1) aren't needed to *store* a subscription, only to send one, so this part
 works before the keys exist.
 
+### 9.11 Feature flags (P1-031)
+
+Every new user-facing capability ships behind a flag, off in production, and tenants opt in.
+Flagsmith (P0-012, P0-075) needs an account, so the flags start in configuration, behind a port
+Flagsmith can replace:
+
+```json
+"FeatureFlags": {
+  "Features": {
+    "sessions": { "Enabled": false, "Tenants": [ "early-eagles" ] }
+  }
+}
+```
+
+- `IFeatureFlags.IsEnabledAsync(name)` is true when the feature is `Enabled`, or when the
+  request's tenant slug is in `Tenants`. A feature that isn't configured is **off**, so production
+  (plain `appsettings.json`) has every Phase 1 feature off.
+- `appsettings.Development.json` turns `sessions` on for local work.
+- An endpoint opts in with `.RequireFeature(FeatureNames.Sessions)`. While the feature is off it
+  answers **404**, as if the endpoint didn't exist.
+- A `Tenants` entry that isn't a valid slug fails at startup: it could never match.
+
+To turn a feature on for Early Eagles in an environment, set
+`FeatureFlags__Features__sessions__Tenants__0=early-eagles` on the app.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
