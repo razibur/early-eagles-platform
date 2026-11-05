@@ -1727,6 +1727,10 @@ member sees nobody else's answer or payment here; that is the admin's grid.
 `reference`. The member can only report for themselves: the id comes from the token, not the body.
 Reporting twice, or on a cancelled or free session, answers 409 with a message for the member.
 
+**Confirming a payment (P1-009).** `POST /sessions/{id}/payments/{memberId}/confirm`, admins only.
+`memberId` is the member's Clerk user id. A double click is safe: the second call changes nothing
+and queues no second `PaymentConfirmed`.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
