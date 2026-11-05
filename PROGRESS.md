@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~36% (16 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~38% (17 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -582,7 +582,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
   ↳ verify: [`Announcement`](./apps/api/src/EarlyEagles.Domain/Announcements/Announcement.cs) (title 1 to 200, body 1 to 5,000) and [`AnnouncementComment`](./apps/api/src/EarlyEagles.Domain/Announcements/AnnouncementComment.cs) (body 1 to 2,000), both `ITenantScoped`, text trimmed. Migration `AddAnnouncements` only creates the two tables, with indexes for the feed and an FK from comment to post. Port [`IAnnouncementRepository`](./apps/api/src/EarlyEagles.Application/Abstractions/Announcements/IAnnouncementRepository.cs) + EF implementation. Unit [`AnnouncementTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Announcements/AnnouncementTests.cs) (9); integration [`AnnouncementStorageTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Announcements/AnnouncementStorageTests.cs) (2). Mutation-checked (title limit, comment trim).
 - `[x]` **P1-012** `POST /announcements` (admin)
   ↳ verify: `POST /announcements`, admin only: [`CreateAnnouncementCommand`](./apps/api/src/EarlyEagles.Application/Announcements/CreateAnnouncementCommand.cs) takes `title` and `body`; the author comes from the token. 201 with `Location`. Behind the `sessions` flag with the rest of Phase 1, since the plan names no flag of its own. Integration [`CreateAnnouncementEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Announcements/CreateAnnouncementEndpointTests.cs) (11). Mutation-checked (admin policy, gate, author from token).
-- `[ ]` **P1-012.2** `POST /announcements/{id}/comments` (member)
+- `[x]` **P1-012.2** `POST /announcements/{id}/comments` (member)
+  ↳ verify: `POST /announcements/{id}/comments`, any member: [`AddCommentCommand`](./apps/api/src/EarlyEagles.Application/Announcements/AddCommentCommand.cs), author from the token, 201 with `Location`. Unknown post or another club's: 404. Integration [`AddCommentEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Announcements/AddCommentEndpointTests.cs) (10). Mutation-checked (post existence check, validator, member policy).
 - `[ ]` **P1-012.3** Delete a comment: your own, or any as admin
 - `[ ]` **P1-013** `GET /announcements` (member): newest first, keyset paged, with comments
 - `[ ]` **P1-004.1** Development seed: Tenant 0, an admin, sample members, next Sunday's session

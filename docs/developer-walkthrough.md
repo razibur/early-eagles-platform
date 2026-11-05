@@ -1757,6 +1757,8 @@ reply. They are separate aggregates so adding a reply never loads or locks the p
 
 **Posting (P1-012).** `POST /announcements` with `title` and `body`, admins only.
 
+**Replying (P1-012.2).** `POST /announcements/{id}/comments` with `body`, any member.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:

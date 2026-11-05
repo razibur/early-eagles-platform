@@ -29,10 +29,29 @@ public static class AnnouncementEndpoints
             .WithName("CreateAnnouncement")
             .WithTags("Announcements");
 
+        // P1-012.2: a member replies.
+        routes
+            .MapPost(Route + "/{id:guid}/comments", AddComment)
+            .RequireAuthorization(TenantPolicies.Member)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("AddAnnouncementComment")
+            .WithTags("Announcements");
+
         return routes;
     }
 
     private static string UserId(ClaimsPrincipal user) => user.FindFirstValue(ClerkClaims.Subject) ?? string.Empty;
+
+    private static async Task<Created<CreatedResponse>> AddComment(
+        Guid id,
+        AddCommentRequest request,
+        ClaimsPrincipal user,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new AddCommentCommand(id, UserId(user), request.Body ?? string.Empty), cancellationToken);
+        return TypedResults.Created($"{Route}/{id}/comments/{result.CommentId}", new CreatedResponse(result.CommentId));
+    }
 
     private static async Task<Created<CreatedResponse>> CreateAnnouncement(
         CreateAnnouncementRequest request,
