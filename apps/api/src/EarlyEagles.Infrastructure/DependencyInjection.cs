@@ -7,6 +7,7 @@ using EarlyEagles.Application.Abstractions.Email;
 using EarlyEagles.Application.Abstractions.FeatureFlags;
 using EarlyEagles.Application.Abstractions.Messaging;
 using EarlyEagles.Application.Abstractions.Notifications;
+using EarlyEagles.Application.Abstractions.Payments;
 using EarlyEagles.Application.Abstractions.Persistence;
 using EarlyEagles.Application.Abstractions.Sessions;
 using EarlyEagles.Application.Abstractions.Tenancy;
@@ -19,6 +20,7 @@ using EarlyEagles.Infrastructure.Identity;
 using EarlyEagles.Infrastructure.Messaging;
 using EarlyEagles.Infrastructure.Notifications;
 using EarlyEagles.Infrastructure.Outbox;
+using EarlyEagles.Infrastructure.Payments;
 using EarlyEagles.Infrastructure.Persistence;
 using EarlyEagles.Infrastructure.Sessions;
 using EarlyEagles.Infrastructure.Tenancy;
@@ -108,6 +110,7 @@ public static class DependencyInjection
         services.AddScoped<ISessionRepository, EfSessionRepository>();
         services.AddScoped<ISessionReader, EfSessionReader>();
         services.AddScoped<IRsvpRepository, EfRsvpRepository>();
+        services.AddScoped<ISessionPaymentRepository, EfSessionPaymentRepository>();
 
         // Unit of work (P0-024.3) backing TransactionBehavior. Scoped so it
         // shares the request's ApplicationDbContext — the transaction it opens

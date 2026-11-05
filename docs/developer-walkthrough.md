@@ -1702,6 +1702,23 @@ into club time needs a tenant time zone, which doesn't exist yet: that is what `
 the session, starting from `tenant_members` so someone who hasn't answered still shows, with a
 `null` response.
 
+### 9.14 Session payments (P1-001.3)
+
+A `SessionPayment` tracks money, it never moves it: the member pays by Zelle, then tells the app.
+
+```
+Reported ──Confirm──▶ Confirmed (final)
+   │  ▲
+Reject  ReportAgain
+   ▼  │
+ Rejected
+```
+
+There is one row per member per session, reused when a rejected payment is reported again, so the
+audit log holds the history rather than the table. `AmountCents` copies the session's fee when the
+member reports. `PaymentReported` and `PaymentConfirmed` travel through the outbox, in the same
+transaction as the change.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:

@@ -2,6 +2,7 @@ using System.Reflection;
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Domain.Auditing;
 using EarlyEagles.Domain.Notifications;
+using EarlyEagles.Domain.Payments;
 using EarlyEagles.Domain.Primitives;
 using EarlyEagles.Domain.Sessions;
 using EarlyEagles.Domain.Tenants;
@@ -75,6 +76,8 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<Session> Sessions => Set<Session>();
 
     public DbSet<Rsvp> Rsvps => Set<Rsvp>();
+
+    public DbSet<SessionPayment> SessionPayments => Set<SessionPayment>();
 
     /// <summary>
     /// Attaches the save-time interceptors: the domain-event outbox drain
