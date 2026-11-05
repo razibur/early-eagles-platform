@@ -35,6 +35,14 @@ public static class PaymentEndpoints
             .WithName("ConfirmPayment")
             .WithTags("Payments");
 
+        // P1-009.2: a tenant admin rejects a member's payment with a reason.
+        routes
+            .MapPost("/sessions/{id:guid}/payments/{memberId}/reject", RejectPayment)
+            .RequireAuthorization(TenantPolicies.Admin)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("RejectPayment")
+            .WithTags("Payments");
+
         return routes;
     }
 
@@ -54,6 +62,21 @@ public static class PaymentEndpoints
             cancellationToken);
 
         return TypedResults.Ok(new ReportPaymentResponse(result.PaymentId));
+    }
+
+    private static async Task<NoContent> RejectPayment(
+        Guid id,
+        string memberId,
+        RejectPaymentRequest request,
+        ClaimsPrincipal user,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(
+            new RejectPaymentCommand(id, memberId, user.FindFirstValue(ClerkClaims.Subject) ?? string.Empty, request.Reason ?? string.Empty),
+            cancellationToken);
+
+        return TypedResults.NoContent();
     }
 
     private static async Task<NoContent> ConfirmPayment(
