@@ -37,10 +37,32 @@ public static class AnnouncementEndpoints
             .WithName("AddAnnouncementComment")
             .WithTags("Announcements");
 
+        // P1-012.3: the author, or an admin, deletes a comment.
+        routes
+            .MapDelete(Route + "/{id:guid}/comments/{commentId:guid}", DeleteComment)
+            .RequireAuthorization(TenantPolicies.Member)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("DeleteAnnouncementComment")
+            .WithTags("Announcements");
+
         return routes;
     }
 
     private static string UserId(ClaimsPrincipal user) => user.FindFirstValue(ClerkClaims.Subject) ?? string.Empty;
+
+    private static async Task<NoContent> DeleteComment(
+        Guid id,
+        Guid commentId,
+        ClaimsPrincipal user,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(
+            new DeleteCommentCommand(id, commentId, UserId(user), user.HasClaim(TenantRoles.ClaimType, TenantRoles.Admin)),
+            cancellationToken);
+
+        return TypedResults.NoContent();
+    }
 
     private static async Task<Created<CreatedResponse>> AddComment(
         Guid id,

@@ -6,7 +6,8 @@ namespace EarlyEagles.Api.ExceptionHandling;
 
 /// <summary>
 /// Maps the Application layer's refusals to their HTTP status:
-/// <see cref="NotFoundException"/> to 404, <see cref="ConflictException"/> to 409.
+/// <see cref="NotFoundException"/> to 404, <see cref="ConflictException"/> to 409,
+/// <see cref="ForbiddenException"/> to 403.
 /// </summary>
 public sealed class ApplicationExceptionHandler : IExceptionHandler
 {
@@ -22,6 +23,7 @@ public sealed class ApplicationExceptionHandler : IExceptionHandler
         {
             NotFoundException => StatusCodes.Status404NotFound,
             ConflictException => StatusCodes.Status409Conflict,
+            ForbiddenException => StatusCodes.Status403Forbidden,
             _ => 0,
         };
         if (status == 0)
