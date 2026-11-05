@@ -43,6 +43,14 @@ public static class PaymentEndpoints
             .WithName("RejectPayment")
             .WithTags("Payments");
 
+        // P1-009.3: a tenant admin reads who still needs dealing with.
+        routes
+            .MapGet("/sessions/{id:guid}/payments", GetUnsettledPayments)
+            .RequireAuthorization(TenantPolicies.Admin)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("GetUnsettledPayments")
+            .WithTags("Payments");
+
         return routes;
     }
 
@@ -62,6 +70,15 @@ public static class PaymentEndpoints
             cancellationToken);
 
         return TypedResults.Ok(new ReportPaymentResponse(result.PaymentId));
+    }
+
+    private static async Task<Ok<IReadOnlyList<UnsettledPaymentRow>>> GetUnsettledPayments(
+        Guid id,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var rows = await sender.Send(new GetUnsettledPaymentsQuery(id), cancellationToken);
+        return TypedResults.Ok(rows);
     }
 
     private static async Task<NoContent> RejectPayment(

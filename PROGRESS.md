@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~27% (12 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~29% (13 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -573,7 +573,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
   ↳ verify: `POST /sessions/{id}/payments/{memberId}/confirm`, admin only: [`ConfirmPaymentCommand`](./apps/api/src/EarlyEagles.Application/Payments/ConfirmPaymentCommand.cs) records the reviewer and queues one `PaymentConfirmed`; confirming again is a harmless 204 with no second event. A rejected payment: 409. No such payment, or another club's: 404. Integration [`ConfirmPaymentEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Payments/ConfirmPaymentEndpointTests.cs) (9). Mutation-checked (admin policy, rejected guard, reviewer recorded).
 - `[x]` **P1-009.2** Reject a reported payment with a reason (admin); the member can report again
   ↳ verify: `POST /sessions/{id}/payments/{memberId}/reject`, admin only: [`RejectPaymentCommand`](./apps/api/src/EarlyEagles.Application/Payments/RejectPaymentCommand.cs) with a required `reason` (1 to 500), which the member sees in `myPayment`. They can then report again. A confirmed payment: 409. No such payment, or another club's: 404. Integration [`RejectPaymentEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Payments/RejectPaymentEndpointTests.cs) (11). Mutation-checked (confirmed guard, reason validator, admin policy).
-- `[ ]` **P1-009.3** Unpaid / reported list for a session (admin)
+- `[x]` **P1-009.3** Unpaid / reported list for a session (admin)
+  ↳ verify: `GET /sessions/{id}/payments`, admin only: [`GetUnsettledPaymentsQuery`](./apps/api/src/EarlyEagles.Application/Payments/GetUnsettledPaymentsQuery.cs) through read port [`IPaymentReader`](./apps/api/src/EarlyEagles.Application/Abstractions/Payments/IPaymentReader.cs). Reported first, then rejected, then members who said Yes and haven't reported (`status: null`, at the session's fee). Confirmed payments, No and Maybe are left out; a free session chases nobody. Integration [`UnsettledPaymentsEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Payments/UnsettledPaymentsEndpointTests.cs) (8). Mutation-checked (confirmed left out, Yes only, free session).
 - `[ ]` **P1-010** `PaymentConfirmed` handler emails the admins (English; logs until Resend, P0-011)
 - `[ ]` **P1-011** `GET /leaderboard?period=year` (members only): sessions attended, times paid, last played
 - `[ ]` **P1-001.4** `Announcement` + `AnnouncementComment` + tables
