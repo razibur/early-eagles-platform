@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~29% (13 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~31% (14 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -575,7 +575,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
   ↳ verify: `POST /sessions/{id}/payments/{memberId}/reject`, admin only: [`RejectPaymentCommand`](./apps/api/src/EarlyEagles.Application/Payments/RejectPaymentCommand.cs) with a required `reason` (1 to 500), which the member sees in `myPayment`. They can then report again. A confirmed payment: 409. No such payment, or another club's: 404. Integration [`RejectPaymentEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Payments/RejectPaymentEndpointTests.cs) (11). Mutation-checked (confirmed guard, reason validator, admin policy).
 - `[x]` **P1-009.3** Unpaid / reported list for a session (admin)
   ↳ verify: `GET /sessions/{id}/payments`, admin only: [`GetUnsettledPaymentsQuery`](./apps/api/src/EarlyEagles.Application/Payments/GetUnsettledPaymentsQuery.cs) through read port [`IPaymentReader`](./apps/api/src/EarlyEagles.Application/Abstractions/Payments/IPaymentReader.cs). Reported first, then rejected, then members who said Yes and haven't reported (`status: null`, at the session's fee). Confirmed payments, No and Maybe are left out; a free session chases nobody. Integration [`UnsettledPaymentsEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Payments/UnsettledPaymentsEndpointTests.cs) (8). Mutation-checked (confirmed left out, Yes only, free session).
-- `[ ]` **P1-010** `PaymentConfirmed` handler emails the admins (English; logs until Resend, P0-011)
+- `[x]` **P1-010** `PaymentConfirmed` handler emails the admins (English; logs until Resend, P0-011)
+  ↳ verify: [`PaymentConfirmedHandler`](./apps/api/src/EarlyEagles.Infrastructure/Messaging/PaymentConfirmedHandler.cs) now hands each event to [`PaymentConfirmedNotifier`](./apps/api/src/EarlyEagles.Application/Payments/PaymentConfirmedNotifier.cs), which emails the club's admins through `IEmailSender` (logs until Resend, P0-011). English only; member-typed text is HTML-encoded; the idempotency key is `payment-confirmed/{messageId}`, so a redelivery isn't sent twice; a delivery failure propagates so the bus retries. [`EfPaymentEmailDirectory`](./apps/api/src/EarlyEagles.Infrastructure/Payments/EfPaymentEmailDirectory.cs) runs with no ambient tenant and names the tenant in every read. The handler only runs where a bus is configured, so on a laptop without one nothing is emailed or logged by this path. Unit [`PaymentConfirmedNotifierTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Payments/PaymentConfirmedNotifierTests.cs) (6) + 2 handler tests; integration [`PaymentEmailDirectoryTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Payments/PaymentEmailDirectoryTests.cs) (2). The emulator end-to-end test was skipped locally. Mutation-checked (HTML encoding, admin role filter, tenant scoping).
 - `[ ]` **P1-011** `GET /leaderboard?period=year` (members only): sessions attended, times paid, last played
 - `[ ]` **P1-001.4** `Announcement` + `AnnouncementComment` + tables
 - `[ ]` **P1-012** `POST /announcements` (admin)

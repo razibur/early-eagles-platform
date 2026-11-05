@@ -2,6 +2,7 @@ using Azure.Messaging.ServiceBus;
 using EarlyEagles.Infrastructure.Messaging;
 using EarlyEagles.Infrastructure.Outbox;
 using EarlyEagles.Tests.Integration.Persistence;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -19,7 +20,8 @@ public class PaymentConfirmedHandlerTests
     {
         await using var client = new ServiceBusClient(ServiceBusEmulatorFactAttribute.ConnectionString);
         var logger = new SignallingLogger();
-        using var handler = new PaymentConfirmedHandler(client, Options.Create(new ServiceBusOptions()), logger);
+        await using var services = new ServiceCollection().BuildServiceProvider();
+        using var handler = new PaymentConfirmedHandler(client, Options.Create(new ServiceBusOptions()), services.GetRequiredService<IServiceScopeFactory>(), logger);
 
         await handler.StartAsync(CancellationToken.None);
         try

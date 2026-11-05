@@ -1,4 +1,5 @@
 using EarlyEagles.Application.Behaviors;
+using EarlyEagles.Application.Payments;
 using FluentValidation;
 using Mediator;
 using Microsoft.Extensions.DependencyInjection;
@@ -56,6 +57,7 @@ public static class DependencyInjection
         // FluentValidation — discover IValidator<T> implementations in the Application
         // assembly. Pipeline behavior (P0-024.2) will run them ahead of handler dispatch.
         services.AddValidatorsFromAssembly(applicationAssembly, ServiceLifetime.Scoped);
+        services.AddScoped<PaymentConfirmedNotifier>();
 
         // Mapperly mappers are source-generated partial classes; they are registered
         // explicitly when added (no assembly scan needed). Placeholder until the first
