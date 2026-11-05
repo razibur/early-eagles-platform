@@ -16,6 +16,7 @@ using EarlyEagles.Domain.Tenants;
 using EarlyEagles.Infrastructure.Announcements;
 using EarlyEagles.Infrastructure.Auditing;
 using EarlyEagles.Infrastructure.Billing;
+using EarlyEagles.Infrastructure.Development;
 using EarlyEagles.Infrastructure.Email;
 using EarlyEagles.Infrastructure.FeatureFlags;
 using EarlyEagles.Infrastructure.Identity;
@@ -117,6 +118,7 @@ public static class DependencyInjection
         services.AddScoped<IPaymentEmailDirectory, EfPaymentEmailDirectory>();
         services.AddScoped<IAnnouncementRepository, EfAnnouncementRepository>();
         services.AddScoped<IAnnouncementReader, EfAnnouncementReader>();
+        services.AddScoped<DevelopmentSeeder>();
 
         // Unit of work (P0-024.3) backing TransactionBehavior. Scoped so it
         // shares the request's ApplicationDbContext — the transaction it opens
