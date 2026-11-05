@@ -5,6 +5,7 @@ using EarlyEagles.Api.Health;
 using EarlyEagles.Api.Notifications;
 using EarlyEagles.Api.Observability;
 using EarlyEagles.Api.OpenApi;
+using EarlyEagles.Api.Payments;
 using EarlyEagles.Api.Sessions;
 using EarlyEagles.Api.Tenancy;
 using EarlyEagles.Api.Webhooks;
@@ -104,6 +105,7 @@ app.MapPushEndpoints();
 
 // Sunday sessions (P1-006), behind the sessions feature flag.
 app.MapSessionEndpoints();
+app.MapPaymentEndpoints();
 
 app.Run();
 
