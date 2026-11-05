@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~38% (17 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~40% (18 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -584,7 +584,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
   ↳ verify: `POST /announcements`, admin only: [`CreateAnnouncementCommand`](./apps/api/src/EarlyEagles.Application/Announcements/CreateAnnouncementCommand.cs) takes `title` and `body`; the author comes from the token. 201 with `Location`. Behind the `sessions` flag with the rest of Phase 1, since the plan names no flag of its own. Integration [`CreateAnnouncementEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Announcements/CreateAnnouncementEndpointTests.cs) (11). Mutation-checked (admin policy, gate, author from token).
 - `[x]` **P1-012.2** `POST /announcements/{id}/comments` (member)
   ↳ verify: `POST /announcements/{id}/comments`, any member: [`AddCommentCommand`](./apps/api/src/EarlyEagles.Application/Announcements/AddCommentCommand.cs), author from the token, 201 with `Location`. Unknown post or another club's: 404. Integration [`AddCommentEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Announcements/AddCommentEndpointTests.cs) (10). Mutation-checked (post existence check, validator, member policy).
-- `[ ]` **P1-012.3** Delete a comment: your own, or any as admin
+- `[x]` **P1-012.3** Delete a comment: your own, or any as admin
+  ↳ verify: `DELETE /announcements/{id}/comments/{commentId}`: [`DeleteCommentCommand`](./apps/api/src/EarlyEagles.Application/Announcements/DeleteCommentCommand.cs), your own or any as an admin, 204. Another member's: 403 through new [`ForbiddenException`](./apps/api/src/EarlyEagles.Application/Common/ForbiddenException.cs), audited as failed. Unknown, wrong post or another club's: 404. The row is removed; the audit log keeps the fact. Integration [`DeleteCommentEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Announcements/DeleteCommentEndpointTests.cs) (9). Mutation-checked (author rule, admin override, post match).
 - `[ ]` **P1-013** `GET /announcements` (member): newest first, keyset paged, with comments
 - `[ ]` **P1-004.1** Development seed: Tenant 0, an admin, sample members, next Sunday's session
 

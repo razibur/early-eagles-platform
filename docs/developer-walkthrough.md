@@ -1759,6 +1759,10 @@ reply. They are separate aggregates so adding a reply never loads or locks the p
 
 **Replying (P1-012.2).** `POST /announcements/{id}/comments` with `body`, any member.
 
+**Deleting a comment (P1-012.3).** `DELETE /announcements/{id}/comments/{commentId}`: your own, or
+any as an admin. A route policy can't say "your own", so the handler decides and throws
+`ForbiddenException`, which maps to 403 and shows up as a failed attempt in the audit log.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
