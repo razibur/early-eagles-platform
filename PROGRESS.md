@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~4% (2 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~7% (3 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -552,7 +552,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
   ↳ verify: [`IFeatureFlags`](./apps/api/src/EarlyEagles.Application/Abstractions/FeatureFlags/IFeatureFlags.cs) answers for the ambient tenant. [`ConfigurationFeatureFlags`](./apps/api/src/EarlyEagles.Infrastructure/FeatureFlags/ConfigurationFeatureFlags.cs) reads `FeatureFlags:Features:<name>`: `Enabled` (everyone) or `Tenants` (opted-in slugs, checked at startup); an unconfigured feature is off. Endpoints opt in with [`.RequireFeature(...)`](./apps/api/src/EarlyEagles.Api/FeatureFlags/FeatureGate.cs), which answers 404 while the feature is off. [`FeatureNames.Sessions`](./apps/api/src/EarlyEagles.Application/FeatureFlags/FeatureNames.cs) is on in `appsettings.Development.json` only. Unit [`ConfigurationFeatureFlagsTests`](./apps/api/tests/EarlyEagles.Tests.Unit/FeatureFlags/ConfigurationFeatureFlagsTests.cs) (5); integration [`FeatureGateTests`](./apps/api/tests/EarlyEagles.Tests.Integration/FeatureFlags/FeatureGateTests.cs) (3, minimal test host). Mutation-checked (tenant opt-in, gate).
 - `[x]` **P1-001.1** `Session` aggregate (date, start time, venue, fee default $15, Scheduled / Cancelled) + `sessions` table
   ↳ verify: [`Session`](./apps/api/src/EarlyEagles.Domain/Sessions/Session.cs) (`ITenantScoped` aggregate): local `DateOnly` + `TimeOnly`, trimmed venue (1–200), fee in whole cents (0 to $1,000, default 1500), `Scheduled` until `Cancel()` (idempotent); `UpdateDetails` reports whether anything changed and refuses a cancelled session. Migration `AddSessions` only creates the table (`date`, `time`, index `(tenant_id, date)`, FK to `tenants` restrict). Port [`ISessionRepository`](./apps/api/src/EarlyEagles.Application/Abstractions/Sessions/ISessionRepository.cs) + EF implementation (refuses a context with no tenant). Unit [`SessionTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Sessions/SessionTests.cs) (15) + the `ITenantScoped` reflection guard; integration [`SessionStorageTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/SessionStorageTests.cs): round trip, invisible to another tenant. Mutation-checked (cancelled guard, fee range).
-- `[ ]` **P1-006** `POST /sessions` (admin) creates a session
+- `[x]` **P1-006** `POST /sessions` (admin) creates a session
+  ↳ verify: [`SessionEndpoints`](./apps/api/src/EarlyEagles.Api/Sessions/SessionEndpoints.cs) → [`CreateSessionCommand`](./apps/api/src/EarlyEagles.Application/Sessions/CreateSessionCommand.cs): `date` (`YYYY-MM-DD`), `startTime` (`HH:mm`), `venue`, optional `feeCents` (default $15). 201 with `Location: /sessions/{id}`; 400 naming the field; 401 / 403 (member, another club's admin); 404 while the feature is off for the club. New [`BadRequestExceptionHandler`](./apps/api/src/EarlyEagles.Api/ExceptionHandling/BadRequestExceptionHandler.cs): an unreadable body was a 500 in Development and is now 400 there too, for every endpoint. Integration [`CreateSessionEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/CreateSessionEndpointTests.cs) (21).
 - `[ ]` **P1-005** `GET /sessions?week=YYYY-Www` (member) lists the week's sessions
 - `[ ]` **P1-005.2** `GET /sessions/{id}` (member): details, RSVP counts, my RSVP, my payment status
 - `[ ]` **P1-006.2** Edit and cancel a session (admin)

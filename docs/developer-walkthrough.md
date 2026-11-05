@@ -1650,7 +1650,7 @@ Flagsmith can replace:
 To turn a feature on for Early Eagles in an environment, set
 `FeatureFlags__Features__sessions__Tenants__0=early-eagles` on the app.
 
-### 9.12 Sessions (P1-001.1)
+### 9.12 Sessions (P1-001.1, P1-006)
 
 A **session** is one club play date, usually Sunday morning. The admin creates each one; there is
 no recurring schedule (owner's call, 2026-11-03).
@@ -1662,6 +1662,20 @@ no recurring schedule (owner's call, 2026-11-03).
   now (US dollars for Early Eagles). Default 1500 ($15); 0 means free; above $1,000 is refused as
   a typo.
 - **Scheduled until cancelled.** A cancelled session stays as history and can't be edited.
+
+**Creating one (P1-006).** `POST /sessions`, tenant admins only, behind the `sessions` flag:
+
+```json
+{ "date": "2026-11-08", "startTime": "07:15", "venue": "Edison Sports Hall", "feeCents": 1500 }
+```
+
+`feeCents` is optional and defaults to $15. The answer is 201 with `Location: /sessions/{id}`. Past
+dates and two sessions on the same day are allowed: the admin decides.
+
+A body that can't be read (a date like `2026-02-30`, malformed JSON) answers 400 without reaching
+the validator. Minimal APIs throw `BadHttpRequestException` for this in Development only, so
+`BadRequestExceptionHandler` catches it there; without it Development reports a 500 that
+Production never would.
 
 ## 10. Testing infrastructure
 
