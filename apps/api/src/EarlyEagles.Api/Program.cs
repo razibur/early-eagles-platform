@@ -5,6 +5,7 @@ using EarlyEagles.Api.Health;
 using EarlyEagles.Api.Notifications;
 using EarlyEagles.Api.Observability;
 using EarlyEagles.Api.OpenApi;
+using EarlyEagles.Api.Sessions;
 using EarlyEagles.Api.Tenancy;
 using EarlyEagles.Api.Webhooks;
 using EarlyEagles.Application;
@@ -99,6 +100,9 @@ app.MapAuditEventsEndpoints();
 
 // Web Push subscriptions (P0-068.3.2), members of the request's tenant only.
 app.MapPushEndpoints();
+
+// Sunday sessions (P1-006), behind the sessions feature flag.
+app.MapSessionEndpoints();
 
 app.Run();
 
