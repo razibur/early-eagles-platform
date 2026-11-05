@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~31% (14 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~33% (15 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -578,7 +578,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
 - `[x]` **P1-010** `PaymentConfirmed` handler emails the admins (English; logs until Resend, P0-011)
   ↳ verify: [`PaymentConfirmedHandler`](./apps/api/src/EarlyEagles.Infrastructure/Messaging/PaymentConfirmedHandler.cs) now hands each event to [`PaymentConfirmedNotifier`](./apps/api/src/EarlyEagles.Application/Payments/PaymentConfirmedNotifier.cs), which emails the club's admins through `IEmailSender` (logs until Resend, P0-011). English only; member-typed text is HTML-encoded; the idempotency key is `payment-confirmed/{messageId}`, so a redelivery isn't sent twice; a delivery failure propagates so the bus retries. [`EfPaymentEmailDirectory`](./apps/api/src/EarlyEagles.Infrastructure/Payments/EfPaymentEmailDirectory.cs) runs with no ambient tenant and names the tenant in every read. The handler only runs where a bus is configured, so on a laptop without one nothing is emailed or logged by this path. Unit [`PaymentConfirmedNotifierTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Payments/PaymentConfirmedNotifierTests.cs) (6) + 2 handler tests; integration [`PaymentEmailDirectoryTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Payments/PaymentEmailDirectoryTests.cs) (2). The emulator end-to-end test was skipped locally. Mutation-checked (HTML encoding, admin role filter, tenant scoping).
 - `[ ]` **P1-011** `GET /leaderboard?period=year` (members only): sessions attended, times paid, last played
-- `[ ]` **P1-001.4** `Announcement` + `AnnouncementComment` + tables
+- `[x]` **P1-001.4** `Announcement` + `AnnouncementComment` + tables
+  ↳ verify: [`Announcement`](./apps/api/src/EarlyEagles.Domain/Announcements/Announcement.cs) (title 1 to 200, body 1 to 5,000) and [`AnnouncementComment`](./apps/api/src/EarlyEagles.Domain/Announcements/AnnouncementComment.cs) (body 1 to 2,000), both `ITenantScoped`, text trimmed. Migration `AddAnnouncements` only creates the two tables, with indexes for the feed and an FK from comment to post. Port [`IAnnouncementRepository`](./apps/api/src/EarlyEagles.Application/Abstractions/Announcements/IAnnouncementRepository.cs) + EF implementation. Unit [`AnnouncementTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Announcements/AnnouncementTests.cs) (9); integration [`AnnouncementStorageTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Announcements/AnnouncementStorageTests.cs) (2). Mutation-checked (title limit, comment trim).
 - `[ ]` **P1-012** `POST /announcements` (admin)
 - `[ ]` **P1-012.2** `POST /announcements/{id}/comments` (member)
 - `[ ]` **P1-012.3** Delete a comment: your own, or any as admin
