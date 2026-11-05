@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~9% (4 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~11% (5 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -557,7 +557,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
 - `[x]` **P1-005** `GET /sessions?week=YYYY-Www` (member) lists the week's sessions
   ↳ verify: [`ListSessionsQuery`](./apps/api/src/EarlyEagles.Application/Sessions/ListSessionsQuery.cs) through read port [`ISessionReader`](./apps/api/src/EarlyEagles.Application/Abstractions/Sessions/ISessionReader.cs): one [`IsoWeek`](./apps/api/src/EarlyEagles.Application/Sessions/IsoWeek.cs) (Monday to Sunday), earliest first, cancelled ones included. `week` is required: "this week" needs the club's time zone, which the platform doesn't hold, so the client asks for it. `status` serialises as its name. Unit `IsoWeekTests` (13); integration [`ListSessionsEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/ListSessionsEndpointTests.cs) (12), on shared host [`SessionApi`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/SessionApi.cs). Mutation-checked (week end, sort, gate).
 - `[ ]` **P1-005.2** `GET /sessions/{id}` (member): details, RSVP counts, my RSVP, my payment status
-- `[ ]` **P1-006.2** Edit and cancel a session (admin)
+- `[x]` **P1-006.2** Edit and cancel a session (admin)
+  ↳ verify: `PUT /sessions/{id}` ([`UpdateSessionCommand`](./apps/api/src/EarlyEagles.Application/Sessions/UpdateSessionCommand.cs); a missing `feeCents` keeps the current fee) and `POST /sessions/{id}/cancel` ([`CancelSessionCommand`](./apps/api/src/EarlyEagles.Application/Sessions/CancelSessionCommand.cs), idempotent), both 204, admin only. Unknown or another club's id: 404. Editing a cancelled session: 409. New shared [`NotFoundException`](./apps/api/src/EarlyEagles.Application/Common/NotFoundException.cs) / [`ConflictException`](./apps/api/src/EarlyEagles.Application/Common/ConflictException.cs) mapped by [`ApplicationExceptionHandler`](./apps/api/src/EarlyEagles.Api/ExceptionHandling/ApplicationExceptionHandler.cs), so a refused command is audited as failed. Integration [`EditSessionEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/EditSessionEndpointTests.cs) (11). Mutation-checked (cancelled guard, fee kept, cancel policy).
 - `[ ]` **P1-001.2** `Rsvp` (Yes / No / Maybe, one per member per session, closed once the session starts or is cancelled) + table
 - `[ ]` **P1-007** `PUT /sessions/{id}/rsvp` (member)
 - `[ ]` **P1-007.2** `GET /sessions/{id}/rsvps` (admin): the full RSVP grid

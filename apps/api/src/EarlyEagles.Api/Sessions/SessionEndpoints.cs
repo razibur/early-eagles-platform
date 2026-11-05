@@ -36,6 +36,21 @@ public static class SessionEndpoints
             .WithName("ListSessions")
             .WithTags("Sessions");
 
+        // P1-006.2: a tenant admin edits or cancels a session.
+        routes
+            .MapPut(Route + "/{id:guid}", UpdateSession)
+            .RequireAuthorization(TenantPolicies.Admin)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("UpdateSession")
+            .WithTags("Sessions");
+
+        routes
+            .MapPost(Route + "/{id:guid}/cancel", CancelSession)
+            .RequireAuthorization(TenantPolicies.Admin)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("CancelSession")
+            .WithTags("Sessions");
+
         return routes;
     }
 
@@ -60,5 +75,24 @@ public static class SessionEndpoints
     {
         var sessions = await sender.Send(new ListSessionsQuery(week ?? string.Empty), cancellationToken);
         return TypedResults.Ok(sessions);
+    }
+
+    private static async Task<NoContent> UpdateSession(
+        Guid id,
+        UpdateSessionRequest request,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(
+            new UpdateSessionCommand(id, request.Date, request.StartTime, request.Venue ?? string.Empty, request.FeeCents),
+            cancellationToken);
+
+        return TypedResults.NoContent();
+    }
+
+    private static async Task<NoContent> CancelSession(Guid id, ISender sender, CancellationToken cancellationToken)
+    {
+        await sender.Send(new CancelSessionCommand(id), cancellationToken);
+        return TypedResults.NoContent();
     }
 }
