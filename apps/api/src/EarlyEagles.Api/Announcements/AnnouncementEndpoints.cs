@@ -1,0 +1,49 @@
+using System.Security.Claims;
+using EarlyEagles.Api.Authentication;
+using EarlyEagles.Api.FeatureFlags;
+using EarlyEagles.Application.Announcements;
+using EarlyEagles.Application.FeatureFlags;
+using Mediator;
+using Microsoft.AspNetCore.Http.HttpResults;
+
+namespace EarlyEagles.Api.Announcements;
+
+/// <summary>
+/// The club's announcements, behind the sessions flag with the rest of Phase 1:
+/// 404 while it is off for this club, 401 without a token, 403 outside the
+/// policy, 400 for invalid input.
+/// </summary>
+public static class AnnouncementEndpoints
+{
+    public const string Route = "/announcements";
+
+    public static IEndpointRouteBuilder MapAnnouncementEndpoints(this IEndpointRouteBuilder routes)
+    {
+        ArgumentNullException.ThrowIfNull(routes);
+
+        // P1-012: a tenant admin posts.
+        routes
+            .MapPost(Route, CreateAnnouncement)
+            .RequireAuthorization(TenantPolicies.Admin)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("CreateAnnouncement")
+            .WithTags("Announcements");
+
+        return routes;
+    }
+
+    private static string UserId(ClaimsPrincipal user) => user.FindFirstValue(ClerkClaims.Subject) ?? string.Empty;
+
+    private static async Task<Created<CreatedResponse>> CreateAnnouncement(
+        CreateAnnouncementRequest request,
+        ClaimsPrincipal user,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new CreateAnnouncementCommand(UserId(user), request.Title ?? string.Empty, request.Body ?? string.Empty),
+            cancellationToken);
+
+        return TypedResults.Created($"{Route}/{result.AnnouncementId}", new CreatedResponse(result.AnnouncementId));
+    }
+}
