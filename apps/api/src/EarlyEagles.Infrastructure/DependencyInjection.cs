@@ -107,6 +107,7 @@ public static class DependencyInjection
         services.AddScoped<IPushSubscriptionRepository, EfPushSubscriptionRepository>();
         services.AddScoped<ISessionRepository, EfSessionRepository>();
         services.AddScoped<ISessionReader, EfSessionReader>();
+        services.AddScoped<IRsvpRepository, EfRsvpRepository>();
 
         // Unit of work (P0-024.3) backing TransactionBehavior. Scoped so it
         // shares the request's ApplicationDbContext — the transaction it opens
