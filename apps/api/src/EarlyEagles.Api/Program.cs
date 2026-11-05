@@ -1,3 +1,4 @@
+using EarlyEagles.Api.Announcements;
 using EarlyEagles.Api.Auditing;
 using EarlyEagles.Api.Authentication;
 using EarlyEagles.Api.ExceptionHandling;
@@ -106,6 +107,7 @@ app.MapPushEndpoints();
 // Sunday sessions (P1-006), behind the sessions feature flag.
 app.MapSessionEndpoints();
 app.MapPaymentEndpoints();
+app.MapAnnouncementEndpoints();
 
 app.Run();
 

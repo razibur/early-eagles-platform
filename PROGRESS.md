@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~33% (15 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~36% (16 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -580,7 +580,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
 - `[ ]` **P1-011** `GET /leaderboard?period=year` (members only): sessions attended, times paid, last played
 - `[x]` **P1-001.4** `Announcement` + `AnnouncementComment` + tables
   ↳ verify: [`Announcement`](./apps/api/src/EarlyEagles.Domain/Announcements/Announcement.cs) (title 1 to 200, body 1 to 5,000) and [`AnnouncementComment`](./apps/api/src/EarlyEagles.Domain/Announcements/AnnouncementComment.cs) (body 1 to 2,000), both `ITenantScoped`, text trimmed. Migration `AddAnnouncements` only creates the two tables, with indexes for the feed and an FK from comment to post. Port [`IAnnouncementRepository`](./apps/api/src/EarlyEagles.Application/Abstractions/Announcements/IAnnouncementRepository.cs) + EF implementation. Unit [`AnnouncementTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Announcements/AnnouncementTests.cs) (9); integration [`AnnouncementStorageTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Announcements/AnnouncementStorageTests.cs) (2). Mutation-checked (title limit, comment trim).
-- `[ ]` **P1-012** `POST /announcements` (admin)
+- `[x]` **P1-012** `POST /announcements` (admin)
+  ↳ verify: `POST /announcements`, admin only: [`CreateAnnouncementCommand`](./apps/api/src/EarlyEagles.Application/Announcements/CreateAnnouncementCommand.cs) takes `title` and `body`; the author comes from the token. 201 with `Location`. Behind the `sessions` flag with the rest of Phase 1, since the plan names no flag of its own. Integration [`CreateAnnouncementEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Announcements/CreateAnnouncementEndpointTests.cs) (11). Mutation-checked (admin policy, gate, author from token).
 - `[ ]` **P1-012.2** `POST /announcements/{id}/comments` (member)
 - `[ ]` **P1-012.3** Delete a comment: your own, or any as admin
 - `[ ]` **P1-013** `GET /announcements` (member): newest first, keyset paged, with comments
