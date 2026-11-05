@@ -1,5 +1,6 @@
 using System.Reflection;
 using EarlyEagles.Application.Abstractions.Tenancy;
+using EarlyEagles.Domain.Announcements;
 using EarlyEagles.Domain.Auditing;
 using EarlyEagles.Domain.Notifications;
 using EarlyEagles.Domain.Payments;
@@ -78,6 +79,10 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<Rsvp> Rsvps => Set<Rsvp>();
 
     public DbSet<SessionPayment> SessionPayments => Set<SessionPayment>();
+
+    public DbSet<Announcement> Announcements => Set<Announcement>();
+
+    public DbSet<AnnouncementComment> AnnouncementComments => Set<AnnouncementComment>();
 
     /// <summary>
     /// Attaches the save-time interceptors: the domain-event outbox drain

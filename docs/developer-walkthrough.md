@@ -1750,6 +1750,11 @@ with an address. Two things to keep in mind when changing it:
 
 Without a bus configured the outbox only logs, so this handler never runs.
 
+### 9.15 Announcements (P1-001.4)
+
+An `Announcement` is a titled post from an admin to the club; an `AnnouncementComment` is a member's
+reply. They are separate aggregates so adding a reply never loads or locks the post.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:

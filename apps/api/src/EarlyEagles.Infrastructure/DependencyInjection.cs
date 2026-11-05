@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
+using EarlyEagles.Application.Abstractions.Announcements;
 using EarlyEagles.Application.Abstractions.Auditing;
 using EarlyEagles.Application.Abstractions.Email;
 using EarlyEagles.Application.Abstractions.FeatureFlags;
@@ -12,6 +13,7 @@ using EarlyEagles.Application.Abstractions.Persistence;
 using EarlyEagles.Application.Abstractions.Sessions;
 using EarlyEagles.Application.Abstractions.Tenancy;
 using EarlyEagles.Domain.Tenants;
+using EarlyEagles.Infrastructure.Announcements;
 using EarlyEagles.Infrastructure.Auditing;
 using EarlyEagles.Infrastructure.Billing;
 using EarlyEagles.Infrastructure.Email;
@@ -113,6 +115,7 @@ public static class DependencyInjection
         services.AddScoped<ISessionPaymentRepository, EfSessionPaymentRepository>();
         services.AddScoped<IPaymentReader, EfPaymentReader>();
         services.AddScoped<IPaymentEmailDirectory, EfPaymentEmailDirectory>();
+        services.AddScoped<IAnnouncementRepository, EfAnnouncementRepository>();
 
         // Unit of work (P0-024.3) backing TransactionBehavior. Scoped so it
         // shares the request's ApplicationDbContext — the transaction it opens
