@@ -1739,6 +1739,17 @@ confirmed: a mistaken confirmation can't be undone through the API yet.
 played, so "unpaid" means a member who said Yes, not every member. The list reads from payments and
 answers rather than members, so someone who left the club still shows while their payment is open.
 
+**Emailing the admins (P1-010).** When a `PaymentConfirmed` comes off the bus,
+`PaymentConfirmedHandler` logs it and calls `PaymentConfirmedNotifier`, which emails every admin
+with an address. Two things to keep in mind when changing it:
+
+- The consumer runs outside any request, so there is no ambient tenant. `EfPaymentEmailDirectory`
+  bypasses the query filter and must name the tenant in every read itself.
+- Delivery is at-least-once. The email's idempotency key comes from the bus message id, and Resend
+  keeps keys for 24 hours.
+
+Without a bus configured the outbox only logs, so this handler never runs.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
