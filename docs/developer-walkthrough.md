@@ -1688,6 +1688,16 @@ Handlers refuse with `NotFoundException` (404) or `ConflictException` (409) rath
 value, because `AuditBehavior` only records a failure when a command throws. The conflict message
 reaches the client, so write it for a person.
 
+### 9.13 RSVPs (P1-001.2)
+
+An `Rsvp` is one member's Yes, No or Maybe for one session. Changing your mind updates the same
+row; a unique index keeps it to one per member even if two requests race.
+
+Answers close when the session starts or is cancelled: `Session.AcceptsRsvps(clubLocalNow)`. The
+session's date and time are the club's wall clock, so "now" must be too. Turning the real instant
+into club time needs a tenant time zone, which doesn't exist yet: that is what `PUT
+/sessions/{id}/rsvp` (P1-007) is waiting on.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:

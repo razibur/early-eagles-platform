@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~11% (5 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~13% (6 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -559,7 +559,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
 - `[ ]` **P1-005.2** `GET /sessions/{id}` (member): details, RSVP counts, my RSVP, my payment status
 - `[x]` **P1-006.2** Edit and cancel a session (admin)
   ↳ verify: `PUT /sessions/{id}` ([`UpdateSessionCommand`](./apps/api/src/EarlyEagles.Application/Sessions/UpdateSessionCommand.cs); a missing `feeCents` keeps the current fee) and `POST /sessions/{id}/cancel` ([`CancelSessionCommand`](./apps/api/src/EarlyEagles.Application/Sessions/CancelSessionCommand.cs), idempotent), both 204, admin only. Unknown or another club's id: 404. Editing a cancelled session: 409. New shared [`NotFoundException`](./apps/api/src/EarlyEagles.Application/Common/NotFoundException.cs) / [`ConflictException`](./apps/api/src/EarlyEagles.Application/Common/ConflictException.cs) mapped by [`ApplicationExceptionHandler`](./apps/api/src/EarlyEagles.Api/ExceptionHandling/ApplicationExceptionHandler.cs), so a refused command is audited as failed. Integration [`EditSessionEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/EditSessionEndpointTests.cs) (11). Mutation-checked (cancelled guard, fee kept, cancel policy).
-- `[ ]` **P1-001.2** `Rsvp` (Yes / No / Maybe, one per member per session, closed once the session starts or is cancelled) + table
+- `[x]` **P1-001.2** `Rsvp` (Yes / No / Maybe, one per member per session, closed once the session starts or is cancelled) + table
+  ↳ verify: [`Rsvp`](./apps/api/src/EarlyEagles.Domain/Sessions/Rsvp.cs) (`ITenantScoped` aggregate, Yes / No / Maybe, `Change` reports whether anything changed) + [`Session.AcceptsRsvps`](./apps/api/src/EarlyEagles.Domain/Sessions/Session.cs): open until the start time, never once cancelled. The caller passes "now" on the club's wall clock, so the rule itself needs no time zone. Migration `AddRsvps` only creates the table; a unique index `(tenant_id, session_id, clerk_user_id)` holds one answer per member; no FK to `tenant_members`, so an answer outlives the membership. Port [`IRsvpRepository`](./apps/api/src/EarlyEagles.Application/Abstractions/Sessions/IRsvpRepository.cs) + EF implementation. Unit [`RsvpTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Sessions/RsvpTests.cs) (8); integration [`RsvpStorageTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/RsvpStorageTests.cs) (2). Mutation-checked (start-time boundary, cancelled rule, unique index).
 - `[ ]` **P1-007** `PUT /sessions/{id}/rsvp` (member)
 - `[ ]` **P1-007.2** `GET /sessions/{id}/rsvps` (admin): the full RSVP grid
 - `[ ]` **P1-001.3** `SessionPayment` (Reported → Confirmed / Rejected, sender name + Zelle reference; raises `PaymentReported`, `PaymentConfirmed`) + table

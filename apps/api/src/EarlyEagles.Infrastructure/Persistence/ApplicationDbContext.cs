@@ -74,6 +74,8 @@ public sealed class ApplicationDbContext : DbContext
 
     public DbSet<Session> Sessions => Set<Session>();
 
+    public DbSet<Rsvp> Rsvps => Set<Rsvp>();
+
     /// <summary>
     /// Attaches the save-time interceptors: the domain-event outbox drain
     /// (P0-049.2) and the write-side tenant guard. Done here rather than at each
