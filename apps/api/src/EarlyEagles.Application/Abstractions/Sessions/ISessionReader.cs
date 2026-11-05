@@ -10,4 +10,10 @@ public interface ISessionReader
 {
     /// <summary>Sessions from <paramref name="firstDay"/> to <paramref name="lastDay"/> inclusive, earliest first.</summary>
     Task<IReadOnlyList<SessionSummary>> ListAsync(DateOnly firstDay, DateOnly lastDay, CancellationToken cancellationToken);
+
+    /// <summary>True when the ambient tenant has this session.</summary>
+    Task<bool> ExistsAsync(Guid sessionId, CancellationToken cancellationToken);
+
+    /// <summary>Every member with their answer for the session, by name; unnamed members last.</summary>
+    Task<IReadOnlyList<RsvpGridRow>> ListRsvpGridAsync(Guid sessionId, CancellationToken cancellationToken);
 }
