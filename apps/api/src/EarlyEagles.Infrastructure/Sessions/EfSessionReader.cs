@@ -1,5 +1,6 @@
 using EarlyEagles.Application.Abstractions.Sessions;
 using EarlyEagles.Application.Sessions;
+using EarlyEagles.Domain.Sessions;
 using EarlyEagles.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,6 +27,26 @@ public sealed class EfSessionReader : ISessionReader
             .OrderBy(s => s.Date)
             .ThenBy(s => s.StartTime)
             .Select(s => new SessionSummary(s.Id, s.Date, s.StartTime, s.Venue, s.FeeCents, s.Status))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+    public Task<bool> ExistsAsync(Guid sessionId, CancellationToken cancellationToken) =>
+        context.Sessions.AnyAsync(s => s.Id == sessionId, cancellationToken);
+
+    public async Task<IReadOnlyList<RsvpGridRow>> ListRsvpGridAsync(Guid sessionId, CancellationToken cancellationToken) =>
+        await context.TenantMembers
+            .AsNoTracking()
+            .OrderBy(m => m.DisplayName == null)
+            .ThenBy(m => m.DisplayName)
+            .ThenBy(m => m.ClerkUserId)
+            .Select(m => new RsvpGridRow(
+                m.ClerkUserId,
+                m.DisplayName,
+                m.ImageUrl,
+                context.Rsvps
+                    .Where(r => r.SessionId == sessionId && r.ClerkUserId == m.ClerkUserId)
+                    .Select(r => (RsvpResponse?)r.Response)
+                    .FirstOrDefault()))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 }

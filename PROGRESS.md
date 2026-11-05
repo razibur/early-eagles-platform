@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~13% (6 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~16% (7 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -562,7 +562,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
 - `[x]` **P1-001.2** `Rsvp` (Yes / No / Maybe, one per member per session, closed once the session starts or is cancelled) + table
   ↳ verify: [`Rsvp`](./apps/api/src/EarlyEagles.Domain/Sessions/Rsvp.cs) (`ITenantScoped` aggregate, Yes / No / Maybe, `Change` reports whether anything changed) + [`Session.AcceptsRsvps`](./apps/api/src/EarlyEagles.Domain/Sessions/Session.cs): open until the start time, never once cancelled. The caller passes "now" on the club's wall clock, so the rule itself needs no time zone. Migration `AddRsvps` only creates the table; a unique index `(tenant_id, session_id, clerk_user_id)` holds one answer per member; no FK to `tenant_members`, so an answer outlives the membership. Port [`IRsvpRepository`](./apps/api/src/EarlyEagles.Application/Abstractions/Sessions/IRsvpRepository.cs) + EF implementation. Unit [`RsvpTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Sessions/RsvpTests.cs) (8); integration [`RsvpStorageTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/RsvpStorageTests.cs) (2). Mutation-checked (start-time boundary, cancelled rule, unique index).
 - `[ ]` **P1-007** `PUT /sessions/{id}/rsvp` (member)
-- `[ ]` **P1-007.2** `GET /sessions/{id}/rsvps` (admin): the full RSVP grid
+- `[x]` **P1-007.2** `GET /sessions/{id}/rsvps` (admin): the full RSVP grid
+  ↳ verify: `GET /sessions/{id}/rsvps`, admin only: [`GetRsvpGridQuery`](./apps/api/src/EarlyEagles.Application/Sessions/GetRsvpGridQuery.cs) returns every member by name (unnamed last) with their answer, `null` when they haven't answered, so the admin sees who to chase. Unknown or another club's session: 404. Integration [`RsvpGridEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/RsvpGridEndpointTests.cs) (8), with answers seeded directly until P1-007 lands. Mutation-checked (session scoping of answers, existence check, admin policy).
 - `[ ]` **P1-001.3** `SessionPayment` (Reported → Confirmed / Rejected, sender name + Zelle reference; raises `PaymentReported`, `PaymentConfirmed`) + table
 - `[ ]` **P1-008** `POST /sessions/{id}/payment-report` (member)
 - `[ ]` **P1-009** Confirm a reported payment (admin); raises `PaymentConfirmed`

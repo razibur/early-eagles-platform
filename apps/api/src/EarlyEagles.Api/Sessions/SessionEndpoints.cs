@@ -51,6 +51,14 @@ public static class SessionEndpoints
             .WithName("CancelSession")
             .WithTags("Sessions");
 
+        // P1-007.2: a tenant admin reads every member's answer for a session.
+        routes
+            .MapGet(Route + "/{id:guid}/rsvps", GetRsvpGrid)
+            .RequireAuthorization(TenantPolicies.Admin)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("GetRsvpGrid")
+            .WithTags("Sessions");
+
         return routes;
     }
 
@@ -94,5 +102,11 @@ public static class SessionEndpoints
     {
         await sender.Send(new CancelSessionCommand(id), cancellationToken);
         return TypedResults.NoContent();
+    }
+
+    private static async Task<Ok<IReadOnlyList<RsvpGridRow>>> GetRsvpGrid(Guid id, ISender sender, CancellationToken cancellationToken)
+    {
+        var grid = await sender.Send(new GetRsvpGridQuery(id), cancellationToken);
+        return TypedResults.Ok(grid);
     }
 }

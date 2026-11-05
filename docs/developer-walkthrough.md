@@ -1698,6 +1698,10 @@ session's date and time are the club's wall clock, so "now" must be too. Turning
 into club time needs a tenant time zone, which doesn't exist yet: that is what `PUT
 /sessions/{id}/rsvp` (P1-007) is waiting on.
 
+**The RSVP grid (P1-007.2).** `GET /sessions/{id}/rsvps`, admins only, lists every member against
+the session, starting from `tenant_members` so someone who hasn't answered still shows, with a
+`null` response.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
