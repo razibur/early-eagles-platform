@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~7% (3 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~9% (4 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -554,7 +554,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
   ↳ verify: [`Session`](./apps/api/src/EarlyEagles.Domain/Sessions/Session.cs) (`ITenantScoped` aggregate): local `DateOnly` + `TimeOnly`, trimmed venue (1–200), fee in whole cents (0 to $1,000, default 1500), `Scheduled` until `Cancel()` (idempotent); `UpdateDetails` reports whether anything changed and refuses a cancelled session. Migration `AddSessions` only creates the table (`date`, `time`, index `(tenant_id, date)`, FK to `tenants` restrict). Port [`ISessionRepository`](./apps/api/src/EarlyEagles.Application/Abstractions/Sessions/ISessionRepository.cs) + EF implementation (refuses a context with no tenant). Unit [`SessionTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Sessions/SessionTests.cs) (15) + the `ITenantScoped` reflection guard; integration [`SessionStorageTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/SessionStorageTests.cs): round trip, invisible to another tenant. Mutation-checked (cancelled guard, fee range).
 - `[x]` **P1-006** `POST /sessions` (admin) creates a session
   ↳ verify: [`SessionEndpoints`](./apps/api/src/EarlyEagles.Api/Sessions/SessionEndpoints.cs) → [`CreateSessionCommand`](./apps/api/src/EarlyEagles.Application/Sessions/CreateSessionCommand.cs): `date` (`YYYY-MM-DD`), `startTime` (`HH:mm`), `venue`, optional `feeCents` (default $15). 201 with `Location: /sessions/{id}`; 400 naming the field; 401 / 403 (member, another club's admin); 404 while the feature is off for the club. New [`BadRequestExceptionHandler`](./apps/api/src/EarlyEagles.Api/ExceptionHandling/BadRequestExceptionHandler.cs): an unreadable body was a 500 in Development and is now 400 there too, for every endpoint. Integration [`CreateSessionEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/CreateSessionEndpointTests.cs) (21).
-- `[ ]` **P1-005** `GET /sessions?week=YYYY-Www` (member) lists the week's sessions
+- `[x]` **P1-005** `GET /sessions?week=YYYY-Www` (member) lists the week's sessions
+  ↳ verify: [`ListSessionsQuery`](./apps/api/src/EarlyEagles.Application/Sessions/ListSessionsQuery.cs) through read port [`ISessionReader`](./apps/api/src/EarlyEagles.Application/Abstractions/Sessions/ISessionReader.cs): one [`IsoWeek`](./apps/api/src/EarlyEagles.Application/Sessions/IsoWeek.cs) (Monday to Sunday), earliest first, cancelled ones included. `week` is required: "this week" needs the club's time zone, which the platform doesn't hold, so the client asks for it. `status` serialises as its name. Unit `IsoWeekTests` (13); integration [`ListSessionsEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/ListSessionsEndpointTests.cs) (12), on shared host [`SessionApi`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/SessionApi.cs). Mutation-checked (week end, sort, gate).
 - `[ ]` **P1-005.2** `GET /sessions/{id}` (member): details, RSVP counts, my RSVP, my payment status
 - `[ ]` **P1-006.2** Edit and cancel a session (admin)
 - `[ ]` **P1-001.2** `Rsvp` (Yes / No / Maybe, one per member per session, closed once the session starts or is cancelled) + table

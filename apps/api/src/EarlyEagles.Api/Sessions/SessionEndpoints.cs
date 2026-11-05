@@ -8,9 +8,9 @@ using Microsoft.AspNetCore.Http.HttpResults;
 namespace EarlyEagles.Api.Sessions;
 
 /// <summary>
-/// <c>POST /sessions</c> (P1-006): a tenant admin creates a session. No token
-/// → 401, a member or another club's admin → 403, the sessions feature off for
-/// this club → 404, an invalid session → 400.
+/// The Sunday session endpoints, all behind the sessions flag: 404 while it is
+/// off for this club, 401 without a token, 403 for anyone outside the policy
+/// (another club's session always), 400 for invalid input.
 /// </summary>
 public static class SessionEndpoints
 {
@@ -20,11 +20,20 @@ public static class SessionEndpoints
     {
         ArgumentNullException.ThrowIfNull(routes);
 
+        // P1-006: a tenant admin creates a session.
         routes
             .MapPost(Route, CreateSession)
             .RequireAuthorization(TenantPolicies.Admin)
             .RequireFeature(FeatureNames.Sessions)
             .WithName("CreateSession")
+            .WithTags("Sessions");
+
+        // P1-005: a member lists one ISO week, ?week=2026-W45.
+        routes
+            .MapGet(Route, ListSessions)
+            .RequireAuthorization(TenantPolicies.Member)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("ListSessions")
             .WithTags("Sessions");
 
         return routes;
@@ -42,5 +51,14 @@ public static class SessionEndpoints
             cancellationToken);
 
         return TypedResults.Created($"{Route}/{result.SessionId}", new CreateSessionResponse(result.SessionId));
+    }
+
+    private static async Task<Ok<IReadOnlyList<SessionSummary>>> ListSessions(
+        ISender sender,
+        CancellationToken cancellationToken,
+        string? week = null)
+    {
+        var sessions = await sender.Send(new ListSessionsQuery(week ?? string.Empty), cancellationToken);
+        return TypedResults.Ok(sessions);
     }
 }

@@ -1677,6 +1677,10 @@ the validator. Minimal APIs throw `BadHttpRequestException` for this in Developm
 `BadRequestExceptionHandler` catches it there; without it Development reports a 500 that
 Production never would.
 
+**Listing a week (P1-005).** `GET /sessions?week=2026-W45`, any member. Weeks are ISO 8601: Monday to
+Sunday, week 1 can start in December, and some years have a W53. `week` is required because the
+server can't yet say what "this week" means for a club: it holds no time zone.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:

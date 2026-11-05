@@ -24,6 +24,7 @@ builder.Services.AddOpenApi(options =>
     options.AddOperationTransformer<TenantHeaderOperationTransformer>();
     options.AddOperationTransformer<BearerSecurityRequirementOperationTransformer>();
 });
+
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddExceptionHandling();
