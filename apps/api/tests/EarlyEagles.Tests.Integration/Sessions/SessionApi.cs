@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using EarlyEagles.Domain.Sessions;
 using EarlyEagles.Domain.Tenants;
 using EarlyEagles.Infrastructure.Persistence;
 using EarlyEagles.Infrastructure.Tenancy;
@@ -54,6 +55,23 @@ internal sealed class SessionApi : WebApplicationFactory<Program>
     public static ApplicationDbContext Iota(PostgresFixture fixture) => fixture.CreateContext(IotaTenantId, IotaSlug);
 
     public static ApplicationDbContext Kappa(PostgresFixture fixture) => fixture.CreateContext(KappaTenantId, KappaSlug);
+
+    /// <summary>A new session in Iota, on a date the tests don't read back by week.</summary>
+    public static async Task<Guid> SeedSessionAsync(PostgresFixture fixture, int feeCents = Session.DefaultFeeCents, bool cancelled = false)
+    {
+        ArgumentNullException.ThrowIfNull(fixture);
+
+        var session = Session.Create(Guid.CreateVersion7(), IotaTenantId, new DateOnly(2034, 1, 1), new TimeOnly(7, 0), "Seeded Hall", feeCents, DateTimeOffset.UtcNow);
+        if (cancelled)
+        {
+            session.Cancel();
+        }
+
+        await using var db = Iota(fixture);
+        db.Sessions.Add(session);
+        await db.SaveChangesAsync();
+        return session.Id;
+    }
 
     /// <summary>A client on Iota's subdomain, signed in to Iota unless another organization is named.</summary>
     public HttpClient Client(string role = "member", string userId = "user_phase1", string organization = IotaOrg, string slug = IotaSlug)

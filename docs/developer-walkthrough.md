@@ -1723,6 +1723,10 @@ transaction as the change.
 `rsvpCounts` for the club and `myRsvp` / `myPayment` for the caller, both `null` until they act. A
 member sees nobody else's answer or payment here; that is the admin's grid.
 
+**Reporting a payment (P1-008).** `POST /sessions/{id}/payment-report` with `senderName` and
+`reference`. The member can only report for themselves: the id comes from the token, not the body.
+Reporting twice, or on a cancelled or free session, answers 409 with a message for the member.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
