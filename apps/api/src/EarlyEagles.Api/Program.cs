@@ -12,6 +12,7 @@ using EarlyEagles.Api.Tenancy;
 using EarlyEagles.Api.Webhooks;
 using EarlyEagles.Application;
 using EarlyEagles.Infrastructure;
+using EarlyEagles.Infrastructure.Development;
 using EarlyEagles.Infrastructure.Messaging;
 using EarlyEagles.Infrastructure.Persistence;
 
@@ -47,6 +48,20 @@ if (EarlyEagles.Infrastructure.DependencyInjection.IsMessageBusConfigured(builde
 }
 
 var app = builder.Build();
+
+// `dotnet run -- --seed` fills a local database and exits (P1-004.1). Refused
+// anywhere but Development, so sample people can't reach a real club.
+if (args.Contains("--seed"))
+{
+    if (!app.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException("--seed runs in Development only.");
+    }
+
+    await using var seedScope = app.Services.CreateAsyncScope();
+    await seedScope.ServiceProvider.GetRequiredService<DevelopmentSeeder>().SeedAsync(CancellationToken.None);
+    return;
+}
 
 // UseExceptionHandler is registered first so it can catch exceptions from any
 // later middleware. With no path argument it picks up the IExceptionHandler

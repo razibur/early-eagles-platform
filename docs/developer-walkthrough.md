@@ -1768,6 +1768,19 @@ audit log: `nextCursor` is an opaque token, `null` on the last page, and it shar
 format because both are a timestamp and an id. `authorName` is `null` when Clerk has no name or the
 author left the club, so the page needs a fallback.
 
+### 9.16 Development seed (P1-004.1)
+
+After applying the migrations to a local database:
+
+```bash
+dotnet run --project src/EarlyEagles.Api -- --seed
+```
+
+It adds Tenant 0 (`early-eagles`), a sample admin, five sample members and next Sunday's session,
+then exits without starting the server. It adds only what is missing, so it is safe to run again,
+and it throws outside Development. Nothing in it is a real person: the real members arrive through
+Clerk (P1-004.2).
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
