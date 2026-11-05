@@ -1731,6 +1731,10 @@ Reporting twice, or on a cancelled or free session, answers 409 with a message f
 `memberId` is the member's Clerk user id. A double click is safe: the second call changes nothing
 and queues no second `PaymentConfirmed`.
 
+**Rejecting a payment (P1-009.2).** `POST /sessions/{id}/payments/{memberId}/reject` with a `reason`,
+admins only. The member reads the reason in `myPayment` and can report again. Confirmed stays
+confirmed: a mistaken confirmation can't be undone through the API yet.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
