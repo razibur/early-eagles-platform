@@ -11,6 +11,9 @@ public interface ISessionReader
     /// <summary>Sessions from <paramref name="firstDay"/> to <paramref name="lastDay"/> inclusive, earliest first.</summary>
     Task<IReadOnlyList<SessionSummary>> ListAsync(DateOnly firstDay, DateOnly lastDay, CancellationToken cancellationToken);
 
+    /// <summary>The session as <paramref name="clerkUserId"/> sees it; <c>null</c> when the ambient tenant has no such session.</summary>
+    Task<SessionDetails?> GetDetailsAsync(Guid sessionId, string clerkUserId, CancellationToken cancellationToken);
+
     /// <summary>True when the ambient tenant has this session.</summary>
     Task<bool> ExistsAsync(Guid sessionId, CancellationToken cancellationToken);
 
