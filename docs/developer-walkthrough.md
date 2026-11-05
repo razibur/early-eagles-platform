@@ -1763,6 +1763,11 @@ reply. They are separate aggregates so adding a reply never loads or locks the p
 any as an admin. A route policy can't say "your own", so the handler decides and throws
 `ForbiddenException`, which maps to 403 and shows up as a failed attempt in the audit log.
 
+**The feed (P1-013).** `GET /announcements?limit=20&cursor=...`, any member. Paging works like the
+audit log: `nextCursor` is an opaque token, `null` on the last page, and it shares that token's
+format because both are a timestamp and an id. `authorName` is `null` when Clerk has no name or the
+author left the club, so the page needs a fallback.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:

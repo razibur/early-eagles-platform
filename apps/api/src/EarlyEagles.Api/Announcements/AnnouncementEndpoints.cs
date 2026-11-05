@@ -45,10 +45,28 @@ public static class AnnouncementEndpoints
             .WithName("DeleteAnnouncementComment")
             .WithTags("Announcements");
 
+        // P1-013: a member reads the feed, ?limit= (1-50, default 20) and ?cursor=.
+        routes
+            .MapGet(Route, ListAnnouncements)
+            .RequireAuthorization(TenantPolicies.Member)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("ListAnnouncements")
+            .WithTags("Announcements");
+
         return routes;
     }
 
     private static string UserId(ClaimsPrincipal user) => user.FindFirstValue(ClerkClaims.Subject) ?? string.Empty;
+
+    private static async Task<Ok<AnnouncementPage>> ListAnnouncements(
+        ISender sender,
+        CancellationToken cancellationToken,
+        int limit = ListAnnouncementsQuery.DefaultLimit,
+        string? cursor = null)
+    {
+        var page = await sender.Send(new ListAnnouncementsQuery(limit, cursor), cancellationToken);
+        return TypedResults.Ok(page);
+    }
 
     private static async Task<NoContent> DeleteComment(
         Guid id,
