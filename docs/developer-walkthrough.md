@@ -1681,6 +1681,13 @@ Production never would.
 Sunday, week 1 can start in December, and some years have a W53. `week` is required because the
 server can't yet say what "this week" means for a club: it holds no time zone.
 
+**Editing and cancelling (P1-006.2).** `PUT /sessions/{id}` takes the same body as creating one;
+leaving out `feeCents` keeps the current fee. `POST /sessions/{id}/cancel` is safe to repeat.
+
+Handlers refuse with `NotFoundException` (404) or `ConflictException` (409) rather than a result
+value, because `AuditBehavior` only records a failure when a command throws. The conflict message
+reaches the client, so write it for a person.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
