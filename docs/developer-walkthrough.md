@@ -1735,6 +1735,10 @@ and queues no second `PaymentConfirmed`.
 admins only. The member reads the reason in `myPayment` and can report again. Confirmed stays
 confirmed: a mistaken confirmation can't be undone through the API yet.
 
+**Who still owes (P1-009.3).** `GET /sessions/{id}/payments`, admins only. Fees are per session
+played, so "unpaid" means a member who said Yes, not every member. The list reads from payments and
+answers rather than members, so someone who left the club still shows while their payment is open.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
