@@ -30,6 +30,46 @@ public sealed class EfSessionReader : ISessionReader
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+    public async Task<SessionDetails?> GetDetailsAsync(Guid sessionId, string clerkUserId, CancellationToken cancellationToken)
+    {
+        var session = await context.Sessions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(s => s.Id == sessionId, cancellationToken)
+            .ConfigureAwait(false);
+        if (session is null)
+        {
+            return null;
+        }
+
+        var answers = await context.Rsvps
+            .AsNoTracking()
+            .Where(r => r.SessionId == sessionId)
+            .Select(r => new { r.ClerkUserId, r.Response })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var payment = await context.SessionPayments
+            .AsNoTracking()
+            .Where(p => p.SessionId == sessionId && p.ClerkUserId == clerkUserId)
+            .Select(p => new MyPayment(p.Status, p.AmountCents, p.RejectionReason))
+            .SingleOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new SessionDetails(
+            session.Id,
+            session.Date,
+            session.StartTime,
+            session.Venue,
+            session.FeeCents,
+            session.Status,
+            new RsvpCounts(
+                answers.Count(a => a.Response is RsvpResponse.Yes),
+                answers.Count(a => a.Response is RsvpResponse.No),
+                answers.Count(a => a.Response is RsvpResponse.Maybe)),
+            answers.SingleOrDefault(a => a.ClerkUserId == clerkUserId)?.Response,
+            payment);
+    }
+
     public Task<bool> ExistsAsync(Guid sessionId, CancellationToken cancellationToken) =>
         context.Sessions.AnyAsync(s => s.Id == sessionId, cancellationToken);
 

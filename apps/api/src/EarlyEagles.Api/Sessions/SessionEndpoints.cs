@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using EarlyEagles.Api.Authentication;
 using EarlyEagles.Api.FeatureFlags;
 using EarlyEagles.Application.FeatureFlags;
@@ -34,6 +35,14 @@ public static class SessionEndpoints
             .RequireAuthorization(TenantPolicies.Member)
             .RequireFeature(FeatureNames.Sessions)
             .WithName("ListSessions")
+            .WithTags("Sessions");
+
+        // P1-005.2: a member reads one session, with their own RSVP and payment.
+        routes
+            .MapGet(Route + "/{id:guid}", GetSessionDetails)
+            .RequireAuthorization(TenantPolicies.Member)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("GetSessionDetails")
             .WithTags("Sessions");
 
         // P1-006.2: a tenant admin edits or cancels a session.
@@ -83,6 +92,19 @@ public static class SessionEndpoints
     {
         var sessions = await sender.Send(new ListSessionsQuery(week ?? string.Empty), cancellationToken);
         return TypedResults.Ok(sessions);
+    }
+
+    private static async Task<Ok<SessionDetails>> GetSessionDetails(
+        Guid id,
+        ClaimsPrincipal user,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var details = await sender.Send(
+            new GetSessionDetailsQuery(id, user.FindFirstValue(ClerkClaims.Subject) ?? string.Empty),
+            cancellationToken);
+
+        return TypedResults.Ok(details);
     }
 
     private static async Task<NoContent> UpdateSession(

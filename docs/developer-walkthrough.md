@@ -1719,6 +1719,10 @@ audit log holds the history rather than the table. `AmountCents` copies the sess
 member reports. `PaymentReported` and `PaymentConfirmed` travel through the outbox, in the same
 transaction as the change.
 
+**One session (P1-005.2).** `GET /sessions/{id}`, any member. Besides the session itself it returns
+`rsvpCounts` for the club and `myRsvp` / `myPayment` for the caller, both `null` until they act. A
+member sees nobody else's answer or payment here; that is the admin's grid.
+
 ## 10. Testing infrastructure
 
 Three test projects, all xUnit:
