@@ -27,6 +27,14 @@ public static class PaymentEndpoints
             .WithName("ReportPayment")
             .WithTags("Payments");
 
+        // P1-009: a tenant admin confirms a member's payment.
+        routes
+            .MapPost("/sessions/{id:guid}/payments/{memberId}/confirm", ConfirmPayment)
+            .RequireAuthorization(TenantPolicies.Admin)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("ConfirmPayment")
+            .WithTags("Payments");
+
         return routes;
     }
 
@@ -46,5 +54,19 @@ public static class PaymentEndpoints
             cancellationToken);
 
         return TypedResults.Ok(new ReportPaymentResponse(result.PaymentId));
+    }
+
+    private static async Task<NoContent> ConfirmPayment(
+        Guid id,
+        string memberId,
+        ClaimsPrincipal user,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(
+            new ConfirmPaymentCommand(id, memberId, user.FindFirstValue(ClerkClaims.Subject) ?? string.Empty),
+            cancellationToken);
+
+        return TypedResults.NoContent();
     }
 }

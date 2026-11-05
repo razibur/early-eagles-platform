@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~22% (10 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~24% (11 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -569,7 +569,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
   ↳ verify: [`SessionPayment`](./apps/api/src/EarlyEagles.Domain/Payments/SessionPayment.cs) (`ITenantScoped` aggregate): `Report` → `Confirm` / `Reject` (reason required), `ReportAgain` only after a rejection. Confirmed is final; confirming twice raises one event. Sender name and Zelle reference are both required. `AmountCents` snapshots the session fee at report time, so editing the fee later doesn't rewrite it. Raises [`PaymentReported`](./apps/api/src/EarlyEagles.Domain/Payments/PaymentReported.cs) and [`PaymentConfirmed`](./apps/api/src/EarlyEagles.Domain/Payments/PaymentConfirmed.cs) through the outbox. Migration `AddSessionPayments` only creates the table, with a unique index `(tenant_id, session_id, clerk_user_id)`. Port [`ISessionPaymentRepository`](./apps/api/src/EarlyEagles.Application/Abstractions/Payments/ISessionPaymentRepository.cs) + EF implementation. Unit [`SessionPaymentTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Payments/SessionPaymentTests.cs) (15); integration [`SessionPaymentStorageTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Payments/SessionPaymentStorageTests.cs) (2). Mutation-checked (double confirm, confirmed final, verdict cleared on re-report).
 - `[x]` **P1-008** `POST /sessions/{id}/payment-report` (member)
   ↳ verify: `POST /sessions/{id}/payment-report`, any member: [`ReportPaymentCommand`](./apps/api/src/EarlyEagles.Application/Payments/ReportPaymentCommand.cs) takes `senderName` and `reference`, stores the payment at the session's fee, and reports again on the same row after a rejection. 409 when already reported or confirmed, or for a cancelled or free session; 404 for an unknown or another club's session. Payments can be reported before the session happens. Integration [`ReportPaymentEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Payments/ReportPaymentEndpointTests.cs) (18). Mutation-checked (fee snapshot, cancelled guard, free guard, report-again branch).
-- `[ ]` **P1-009** Confirm a reported payment (admin); raises `PaymentConfirmed`
+- `[x]` **P1-009** Confirm a reported payment (admin); raises `PaymentConfirmed`
+  ↳ verify: `POST /sessions/{id}/payments/{memberId}/confirm`, admin only: [`ConfirmPaymentCommand`](./apps/api/src/EarlyEagles.Application/Payments/ConfirmPaymentCommand.cs) records the reviewer and queues one `PaymentConfirmed`; confirming again is a harmless 204 with no second event. A rejected payment: 409. No such payment, or another club's: 404. Integration [`ConfirmPaymentEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Payments/ConfirmPaymentEndpointTests.cs) (9). Mutation-checked (admin policy, rejected guard, reviewer recorded).
 - `[ ]` **P1-009.2** Reject a reported payment with a reason (admin); the member can report again
 - `[ ]` **P1-009.3** Unpaid / reported list for a session (admin)
 - `[ ]` **P1-010** `PaymentConfirmed` handler emails the admins (English; logs until Resend, P0-011)
