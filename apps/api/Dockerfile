@@ -35,7 +35,8 @@ RUN dotnet publish apps/api/src/EarlyEagles.Api/EarlyEagles.Api.csproj \
       --configuration Release --no-restore --output /app \
       -p:SourceRevisionId=${SOURCE_REVISION} -p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled AS runtime
+# -extra adds tzdata and ICU. Without tzdata, looking up a club's time zone throws.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra AS runtime
 WORKDIR /app
 COPY --from=build /app .
 ENV ASPNETCORE_HTTP_PORTS=8080

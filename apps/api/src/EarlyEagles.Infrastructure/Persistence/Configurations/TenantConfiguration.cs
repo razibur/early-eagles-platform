@@ -39,6 +39,13 @@ public sealed class TenantConfiguration : IEntityTypeConfiguration<Tenant>
             .HasMaxLength(Tenant.DisplayNameMaxLength)
             .IsRequired();
 
+        // The default backfills tenants created before the column (P1-007.1).
+        builder.Property(t => t.TimeZoneId)
+            .HasColumnName("time_zone")
+            .HasMaxLength(Tenant.TimeZoneIdMaxLength)
+            .HasDefaultValue(Tenant.DefaultTimeZoneId)
+            .IsRequired();
+
         builder.Property(t => t.Plan)
             .HasColumnName("plan")
             .HasConversion<string>()

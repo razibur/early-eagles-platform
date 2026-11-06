@@ -1013,6 +1013,13 @@ the signed test tokens Phase 0 already uses. The web pages wait for Clerk (P0-03
 P1-001.2, P1-007, P1-007.2, P1-001.3, P1-008, P1-009, P1-009.2, P1-009.3, P1-010, P1-011,
 P1-001.4, P1-012, P1-012.2, P1-012.3, P1-013, P1-004.1. The web pages follow once Clerk is set up.
 
+**Owner decisions (2026-11-06).**
+
+- **Time zone:** a required IANA zone on the tenant, new task P1-007.1, ahead of P1-007. Early Eagles
+  plays on Eastern time, which is also the default for new tenants until the P2-009 wizard asks.
+- **"Attended" (P1-011):** an RSVP Yes on a session that has started and wasn't cancelled. No-shows
+  count. Admin check-in stays open as a later upgrade.
+
 ---
 
 ## Sequencing notes
