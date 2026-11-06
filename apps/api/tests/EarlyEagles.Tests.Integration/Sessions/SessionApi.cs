@@ -16,7 +16,7 @@ namespace EarlyEagles.Tests.Integration.Sessions;
 
 // Shared by the Phase 1 endpoint tests: two clubs of their own (Iota, Kappa), so
 // they don't disturb the Alpha/Beta fixtures, and a host where the sessions
-// feature is on for Iota only in Production. The database lives for the whole
+// feature is on for every club in Development and for Iota only in Production. The database lives for the whole
 // collection, so tests pick dates or names no other test uses.
 internal sealed class SessionApi : WebApplicationFactory<Program>
 {
@@ -93,6 +93,13 @@ internal sealed class SessionApi : WebApplicationFactory<Program>
     {
         builder.UseEnvironment(environment);
         builder.UseSetting("FeatureFlags:Features:sessions:Tenants:0", IotaSlug);
+
+        // Stated here because appsettings.Development.json is gitignored, so CI has none.
+        if (environment == "Development")
+        {
+            builder.UseSetting("FeatureFlags:Features:sessions:Enabled", "true");
+        }
+
         ClerkTestTokens.UseTestIssuer(builder);
         builder.ConfigureServices(services =>
         {
