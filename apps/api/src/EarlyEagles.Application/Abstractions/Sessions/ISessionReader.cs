@@ -19,4 +19,12 @@ public interface ISessionReader
 
     /// <summary>Every member with their answer for the session, by name; unnamed members last.</summary>
     Task<IReadOnlyList<RsvpGridRow>> ListRsvpGridAsync(Guid sessionId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Every member's standing for the calendar year of <paramref name="clubLocalNow"/>,
+    /// most sessions attended first, then most paid, then by name; unnamed members
+    /// last. Cancelled sessions count for nothing. A payment counts for any session
+    /// in the year, so paying ahead shows straight away.
+    /// </summary>
+    Task<IReadOnlyList<LeaderboardRow>> ListLeaderboardAsync(DateTime clubLocalNow, CancellationToken cancellationToken);
 }

@@ -10,20 +10,20 @@ public sealed class SetRsvpCommandHandler : ICommandHandler<SetRsvpCommand>
 {
     private readonly ISessionRepository sessions;
     private readonly IRsvpRepository rsvps;
-    private readonly ITenantRepository tenants;
+    private readonly IClubClock clubClock;
     private readonly ITenantContext tenantContext;
     private readonly TimeProvider timeProvider;
 
     public SetRsvpCommandHandler(
         ISessionRepository sessions,
         IRsvpRepository rsvps,
-        ITenantRepository tenants,
+        IClubClock clubClock,
         ITenantContext tenantContext,
         TimeProvider timeProvider)
     {
         this.sessions = sessions;
         this.rsvps = rsvps;
-        this.tenants = tenants;
+        this.clubClock = clubClock;
         this.tenantContext = tenantContext;
         this.timeProvider = timeProvider;
     }
@@ -35,11 +35,7 @@ public sealed class SetRsvpCommandHandler : ICommandHandler<SetRsvpCommand>
         var session = await sessions.FindAsync(command.SessionId, cancellationToken).ConfigureAwait(false)
             ?? throw new NotFoundException("Session not found.");
 
-        var tenant = await tenants.FindAsync(tenantContext.TenantId, cancellationToken).ConfigureAwait(false)
-            ?? throw new InvalidOperationException("The ambient tenant has no row.");
-
-        var now = timeProvider.GetUtcNow();
-        if (!session.AcceptsRsvps(tenant.ToClubTime(now)))
+        if (!session.AcceptsRsvps(await clubClock.GetNowAsync(cancellationToken).ConfigureAwait(false)))
         {
             throw new ConflictException(session.Status is SessionStatus.Cancelled
                 ? "This session was cancelled."
@@ -48,6 +44,7 @@ public sealed class SetRsvpCommandHandler : ICommandHandler<SetRsvpCommand>
 
         // The validator has refused a missing answer by now.
         var response = command.Response!.Value;
+        var now = timeProvider.GetUtcNow();
         var rsvp = await rsvps.FindAsync(command.SessionId, command.ClerkUserId, cancellationToken).ConfigureAwait(false);
         if (rsvp is null)
         {

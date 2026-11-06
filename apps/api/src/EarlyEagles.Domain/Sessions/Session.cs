@@ -115,7 +115,10 @@ public sealed class Session : AggregateRoot<Guid>, ITenantScoped
     /// <see cref="StartTime"/>, so the rule needs no time zone of its own.
     /// </summary>
     public bool AcceptsRsvps(DateTime clubLocalNow) =>
-        Status is SessionStatus.Scheduled && clubLocalNow < Date.ToDateTime(StartTime);
+        Status is SessionStatus.Scheduled && !HasStarted(clubLocalNow);
+
+    /// <summary>True from the start time on, on the club's wall clock.</summary>
+    public bool HasStarted(DateTime clubLocalNow) => clubLocalNow >= Date.ToDateTime(StartTime);
 
     /// <summary>Cancels the session. Returns <c>false</c> when it was already cancelled.</summary>
     public bool Cancel()
