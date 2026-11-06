@@ -1642,7 +1642,9 @@ Flagsmith can replace:
 - `IFeatureFlags.IsEnabledAsync(name)` is true when the feature is `Enabled`, or when the
   request's tenant slug is in `Tenants`. A feature that isn't configured is **off**, so production
   (plain `appsettings.json`) has every Phase 1 feature off.
-- `appsettings.Development.json` turns `sessions` on for local work.
+- `appsettings.Development.json` turns `sessions` on for local work. The file is gitignored, so a
+  fresh clone has to create it (`FeatureFlags:Features:sessions:Enabled: true`), and tests must not
+  rely on it: CI doesn't have it. `SessionApi` sets the flag itself.
 - An endpoint opts in with `.RequireFeature(FeatureNames.Sessions)`. While the feature is off it
   answers **404**, as if the endpoint didn't exist.
 - A `Tenants` entry that isn't a valid slug fails at startup: it could never match.
@@ -3043,6 +3045,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | A "bad setting stops the host" test passes locally but fails on CI with `ObjectDisposedException: IServiceProvider` | `WebApplicationFactory` races a host that fails to start: the app's thread can dispose it before the factory reads it | test the `ValidateOnStart` checks through `AddInfrastructure` + `IStartupValidator.Validate()` instead (`StartupSettingsValidationTests`) |
 | `secrets (gitleaks)` flags a made-up key in a test | gitleaks scans all of history, so editing the test doesn't clear it | allowlist that exact value in `.gitleaks.toml`, then run the planted-secret check (runbook §4) |
 | `TimeZoneNotFoundException` in the container only | plain chiseled images have no `tzdata` | use the `-chiseled-extra` image (§ club time zone, P1-007.1) |
+| A test passes locally but gets 404 on CI | it relies on a flag from the gitignored `appsettings.Development.json` | set the flag in the test host (`UseSetting`), as `SessionApi` does |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
 
 ---
