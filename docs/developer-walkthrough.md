@@ -1694,9 +1694,16 @@ An `Rsvp` is one member's Yes, No or Maybe for one session. Changing your mind u
 row; a unique index keeps it to one per member even if two requests race.
 
 Answers close when the session starts or is cancelled: `Session.AcceptsRsvps(clubLocalNow)`. The
-session's date and time are the club's wall clock, so "now" must be too. Turning the real instant
-into club time needs a tenant time zone, which doesn't exist yet: that is what `PUT
-/sessions/{id}/rsvp` (P1-007) is waiting on.
+session's date and time are the club's wall clock, so "now" must be too.
+
+**The club's time zone (P1-007.1).** `tenants.time_zone` holds an IANA id, and
+`Tenant.ToClubTime(instant)` turns the real time into the club's wall clock. A new tenant starts on
+`Tenant.DefaultTimeZoneId` (`America/New_York`, Tenant 0's zone), because Clerk provisions tenants
+without one. The P2-009 wizard will ask, through `ChangeTimeZone`.
+
+⚠ **Gotcha — chiseled images have no time zone data.** `aspnet:10.0-noble-chiseled` ships without
+`tzdata` and ICU, so `TimeZoneInfo.FindSystemTimeZoneById` throws `TimeZoneNotFoundException` in the
+container while every test passes on a laptop. The Dockerfile uses the `-extra` variant for this.
 
 **The RSVP grid (P1-007.2).** `GET /sessions/{id}/rsvps`, admins only, lists every member against
 the session, starting from `tenant_members` so someone who hasn't answered still shows, with a
@@ -2816,8 +2823,8 @@ The first batch of PRs (2026-10-28) showed three major upgrades that can't land 
 
 **The API image (P0-084).** [`apps/api/Dockerfile`](../apps/api/Dockerfile) is a two-stage build: the
 .NET 10 SDK restores (project files first, so the layer is cached) and publishes, then the result is
-copied into **`mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled`**. That image has no shell and no
-package manager, runs as the non-root `app` user (uid 1654) and listens on **8080**. The commit is
+copied into **`mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled-extra`**. That image has no shell and no
+package manager, carries `tzdata` and ICU (the club time zone needs them), runs as the non-root `app` user (uid 1654) and listens on **8080**. The commit is
 passed in as `SOURCE_REVISION` → `-p:SourceRevisionId`, so `/health` reports `1.0.0+<sha>` even though
 the build context has no `.git`. The Dockerfile also states `USER $APP_UID`: the base image already
 defaults to that user, but saying so keeps it true if the base changes.
@@ -3021,6 +3028,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Stripe checkout paid but the tenant has no `stripe_customer_id`; log event 1606 | the session had no `client_reference_id`, or not the tenant id (e.g. a Payment Link or a dashboard checkout) | create sessions through the platform, which sets it (P2-008); link the tenant by hand (§8.7) |
 | A "bad setting stops the host" test passes locally but fails on CI with `ObjectDisposedException: IServiceProvider` | `WebApplicationFactory` races a host that fails to start: the app's thread can dispose it before the factory reads it | test the `ValidateOnStart` checks through `AddInfrastructure` + `IStartupValidator.Validate()` instead (`StartupSettingsValidationTests`) |
 | `secrets (gitleaks)` flags a made-up key in a test | gitleaks scans all of history, so editing the test doesn't clear it | allowlist that exact value in `.gitleaks.toml`, then run the planted-secret check (runbook §4) |
+| `TimeZoneNotFoundException` in the container only | plain chiseled images have no `tzdata` | use the `-chiseled-extra` image (§ club time zone, P1-007.1) |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
 
 ---

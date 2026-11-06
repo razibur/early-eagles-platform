@@ -23,11 +23,21 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
     /// <summary>Stripe object ids (<c>cus_…</c>, <c>sub_…</c>) are at most 255 characters.</summary>
     public const int StripeIdMaxLength = 255;
 
+    /// <summary>The longest IANA zone ids are around 32 characters.</summary>
+    public const int TimeZoneIdMaxLength = 64;
+
+    /// <summary>
+    /// The zone a new tenant starts in: Tenant 0's. Clerk provisions tenants
+    /// without a zone, and the onboarding wizard (P2-009) is what will ask.
+    /// </summary>
+    public const string DefaultTimeZoneId = "America/New_York";
+
     private Tenant(Guid id, string slug, string displayName)
         : base(id)
     {
         Slug = slug;
         DisplayName = displayName;
+        TimeZoneId = DefaultTimeZoneId;
         Plan = TenantPlan.Free;
         Status = TenantStatus.Active;
     }
@@ -37,6 +47,7 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
     {
         Slug = string.Empty;
         DisplayName = string.Empty;
+        TimeZoneId = string.Empty;
     }
 
     /// <summary>
@@ -52,6 +63,12 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
     public string Slug { get; private set; }
 
     public string DisplayName { get; private set; }
+
+    /// <summary>
+    /// The IANA zone the club plays in (P1-007.1). Session dates and start times
+    /// are wall-clock values on this zone.
+    /// </summary>
+    public string TimeZoneId { get; private set; }
 
     public Branding? Branding { get; private set; }
 
@@ -85,6 +102,12 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
     /// <summary>True when <paramref name="displayName"/> is non-blank and fits once trimmed.</summary>
     public static bool IsValidDisplayName(string? displayName) =>
         displayName is not null && displayName.Trim().Length is > 0 and <= DisplayNameMaxLength;
+
+    /// <summary>True when <paramref name="timeZoneId"/> is an IANA zone this host knows. Windows ids are refused.</summary>
+    public static bool IsValidTimeZoneId(string? timeZoneId) =>
+        timeZoneId is { Length: > 0 and <= TimeZoneIdMaxLength }
+        && TimeZoneInfo.TryFindSystemTimeZoneById(timeZoneId, out var zone)
+        && zone.HasIanaId;
 
     public static Tenant Create(Guid id, string slug, string displayName)
     {
@@ -177,6 +200,28 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
 
         Branding = branding;
     }
+
+    public void ChangeTimeZone(string timeZoneId)
+    {
+        if (!IsValidTimeZoneId(timeZoneId))
+        {
+            throw new ArgumentException($"Unknown IANA time zone: '{timeZoneId}'.", nameof(timeZoneId));
+        }
+
+        if (Status is TenantStatus.Deactivated)
+        {
+            throw new InvalidOperationException("Cannot change time zone of a deactivated tenant.");
+        }
+
+        TimeZoneId = timeZoneId;
+    }
+
+    /// <summary>
+    /// <paramref name="instant"/> on the club's wall clock, the clock session
+    /// dates and start times are on.
+    /// </summary>
+    public DateTime ToClubTime(DateTimeOffset instant) =>
+        TimeZoneInfo.ConvertTime(instant, TimeZoneInfo.FindSystemTimeZoneById(TimeZoneId)).DateTime;
 
     public void ChangePlan(TenantPlan plan)
     {

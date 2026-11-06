@@ -390,6 +390,14 @@ namespace EarlyEagles.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("stripe_subscription_id");
 
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("America/New_York")
+                        .HasColumnName("time_zone");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ClerkOrganizationId")
