@@ -1710,6 +1710,15 @@ caller's own answer. After the start on the club's clock, or once cancelled, it 
 first answers can race on a double tap: the unique index keeps one, and `EfRsvpRepository` turns the
 loser's unique violation into a 409 rather than a 500.
 
+**The club's clock.** Handlers get "now" on the club's wall clock from `IClubClock`. It is a read
+port on purpose: an architecture test stops query handlers taking write ports such as
+`ITenantRepository`.
+
+**The leaderboard (P1-011).** `GET /leaderboard?period=year`, for members. Attended means an RSVP
+Yes on a session that started and wasn't cancelled, so a no-show counts. Paid means a confirmed
+payment on a session in the year that wasn't cancelled, even one still to come. The year's sessions
+load into memory (about 52), so "started" stays `Session.HasStarted` rather than a copy in SQL.
+
 **The RSVP grid (P1-007.2).** `GET /sessions/{id}/rsvps`, admins only, lists every member against
 the session, starting from `tenant_members` so someone who hasn't answered still shows, with a
 `null` response.

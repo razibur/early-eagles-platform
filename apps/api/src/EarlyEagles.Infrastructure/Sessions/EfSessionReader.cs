@@ -1,5 +1,6 @@
 using EarlyEagles.Application.Abstractions.Sessions;
 using EarlyEagles.Application.Sessions;
+using EarlyEagles.Domain.Payments;
 using EarlyEagles.Domain.Sessions;
 using EarlyEagles.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -89,4 +90,61 @@ public sealed class EfSessionReader : ISessionReader
                     .FirstOrDefault()))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<LeaderboardRow>> ListLeaderboardAsync(DateTime clubLocalNow, CancellationToken cancellationToken)
+    {
+        var firstDay = new DateOnly(clubLocalNow.Year, 1, 1);
+        var lastDay = new DateOnly(clubLocalNow.Year, 12, 31);
+
+        // A club has about 52 sessions a year, so the year's rows fit in memory
+        // and "started" stays the domain's rule rather than a copy in SQL.
+        var sessions = await context.Sessions
+            .AsNoTracking()
+            .Where(s => s.Date >= firstDay && s.Date <= lastDay && s.Status == SessionStatus.Scheduled)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var sessionIds = sessions.Select(s => s.Id).ToList();
+        var playedOn = sessions.Where(s => s.HasStarted(clubLocalNow)).ToDictionary(s => s.Id, s => s.Date);
+
+        var yesAnswers = await context.Rsvps
+            .AsNoTracking()
+            .Where(r => r.Response == RsvpResponse.Yes && sessionIds.Contains(r.SessionId))
+            .Select(r => new { r.ClerkUserId, r.SessionId })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var attended = yesAnswers
+            .Where(r => playedOn.ContainsKey(r.SessionId))
+            .ToLookup(r => r.ClerkUserId, r => playedOn[r.SessionId]);
+
+        var paid = (await context.SessionPayments
+            .AsNoTracking()
+            .Where(p => p.Status == PaymentStatus.Confirmed && sessionIds.Contains(p.SessionId))
+            .Select(p => p.ClerkUserId)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false))
+            .ToLookup(id => id);
+
+        var members = await context.TenantMembers
+            .AsNoTracking()
+            .Select(m => new { m.ClerkUserId, m.DisplayName, m.ImageUrl })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return members
+            .Select(m => new LeaderboardRow(
+                m.ClerkUserId,
+                m.DisplayName,
+                m.ImageUrl,
+                attended[m.ClerkUserId].Count(),
+                paid[m.ClerkUserId].Count(),
+                attended[m.ClerkUserId].Select(d => (DateOnly?)d).Max()))
+            .OrderByDescending(r => r.SessionsAttended)
+            .ThenByDescending(r => r.TimesPaid)
+            .ThenBy(r => r.DisplayName is null)
+            .ThenBy(r => r.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => r.ClerkUserId, StringComparer.Ordinal)
+            .ToList();
+    }
 }

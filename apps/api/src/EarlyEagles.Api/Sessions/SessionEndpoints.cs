@@ -76,6 +76,14 @@ public static class SessionEndpoints
             .WithName("GetRsvpGrid")
             .WithTags("Sessions");
 
+        // P1-011: a member reads the club's leaderboard, ?period=year.
+        routes
+            .MapGet("/leaderboard", GetLeaderboard)
+            .RequireAuthorization(TenantPolicies.Member)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("GetLeaderboard")
+            .WithTags("Sessions");
+
         return routes;
     }
 
@@ -132,6 +140,15 @@ public static class SessionEndpoints
     {
         await sender.Send(new CancelSessionCommand(id), cancellationToken);
         return TypedResults.NoContent();
+    }
+
+    private static async Task<Ok<IReadOnlyList<LeaderboardRow>>> GetLeaderboard(
+        ISender sender,
+        CancellationToken cancellationToken,
+        string? period = null)
+    {
+        var rows = await sender.Send(new GetLeaderboardQuery(period ?? string.Empty), cancellationToken);
+        return TypedResults.Ok(rows);
     }
 
     private static async Task<NoContent> SetRsvp(

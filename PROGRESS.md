@@ -16,7 +16,7 @@ Each task carries a one-line **verify:** with the exact thing to check / command
 to run. If a verify step requires external accounts (Azure, Stripe, Clerk),
 that's noted — the rest you can verify on your laptop.
 
-Last updated: 2026-11-03
+Last updated: 2026-11-06
 
 ---
 
@@ -539,7 +539,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▱▱▱▱▱▱▱▱▱▱  ~44% (20 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▰▰▰▰▰▱▱▱▱▱  ~51% (23 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -580,8 +580,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
   ↳ verify: `GET /sessions/{id}/payments`, admin only: [`GetUnsettledPaymentsQuery`](./apps/api/src/EarlyEagles.Application/Payments/GetUnsettledPaymentsQuery.cs) through read port [`IPaymentReader`](./apps/api/src/EarlyEagles.Application/Abstractions/Payments/IPaymentReader.cs). Reported first, then rejected, then members who said Yes and haven't reported (`status: null`, at the session's fee). Confirmed payments, No and Maybe are left out; a free session chases nobody. Integration [`UnsettledPaymentsEndpointTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Payments/UnsettledPaymentsEndpointTests.cs) (8). Mutation-checked (confirmed left out, Yes only, free session).
 - `[x]` **P1-010** `PaymentConfirmed` handler emails the admins (English; logs until Resend, P0-011)
   ↳ verify: [`PaymentConfirmedHandler`](./apps/api/src/EarlyEagles.Infrastructure/Messaging/PaymentConfirmedHandler.cs) now hands each event to [`PaymentConfirmedNotifier`](./apps/api/src/EarlyEagles.Application/Payments/PaymentConfirmedNotifier.cs), which emails the club's admins through `IEmailSender` (logs until Resend, P0-011). English only; member-typed text is HTML-encoded; the idempotency key is `payment-confirmed/{messageId}`, so a redelivery isn't sent twice; a delivery failure propagates so the bus retries. [`EfPaymentEmailDirectory`](./apps/api/src/EarlyEagles.Infrastructure/Payments/EfPaymentEmailDirectory.cs) runs with no ambient tenant and names the tenant in every read. The handler only runs where a bus is configured, so on a laptop without one nothing is emailed or logged by this path. Unit [`PaymentConfirmedNotifierTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Payments/PaymentConfirmedNotifierTests.cs) (6) + 2 handler tests; integration [`PaymentEmailDirectoryTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Payments/PaymentEmailDirectoryTests.cs) (2). The emulator end-to-end test was skipped locally. Mutation-checked (HTML encoding, admin role filter, tenant scoping).
-- `[ ]` **P1-011** `GET /leaderboard?period=year` (members only): sessions attended, times paid, last played
-  ↳ blocked: needs the owner to define "attended". Nothing records attendance; RSVP Yes and a confirmed payment are the only signals. "This year" and "played" also depend on the club's time zone (see P1-007).
+- `[x]` **P1-011** `GET /leaderboard?period=year` (members only): sessions attended, times paid, last played
+  ↳ verify: `GET /leaderboard?period=year`, any member: [`GetLeaderboardQuery`](./apps/api/src/EarlyEagles.Application/Sessions/GetLeaderboardQuery.cs) lists every current member for the calendar year on the club's clock, most attended first, then most paid, then name, unnamed last. Attended is an RSVP Yes on a session that started and wasn't cancelled (owner decision 2026-11-06), so no-shows count. Paid is a confirmed payment on any session in the year that wasn't cancelled, so paying ahead shows straight away. Any other period: 400. Handlers read the club's time through the new read port [`IClubClock`](./apps/api/src/EarlyEagles.Application/Abstractions/Tenancy/IClubClock.cs), which P1-007 now uses too. Unit `RsvpTests` (+3, `Session.HasStarted`); integration [`LeaderboardTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Sessions/LeaderboardTests.cs) (13). Mutation-checked (cancelled sessions, future sessions, non-Yes answers, unconfirmed payments, earliest date instead of latest).
 - `[x]` **P1-001.4** `Announcement` + `AnnouncementComment` + tables
   ↳ verify: [`Announcement`](./apps/api/src/EarlyEagles.Domain/Announcements/Announcement.cs) (title 1 to 200, body 1 to 5,000) and [`AnnouncementComment`](./apps/api/src/EarlyEagles.Domain/Announcements/AnnouncementComment.cs) (body 1 to 2,000), both `ITenantScoped`, text trimmed. Migration `AddAnnouncements` only creates the two tables, with indexes for the feed and an FK from comment to post. Port [`IAnnouncementRepository`](./apps/api/src/EarlyEagles.Application/Abstractions/Announcements/IAnnouncementRepository.cs) + EF implementation. Unit [`AnnouncementTests`](./apps/api/tests/EarlyEagles.Tests.Unit/Announcements/AnnouncementTests.cs) (9); integration [`AnnouncementStorageTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Announcements/AnnouncementStorageTests.cs) (2). Mutation-checked (title limit, comment trim).
 - `[x]` **P1-012** `POST /announcements` (admin)

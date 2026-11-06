@@ -63,6 +63,17 @@ public class RsvpTests
         Assert.Equal(expected, session.AcceptsRsvps(new DateTime(2026, 11, 8, hour, minute, 0, DateTimeKind.Unspecified)));
     }
 
+    [Theory]
+    [InlineData(6, 59, false)]
+    [InlineData(7, 0, true)]
+    [InlineData(7, 1, true)]
+    public void A_Session_Has_Started_From_Its_Start_Time(int hour, int minute, bool expected)
+    {
+        var session = NewSession();
+
+        Assert.Equal(expected, session.HasStarted(new DateTime(2026, 11, 8, hour, minute, 0, DateTimeKind.Unspecified)));
+    }
+
     [Fact]
     public void A_Cancelled_Session_Takes_No_Answers()
     {

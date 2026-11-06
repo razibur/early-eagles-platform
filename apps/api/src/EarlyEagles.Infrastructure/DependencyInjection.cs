@@ -112,6 +112,7 @@ public static class DependencyInjection
         services.AddScoped<IPushSubscriptionRepository, EfPushSubscriptionRepository>();
         services.AddScoped<ISessionRepository, EfSessionRepository>();
         services.AddScoped<ISessionReader, EfSessionReader>();
+        services.AddScoped<IClubClock, EfClubClock>();
         services.AddScoped<IRsvpRepository, EfRsvpRepository>();
         services.AddScoped<ISessionPaymentRepository, EfSessionPaymentRepository>();
         services.AddScoped<IPaymentReader, EfPaymentReader>();
