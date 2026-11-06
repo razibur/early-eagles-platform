@@ -60,6 +60,14 @@ public static class SessionEndpoints
             .WithName("CancelSession")
             .WithTags("Sessions");
 
+        // P1-007: a member answers for themselves.
+        routes
+            .MapPut(Route + "/{id:guid}/rsvp", SetRsvp)
+            .RequireAuthorization(TenantPolicies.Member)
+            .RequireFeature(FeatureNames.Sessions)
+            .WithName("SetRsvp")
+            .WithTags("Sessions");
+
         // P1-007.2: a tenant admin reads every member's answer for a session.
         routes
             .MapGet(Route + "/{id:guid}/rsvps", GetRsvpGrid)
@@ -123,6 +131,20 @@ public static class SessionEndpoints
     private static async Task<NoContent> CancelSession(Guid id, ISender sender, CancellationToken cancellationToken)
     {
         await sender.Send(new CancelSessionCommand(id), cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    private static async Task<NoContent> SetRsvp(
+        Guid id,
+        SetRsvpRequest request,
+        ClaimsPrincipal user,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        await sender.Send(
+            new SetRsvpCommand(id, user.FindFirstValue(ClerkClaims.Subject) ?? string.Empty, request.Response),
+            cancellationToken);
+
         return TypedResults.NoContent();
     }
 

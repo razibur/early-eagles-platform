@@ -1,7 +1,9 @@
 using EarlyEagles.Application.Abstractions.Sessions;
+using EarlyEagles.Application.Common;
 using EarlyEagles.Domain.Sessions;
 using EarlyEagles.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace EarlyEagles.Infrastructure.Sessions;
 
@@ -30,5 +32,16 @@ public sealed class EfRsvpRepository : IRsvpRepository
 
     public void Add(Rsvp rsvp) => context.Rsvps.Add(rsvp);
 
-    public Task SaveChangesAsync(CancellationToken cancellationToken) => context.SaveChangesAsync(cancellationToken);
+    public async Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // A double tap: two first answers raced and the unique index kept one.
+            throw new ConflictException("Your answer was just saved by another request.");
+        }
+    }
 }
