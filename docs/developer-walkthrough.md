@@ -1705,6 +1705,11 @@ without one. The P2-009 wizard will ask, through `ChangeTimeZone`.
 `tzdata` and ICU, so `TimeZoneInfo.FindSystemTimeZoneById` throws `TimeZoneNotFoundException` in the
 container while every test passes on a laptop. The Dockerfile uses the `-extra` variant for this.
 
+**Answering (P1-007).** `PUT /sessions/{id}/rsvp` with `{"response":"Yes"}` stores or changes the
+caller's own answer. After the start on the club's clock, or once cancelled, it returns 409. Two
+first answers can race on a double tap: the unique index keeps one, and `EfRsvpRepository` turns the
+loser's unique violation into a 409 rather than a 500.
+
 **The RSVP grid (P1-007.2).** `GET /sessions/{id}/rsvps`, admins only, lists every member against
 the session, starting from `tenant_members` so someone who hasn't answered still shows, with a
 `null` response.
