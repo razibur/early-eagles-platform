@@ -19,12 +19,18 @@ const necessary = [
     lifetime: "Until you clear it",
     purpose: "Remembers light, dark or system display.",
   },
+  {
+    name: "ee-install-card",
+    where: "Local storage",
+    lifetime: "Until you clear it",
+    purpose: "Remembers that this device has been offered the app, so it isn't asked again.",
+  },
 ]
 
 export default function CookiePolicyPage() {
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-12 md:px-8 md:py-16">
-      <span className="label label-accent text-primary">Policy · Updated 27 Oct 2026</span>
+      <span className="label label-accent text-primary">Policy · Updated 7 Nov 2026</span>
       <h1 className="display mt-6 text-5xl text-foreground md:text-7xl">Cookies</h1>
 
       <div className="mt-8 space-y-5 text-base leading-relaxed text-muted-foreground">

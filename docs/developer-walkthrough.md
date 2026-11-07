@@ -239,6 +239,32 @@ workers** shows `/sw.js` *activated and running* for scope `/`. In the console,
 > `tick={{ fill: …, fontSize: 11, style: { textTransform: "uppercase" } }}`. `npm run dev`
 > doesn't type-check, so this only shows up at build time.
 
+**The install card (P1-023).** [`components/pwa/install-card.tsx`](../apps/web/components/pwa/install-card.tsx)
+asks once per device whether to add the app to the home screen. The browser side is in
+[`lib/pwa/install-offer.ts`](../apps/web/lib/pwa/install-offer.ts):
+
+- **Chromium** fires `beforeinstallprompt`. We cancel it, which stops Chrome's own bar, keep the
+  event, and call its `prompt()` from the card's *Install* button.
+- **iOS** has no event and can't install from script, so the card shows the Share menu steps.
+- **Already installed** (`display-mode: standalone`, or `navigator.standalone` on iOS): no card.
+
+The card shares its spot and its look with the cookie banner through
+[`components/shell/floating-card.tsx`](../apps/web/components/shell/floating-card.tsx), and it waits
+until the cookie choice is made. `localStorage["ee-install-card"]` holds when it was shown.
+
+Check it: Chrome on `http://localhost:3000` in a fresh profile, choose a cookie option, and the card
+appears if Chrome considers the app installable. To see it again, delete `ee-install-card` in
+DevTools → **Application → Local storage** and reload. If Chrome doesn't offer it, look at
+**Application → Manifest → Installability**.
+
+> ⚠ **Gotcha — listen at module load, not in `useEffect`.** `beforeinstallprompt` can fire before
+> React hydrates and isn't sent again. The listener in `install-offer.ts` is at the top of the module
+> for that reason, and the event is kept there while the cookie banner is up.
+
+> ⚠ **Gotcha — the card is recorded when shown, not when answered.** The plan says once per device,
+> so an ignored card stays gone. Safari can clear site storage after 7 days without a visit, so an
+> iPhone may be asked one more time.
+
 ### 4.2 Manifest and icons (P0-067.2)
 
 The manifest is Next's built-in metadata route, **`app/manifest.ts`**, served at
@@ -467,7 +493,7 @@ cookie or storage key goes into both, in the same change**, and anything optiona
 [`e2e/cookie-consent.spec.ts`](../apps/web/e2e/cookie-consent.spec.ts) (×3 widths): first visit shows
 both choices and **sets no cookie**; *Necessary only* is remembered across a reload; *Cookie settings*
 reopens the preferences with the current state and saves a change; the banner links to the policy,
-which lists `ee_consent` and `ee-theme`.
+which lists `ee_consent`, `ee-theme` and `ee-install-card`.
 
 ### 4.10 Tenant from the subdomain — `proxy.ts` (P0-077.1)
 
@@ -3007,6 +3033,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Postgres deploy rejects `version: '17'` though Bicep built it | API version older than `2025-08-01` | use `2025-08-01`+; Bicep doesn't validate the enum |
 | `BCP081: does not have types available` | API version newer than the Bicep CLI's type library; properties go unchecked | pin the newest version the CLI has types for |
 | Container Apps environment has no *Logs* blade in the portal | logs destination is `azure-monitor` | query the Log Analytics workspace directly |
+| The install card never appears | the device was already asked, the cookie choice is still open, or Chrome hasn't judged the app installable | delete `ee-install-card`, decide cookies, check DevTools → Application → Manifest (§4.1) |
 | Users keep running an old service worker after a deploy | `/sw.js` came from a cache | keep `updateViaCache: "none"` + `no-cache` on `/sw.js` (§4.1) |
 | `npm run build`: `'textTransform' does not exist in type …XAxisTickContentProps` | CSS-only property passed as an SVG attribute in a Recharts `tick` object | move it into `tick.style` (§4.1) |
 | DevTools says the app isn't installable: *incognito* | private / automation profile | test in a normal profile (§4.2) |
