@@ -4,6 +4,7 @@ import { Big_Shoulders, Hanken_Grotesk } from "next/font/google"
 import { ConsentHydrator } from "@/components/providers/consent-hydrator"
 import { QueryProvider } from "@/components/providers/query-provider"
 import { TenantProvider } from "@/components/providers/tenant-provider"
+import { InstallCard } from "@/components/pwa/install-card"
 import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration"
 import { AppTopBar } from "@/components/shell/app-top-bar"
 import { BottomNav } from "@/components/shell/bottom-nav"
@@ -78,6 +79,7 @@ export default async function RootLayout({
         </TenantProvider>
         <ConsentHydrator />
         <CookieBanner />
+        <InstallCard />
         <ServiceWorkerRegistration />
       </body>
     </html>

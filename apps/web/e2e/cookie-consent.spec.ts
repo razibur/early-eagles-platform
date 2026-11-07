@@ -51,4 +51,5 @@ test("the policy page is linked from the banner and lists what is stored", async
   await expect(page.getByRole("heading", { name: "Cookies", exact: true })).toBeVisible()
   await expect(page.getByRole("cell", { name: "ee_consent" })).toBeVisible()
   await expect(page.getByRole("cell", { name: "ee-theme" })).toBeVisible()
+  await expect(page.getByRole("cell", { name: "ee-install-card" })).toBeVisible()
 })

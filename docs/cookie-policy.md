@@ -23,6 +23,7 @@
 |---|---|---|---|---|---|
 | `ee_consent` | cookie (first-party, `SameSite=Lax`, `Secure` on HTTPS) | Necessary | web app (P0-072) | 365 days | Records the visitor's consent choice and when it was made |
 | `ee-theme` | `localStorage` | Necessary | web app (P0-070.3) | until cleared | Light / dark / system display preference |
+| `ee-install-card` | `localStorage` | Necessary | web app (P1-023) | until cleared | When this device was shown the install card, so it isn't asked again |
 
 ### Planned — add when the task lands
 
