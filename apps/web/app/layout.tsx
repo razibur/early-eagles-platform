@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { headers } from "next/headers"
+import { ClerkProvider } from "@clerk/nextjs"
 import { Big_Shoulders, Hanken_Grotesk } from "next/font/google"
 import { ConsentHydrator } from "@/components/providers/consent-hydrator"
 import { QueryProvider } from "@/components/providers/query-provider"
@@ -10,6 +11,7 @@ import { AppTopBar } from "@/components/shell/app-top-bar"
 import { BottomNav } from "@/components/shell/bottom-nav"
 import { SiteFooter } from "@/components/shell/site-footer"
 import { CookieBanner } from "@/components/consent/cookie-banner"
+import { authMode } from "@/lib/auth/config"
 import { TENANT_SLUG_HEADER } from "@/lib/tenancy/subdomain"
 import { themeBootScript } from "@/lib/theme"
 import "./globals.css"
@@ -55,6 +57,20 @@ export default async function RootLayout({
   // headers makes every page render per request rather than at build time;
   // that's expected for a multi-tenant app whose pages are per tenant.
   const tenantSlug = (await headers()).get(TENANT_SLUG_HEADER)
+  // Throws when the Clerk key is missing (P0-039.1): no page renders rather
+  // than every page rendering without sign-in.
+  const auth = authMode()
+
+  const app = (
+    <TenantProvider slug={tenantSlug}>
+      <QueryProvider>
+        <AppTopBar />
+        {children}
+        <SiteFooter />
+        <BottomNav />
+      </QueryProvider>
+    </TenantProvider>
+  )
 
   return (
     // suppressHydrationWarning: the boot script may add `.light` and a
@@ -69,14 +85,9 @@ export default async function RootLayout({
       </head>
       {/* Bottom padding on phones = BottomNav height (4rem of tabs + 1px border + safe area), so the page end stays clear of it. */}
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-primary/30 selection:text-foreground pb-[calc(4rem+1px+env(safe-area-inset-bottom))] md:pb-0">
-        <TenantProvider slug={tenantSlug}>
-          <QueryProvider>
-            <AppTopBar />
-            {children}
-            <SiteFooter />
-            <BottomNav />
-          </QueryProvider>
-        </TenantProvider>
+        {/* Clerk's session context for everything below (P0-039.2). Off only in
+            builds that opted out with EE_AUTH_DISABLED=1 (CI, Playwright). */}
+        {auth === "clerk" ? <ClerkProvider>{app}</ClerkProvider> : app}
         <ConsentHydrator />
         <CookieBanner />
         <InstallCard />
