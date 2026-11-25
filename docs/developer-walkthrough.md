@@ -539,6 +539,47 @@ The README's *Local development* section has the lines.
 
 ⚠ **Gotcha — `middleware.ts` is deprecated in Next 16.** The build lists the file as
 `ƒ Proxy (Middleware)`. New code uses `proxy.ts` and an exported `proxy` function.
+
+### 4.11 Sign-in — Clerk (P0-039)
+
+The web app signs users in with **Clerk** (`@clerk/nextjs`, pinned exactly). One Clerk
+*organization* is one club (tenant); the API side is §8.5–§8.6.
+
+**One-time setup (per developer).**
+
+1. clerk.com → create an application → framework **Next.js**. It starts with a **Development**
+   instance; keep it. The production instance needs the real domain and DNS (P0-006).
+2. Configure → **Organizations** → enable. Keep the default roles `admin` / `member`; the API maps
+   exactly those.
+3. The instance's *Frontend API* host (Development: `https://<name>.clerk.accounts.dev`, shown as
+   the primary domain) is the API's issuer:
+
+   ```bash
+   dotnet user-secrets set "Clerk:Issuer" "https://<name>.clerk.accounts.dev" --project apps/api/src/EarlyEagles.Api
+   dotnet user-secrets set "Clerk:AuthorizedParties:0" "http://localhost:3000" --project apps/api/src/EarlyEagles.Api
+   ```
+
+4. The two keys go in `apps/web/.env.local` (gitignored by `.env*`):
+
+   ```bash
+   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+   CLERK_SECRET_KEY=sk_test_...
+   ```
+
+**Fails closed.** [`lib/auth/config.ts`](../apps/web/lib/auth/config.ts) `authMode()` returns
+`"clerk"` for a `pk_test_` / `pk_live_` key and **throws** when the key is missing or malformed,
+unless `EE_AUTH_DISABLED=1` says this build runs without sign-in. Only CI (`web.yml`) and the
+Playwright web server set it: they have no Clerk instance. A deploy that forgot its key breaks
+loudly instead of serving every page to anyone.
+
+⚠ **Gotcha — the API had no `UserSecretsId`.** `dotnet user-secrets set` fails with "Could not
+find the global property 'UserSecretsId'" until `dotnet user-secrets init` adds it to the
+`.csproj` (P0-039.1 did). The id isn't secret; the values live in
+`%APPDATA%\Microsoft\UserSecrets\<id>\secrets.json`.
+
+⚠ **Gotcha — process env beats `.env.local`.** The Playwright web server sets
+`EE_AUTH_DISABLED=1` itself, so the browser tests run without sign-in even on a machine whose
+`.env.local` holds real keys.
 ---
 
 ## 5. Backend — Clean Architecture solution
@@ -3044,6 +3085,7 @@ Exact versions currently in the repo (source of truth = the `.csproj`/`package.j
 | Next.js / React | 16.4.1 / 19.2.4 |
 | @playwright/test (web e2e, uses installed Chrome) | 1.64.0 |
 | @tanstack/react-query | 5.104.2 |
+| @clerk/nextjs | 7.9.26 (exact) |
 | zustand | 5.0.15 |
 | Tailwind CSS | v4 |
 | Node.js | ≥ 22 · npm 11 |

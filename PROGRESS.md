@@ -41,7 +41,7 @@ External account / billing tasks. Mostly off the laptop; you confirm by logging 
 - `[ ]` **P0-005** Set up password-manager vault for project secrets
   ↳ verify: vault entry exists, can be unlocked
 - `[ ]` **P0-006** Create Clerk account + production application
-  ↳ verify: dashboard shows publishable + secret keys
+  ↳ verify: dashboard shows publishable + secret keys — *2026-11-25: account + **Development** instance created (`oriented-roughy-6547.clerk.accounts.dev`, Organizations on); the production instance waits for the real domain.*
 - `[ ]` **P0-007** Create Stripe account (test mode) + verify business
   ↳ verify: dashboard accessible, test mode enabled
 - `[ ]` **P0-008** Create Sentry account + two projects (backend + frontend)
@@ -249,7 +249,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`TenantRoleClaimsTransformation`](./apps/api/src/EarlyEagles.Api/Authentication/TenantRoleClaimsTransformation.cs) adds `ee_tenant_role` (`tenant-admin` / `member`, via `ClerkOrganizationRoles`) only when `ClerkActiveOrganization.Id` equals `ITenantContext.ClerkOrganizationId` (new; carried from `EfTenantLookup` through `TenantLookupResult` and `Initialize`). The bearer handler strips any `ee_tenant_role` the token brings itself. `/me` returns `tenantRole`. [`TenantRoleClaimTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Authentication/TenantRoleClaimTests.cs) (8, Postgres + Production subdomains + signed tokens): `admin` / `org:admin` → `tenant-admin`, `member` / custom `coach` → `member` on its own club; another club's admin, no active org, unlinked tenant, forged role claim → none. The forged-claim test found the hole before the fix. Mutation: dropping the org match fails the cross-club test. Test token helpers moved to [`ClerkTestTokens`](./apps/api/tests/EarlyEagles.Tests.Integration/Authentication/ClerkTestTokens.cs). Unit 338 · integration 182 + 5 skipped.
 - `[x]` **P0-038.2** `TenantMember` / `TenantAdmin` authorization policies (401 / 403)
   ↳ verify: [`TenantPolicies`](./apps/api/src/EarlyEagles.Api/Authentication/TenantPolicies.cs) registered by `AddClerkAuthentication`: authenticated user + `ee_tenant_role` ∈ {member, tenant-admin} / = tenant-admin. [`TenantPoliciesTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Authentication/TenantPoliciesTests.cs) (9) through the app's `IAuthorizationService`: member/admin pass `TenantMember`; only admin passes `TenantAdmin`; no role or an unknown role fails; a role claim on an unauthenticated identity fails both. HTTP 401/403 lands with the first guarded endpoint, P0-048.2.
-- `[ ]` **P0-039.1** Install `@clerk/nextjs`; configure publishable key
+- `[x]` **P0-039.1** Install `@clerk/nextjs`; configure publishable key
+  ↳ verify: `@clerk/nextjs` 7.9.26 (exact pin). [`lib/auth/config.ts`](./apps/web/lib/auth/config.ts) `authMode()` fails closed: no / malformed `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` throws unless `EE_AUTH_DISABLED=1` (set only by CI and the Playwright web server). Keys in gitignored `apps/web/.env.local`; API got its `UserSecretsId` so `dotnet user-secrets` works. 13 pure tests in `e2e/auth-config.spec.ts`; build + lint clean.
 - `[ ]` **P0-039.2** Wrap root layout in `<ClerkProvider>`
 - `[ ]` **P0-039.3** Add `/sign-in` and `/sign-up` routes using Clerk hosted UI
 - `[ ]` **P0-039.4** Next.js middleware redirects unauth users to `/sign-in`

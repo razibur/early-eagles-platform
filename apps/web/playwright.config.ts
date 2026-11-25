@@ -33,5 +33,8 @@ export default defineConfig({
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
+    // No Clerk instance here (P0-039.1): run the build without sign-in, even
+    // when apps/web/.env.local holds real keys. Process env beats .env files.
+    env: { EE_AUTH_DISABLED: "1" },
   },
 })

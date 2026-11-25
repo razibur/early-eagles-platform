@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <!-- Local dev secrets (Clerk issuer etc.) live outside the repo; see docs/developer-walkthrough.md. -->
+    <UserSecretsId>8a28d364-7b66-4c4b-81eb-8a53b2b036ac</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
