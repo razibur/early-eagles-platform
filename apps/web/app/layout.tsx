@@ -11,7 +11,9 @@ import { AppTopBar } from "@/components/shell/app-top-bar"
 import { BottomNav } from "@/components/shell/bottom-nav"
 import { SiteFooter } from "@/components/shell/site-footer"
 import { CookieBanner } from "@/components/consent/cookie-banner"
+import { clerkAppearance } from "@/lib/auth/appearance"
 import { authMode } from "@/lib/auth/config"
+import { AFTER_AUTH_PATH, SIGN_IN_PATH, SIGN_UP_PATH } from "@/lib/auth/routes"
 import { TENANT_SLUG_HEADER } from "@/lib/tenancy/subdomain"
 import { themeBootScript } from "@/lib/theme"
 import "./globals.css"
@@ -87,7 +89,19 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-primary/30 selection:text-foreground pb-[calc(4rem+1px+env(safe-area-inset-bottom))] md:pb-0">
         {/* Clerk's session context for everything below (P0-039.2). Off only in
             builds that opted out with EE_AUTH_DISABLED=1 (CI, Playwright). */}
-        {auth === "clerk" ? <ClerkProvider>{app}</ClerkProvider> : app}
+        {auth === "clerk" ? (
+          <ClerkProvider
+            appearance={clerkAppearance}
+            signInUrl={SIGN_IN_PATH}
+            signUpUrl={SIGN_UP_PATH}
+            signInFallbackRedirectUrl={AFTER_AUTH_PATH}
+            signUpFallbackRedirectUrl={AFTER_AUTH_PATH}
+          >
+            {app}
+          </ClerkProvider>
+        ) : (
+          app
+        )}
         <ConsentHydrator />
         <CookieBanner />
         <InstallCard />
