@@ -16,11 +16,11 @@ Each task carries a one-line **verify:** with the exact thing to check / command
 to run. If a verify step requires external accounts (Azure, Stripe, Clerk),
 that's noted — the rest you can verify on your laptop.
 
-Last updated: 2026-11-24
+Last updated: 2026-11-25
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~85% (181 / ~214 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~86% (185 / ~214 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -255,7 +255,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`app/layout.tsx`](./apps/web/app/layout.tsx) calls `authMode()` per request and wraps the app in `<ClerkProvider>` when it is `"clerk"`; without a key it throws (no page renders), with `EE_AUTH_DISABLED=1` it renders without the provider. Production build with the dev keys: `/` → 200 and loads Clerk's browser script from the instance; lint clean.
 - `[x]` **P0-039.3** Add `/sign-in` and `/sign-up` routes using Clerk hosted UI
   ↳ verify: [`app/sign-in/[[...sign-in]]`](./apps/web/app/sign-in) and `app/sign-up/[[...sign-up]]` host Clerk's `<SignIn>` / `<SignUp>` in [`AuthStage`](./apps/web/components/auth/auth-stage.tsx) (a to-scale court that draws itself, desktop only; reduced-motion respected). Clerk takes the app's tokens through `--clerk-*` properties in `globals.css` (follows light/dark); routes in [`lib/auth/routes.ts`](./apps/web/lib/auth/routes.ts) passed to `ClerkProvider`. With the dev keys: both pages 200, Clerk card renders at 1280 and 390 px with no console errors. Without Clerk (`EE_AUTH_DISABLED=1`): both pages and their sub-steps 404 (`e2e/auth-pages.spec.ts`). Full Playwright suite 120 passed. *An actual sign-in needs a person with a Clerk account: try it at `/sign-in` on `npm run dev`.*
-- `[ ]` **P0-039.4** Next.js middleware redirects unauth users to `/sign-in`
+- `[x]` **P0-039.4** Next.js middleware redirects unauth users to `/sign-in`
+  ↳ verify: [`proxy.ts`](./apps/web/proxy.ts) runs `clerkMiddleware` (when `authMode()` is `"clerk"`) around the existing tenant-slug step; `auth.protect()` for anything [`isPublicPath`](./apps/web/lib/auth/public-routes.ts) rejects (public: `/sign-in`, `/sign-up` and sub-paths, `/cookies`). With the dev keys: `/` and `/roster` → 307 `/sign-in?redirect_url=…`; `/cookies`, `/sign-in` → 200; a browser opening `/roster` lands on the Clerk card; tenant slug still set, forged `x-ee-tenant-slug` still dropped. 18 pure tests in `e2e/public-routes.spec.ts`; full Playwright suite (no Clerk) 138 passed. *Follow-up: the top bar's `UserMenu` still shows "Guest"; signed-in state + sign-out need Clerk's hooks (next task).*
 - `[ ]` **P0-040** Sign-in methods: Google + email magic link + phone OTP
 
 ### Billing — Stripe integration (scaffolding only)

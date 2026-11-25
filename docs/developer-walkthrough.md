@@ -596,6 +596,21 @@ specificity, so `headerTitle: "font-display"` did nothing. Use Tailwind v4's imp
 (`@clerk/ui`), so `appearance` isn't type-checked: a misspelt variable or element key fails
 silently. Check names against Clerk's *appearance prop* docs.
 
+**Redirect (P0-039.4).** [`proxy.ts`](../apps/web/proxy.ts) wraps the tenant-slug step (§4.10) in
+`clerkMiddleware`. Anything [`isPublicPath`](../apps/web/lib/auth/public-routes.ts) rejects gets
+`auth.protect()`: a signed-out page request → **307** to `/sign-in?redirect_url=<where they were
+going>`, and Clerk sends them back after signing in. Public today: `/sign-in`, `/sign-up` (and their
+sub-steps) and `/cookies`. Static files, `sw.js` and the manifest never reach the proxy (matcher).
+A new public page means a new entry in `PUBLIC_PREFIXES` plus a test line in
+`e2e/public-routes.spec.ts`.
+
+The proxy picks per request: `authMode()` `"clerk"` → Clerk then tenant; `"disabled"` → tenant only.
+So the browser tests (no Clerk) still open every page, and a build missing its key answers 500
+everywhere rather than skipping sign-in.
+
+Check it by hand with the dev keys: `npm run build && npx next start`, then
+`curl -I http://localhost:3000/roster` → `307` to `/sign-in?redirect_url=…`.
+
 ⚠ **Gotcha — the API had no `UserSecretsId`.** `dotnet user-secrets set` fails with "Could not
 find the global property 'UserSecretsId'" until `dotnet user-secrets init` adds it to the
 `.csproj` (P0-039.1 did). The id isn't secret; the values live in
