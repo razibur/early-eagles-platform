@@ -251,7 +251,8 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: [`TenantPolicies`](./apps/api/src/EarlyEagles.Api/Authentication/TenantPolicies.cs) registered by `AddClerkAuthentication`: authenticated user + `ee_tenant_role` ∈ {member, tenant-admin} / = tenant-admin. [`TenantPoliciesTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Authentication/TenantPoliciesTests.cs) (9) through the app's `IAuthorizationService`: member/admin pass `TenantMember`; only admin passes `TenantAdmin`; no role or an unknown role fails; a role claim on an unauthenticated identity fails both. HTTP 401/403 lands with the first guarded endpoint, P0-048.2.
 - `[x]` **P0-039.1** Install `@clerk/nextjs`; configure publishable key
   ↳ verify: `@clerk/nextjs` 7.9.26 (exact pin). [`lib/auth/config.ts`](./apps/web/lib/auth/config.ts) `authMode()` fails closed: no / malformed `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` throws unless `EE_AUTH_DISABLED=1` (set only by CI and the Playwright web server). Keys in gitignored `apps/web/.env.local`; API got its `UserSecretsId` so `dotnet user-secrets` works. 13 pure tests in `e2e/auth-config.spec.ts`; build + lint clean.
-- `[ ]` **P0-039.2** Wrap root layout in `<ClerkProvider>`
+- `[x]` **P0-039.2** Wrap root layout in `<ClerkProvider>`
+  ↳ verify: [`app/layout.tsx`](./apps/web/app/layout.tsx) calls `authMode()` per request and wraps the app in `<ClerkProvider>` when it is `"clerk"`; without a key it throws (no page renders), with `EE_AUTH_DISABLED=1` it renders without the provider. Production build with the dev keys: `/` → 200 and loads Clerk's browser script from the instance; lint clean.
 - `[ ]` **P0-039.3** Add `/sign-in` and `/sign-up` routes using Clerk hosted UI
 - `[ ]` **P0-039.4** Next.js middleware redirects unauth users to `/sign-in`
 - `[ ]` **P0-040** Sign-in methods: Google + email magic link + phone OTP

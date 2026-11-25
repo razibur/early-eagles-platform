@@ -572,6 +572,10 @@ unless `EE_AUTH_DISABLED=1` says this build runs without sign-in. Only CI (`web.
 Playwright web server set it: they have no Clerk instance. A deploy that forgot its key breaks
 loudly instead of serving every page to anyone.
 
+**Provider (P0-039.2).** The root layout calls `authMode()` on every request and wraps the app in
+`<ClerkProvider>` when it says `"clerk"`. A missing key therefore fails each page render, not the
+build: pages are rendered per request anyway (the layout reads the tenant header).
+
 ⚠ **Gotcha — the API had no `UserSecretsId`.** `dotnet user-secrets set` fails with "Could not
 find the global property 'UserSecretsId'" until `dotnet user-secrets init` adds it to the
 `.csproj` (P0-039.1 did). The id isn't secret; the values live in
