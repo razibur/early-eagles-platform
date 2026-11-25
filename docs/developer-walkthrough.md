@@ -576,6 +576,26 @@ loudly instead of serving every page to anyone.
 `<ClerkProvider>` when it says `"clerk"`. A missing key therefore fails each page render, not the
 build: pages are rendered per request anyway (the layout reads the tenant header).
 
+**Pages (P0-039.3).** `app/sign-in/[[...sign-in]]/page.tsx` and `app/sign-up/[[...sign-up]]/page.tsx`
+render Clerk's `<SignIn>` / `<SignUp>`. The optional catch-all matters: Clerk walks through its own
+steps (`/sign-in/factor-one`, `/sign-in/sso-callback`, …) under the same path. The paths live in
+[`lib/auth/routes.ts`](../apps/web/lib/auth/routes.ts) and go to `ClerkProvider` as `signInUrl` /
+`signUpUrl`, so no `NEXT_PUBLIC_CLERK_SIGN_IN_URL` env var is needed. Without Clerk
+(`EE_AUTH_DISABLED=1`) both pages are 404s.
+
+Theming: Clerk reads `--clerk-color-primary`, `--clerk-color-background`, … as its appearance
+variables. `globals.css` points them at the app's own tokens, so the card follows the light/dark
+switch with no JS. [`lib/auth/appearance.ts`](../apps/web/lib/auth/appearance.ts) only adds element
+classes (hairline ring instead of Clerk's shadow, display font on the title).
+
+⚠ **Gotcha — Clerk's styles beat plain Tailwind classes.** Clerk injects its own CSS with higher
+specificity, so `headerTitle: "font-display"` did nothing. Use Tailwind v4's important suffix
+(`font-display!`) for properties Clerk sets itself.
+
+⚠ **Gotcha — the appearance types are `any`.** `@clerk/nextjs` 7 loads its UI from Clerk's CDN
+(`@clerk/ui`), so `appearance` isn't type-checked: a misspelt variable or element key fails
+silently. Check names against Clerk's *appearance prop* docs.
+
 ⚠ **Gotcha — the API had no `UserSecretsId`.** `dotnet user-secrets set` fails with "Could not
 find the global property 'UserSecretsId'" until `dotnet user-secrets init` adds it to the
 `.csproj` (P0-039.1 did). The id isn't secret; the values live in
