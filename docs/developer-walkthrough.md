@@ -1069,7 +1069,34 @@ the tenant: a tenant that is already past due raises nothing.
 
 An unknown customer, or a tenant that is suspended or deactivated, is logged as an **error**
 (event 1608) and acknowledged. Suspension and reactivation after payment are not handled here.
-They come with the subscription events (P0-043.3).
+They come with the subscription events below.
+
+**`customer.subscription.*` → suspend, reactivate, end (P0-043.3).** These events also name the
+customer, so the tenant is found the same way. What happens depends on the event and the
+subscription's `status`:
+
+| Event / status | Tenant change | Raises |
+|---|---|---|
+| `updated`, `resumed` with `active` or `trialing` | PastDue or Suspended → Active | `SubscriptionReactivated` |
+| `updated`, `paused` with `unpaid` or `paused` | Active or PastDue → Suspended | `SubscriptionSuspended` |
+| `deleted` (any status) | forgets the subscription, plan → Free, status → Active | `SubscriptionEnded` |
+| `updated` with `past_due` | nothing: `invoice.payment_failed` already did it, and names the invoice | — |
+| `updated` with `incomplete`, `incomplete_expired`, `canceled` | nothing: an incomplete subscription never reached the tenant, and a cancel arrives as `deleted` | — |
+| `created` | nothing: `checkout.session.completed` links it, and is the only event that names the tenant | — |
+
+All three run through one `ChangeTenantSubscriptionCommand`, audited in the tenant's log. **Only
+the tenant's current subscription counts.** After a tenant resubscribes, Stripe still sends
+events about the old subscription (its deletion, for one); the dispatcher compares the id with
+`stripe_subscription_id` (now part of `BillingTenant`) and logs event 1610 at Information
+instead of running the command. The `Tenant` methods check it too, so a redelivered `deleted`
+— the subscription id is already cleared — changes nothing either way. Ending keeps the customer
+id, so a later checkout bills the same customer.
+
+The tenant ends **Active on Free** rather than suspended: the free plan costs nothing, so there is
+nothing to owe. Mapping a price to Pro or Enterprise is P0-045.2. Stripe doesn't promise event
+order; a late `updated` for a subscription that has since been deleted no longer matches the
+current subscription and is ignored. An unknown customer or a deactivated tenant is logged as an
+**error** (event 1611) and acknowledged.
 
 Stripe.net is in Infrastructure (it will also call Stripe's API for checkout in Phase 2). It pins
 an API version: 53.1.0 reads **`2026-10-28.endive`** events. Version checks compare only the
@@ -2940,7 +2967,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Web Push** (P0-068) | subscribe built | `push_subscriptions` table and `POST /api/push/subscribe` (P0-068.3, P0-068.4, §9.10); VAPID keys (P0-068.1) and the service worker half (P0-068.2) wait on the vault; sending is P1-026 |
 | **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); and grants `tenant-admin` / `member` only on the session's own club (P0-038.1); `TenantMember` / `TenantAdmin` policies (P0-038.2) |
 | **Email (Resend)** | sender built | `IEmailSender` with a Resend and a logging implementation (P0-053.1, §9.9); the first real send waits for the account (P0-011, P0-055) |
-| **Stripe Billing** | started | signed webhook endpoint (P0-043.1, P0-044, §8.7); tenant Stripe ids (P0-045.1); checkout → `SubscriptionStarted` (P0-043.2); failed payment → past due (P0-043.4); subscription handlers P0-043.3 and the plan update P0-045.2 wait for the dashboard prices (P0-042); checkout UI Phase 2. Tenant *subscription* billing only — **not** member dues |
+| **Stripe Billing** | started | signed webhook endpoint (P0-043.1, P0-044, §8.7); tenant Stripe ids (P0-045.1); checkout → `SubscriptionStarted` (P0-043.2); failed payment → past due (P0-043.4); subscription events → suspend / reactivate / end on Free (P0-043.3); the plan update P0-045.2 waits for the dashboard prices (P0-042); checkout UI Phase 2. Tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
 | **CD to Azure** (P0-086/087/088) | waits on Azure | CI, image push, Dependabot and SBOMs exist (§12A); staging/prod deploys and the migration runner need the subscription and an OIDC identity |
@@ -3069,6 +3096,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Stripe webhooks → 400 "Invalid webhook signature" locally | `stripe listen` signs with its own session secret, not the dashboard endpoint's | use the `whsec_` the CLI prints (§8.7) |
 | `invoice.payment_failed` leaves the tenant active; log event 1608 "no tenant is billed to customer" | the tenant never recorded that customer (checkout made outside the platform, see the row below) | link the tenant to the customer first (§8.7) |
 | Stripe checkout paid but the tenant has no `stripe_customer_id`; log event 1606 | the session had no `client_reference_id`, or not the tenant id (e.g. a Payment Link or a dashboard checkout) | create sessions through the platform, which sets it (P2-008); link the tenant by hand (§8.7) |
+| A cancelled subscription leaves the tenant on its paid plan; log event 1610 "not its current subscription" | the event names an older subscription than `stripe_subscription_id` (the tenant resubscribed, or was linked by hand to another one) | expected for old subscriptions; if the id is the live one, fix the tenant's recorded id (§8.7) |
 | A "bad setting stops the host" test passes locally but fails on CI with `ObjectDisposedException: IServiceProvider` | `WebApplicationFactory` races a host that fails to start: the app's thread can dispose it before the factory reads it | test the `ValidateOnStart` checks through `AddInfrastructure` + `IStartupValidator.Validate()` instead (`StartupSettingsValidationTests`) |
 | `secrets (gitleaks)` flags a made-up key in a test | gitleaks scans all of history, so editing the test doesn't clear it | allowlist that exact value in `.gitleaks.toml`, then run the planted-secret check (runbook §4) |
 | `TimeZoneNotFoundException` in the container only | plain chiseled images have no `tzdata` | use the `-chiseled-extra` image (§ club time zone, P1-007.1) |
