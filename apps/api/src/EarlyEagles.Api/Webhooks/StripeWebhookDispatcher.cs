@@ -27,6 +27,7 @@ public sealed class StripeWebhookDispatcher
     private const string SubscriptionMode = "subscription";
 
     private readonly IBillingTenantDirectory directory;
+    private readonly IBillingPlanCatalog plans;
     private readonly ITenantContext tenantContext;
     private readonly ITenantContextInitializer tenantInitializer;
     private readonly ISender sender;
@@ -34,12 +35,14 @@ public sealed class StripeWebhookDispatcher
 
     public StripeWebhookDispatcher(
         IBillingTenantDirectory directory,
+        IBillingPlanCatalog plans,
         ITenantContext tenantContext,
         ITenantContextInitializer tenantInitializer,
         ISender sender,
         ILogger<StripeWebhookDispatcher> logger)
     {
         this.directory = directory;
+        this.plans = plans;
         this.tenantContext = tenantContext;
         this.tenantInitializer = tenantInitializer;
         this.sender = sender;
@@ -56,12 +59,14 @@ public sealed class StripeWebhookDispatcher
             EventTypes.InvoicePaymentFailed => RecordPaymentFailureAsync(stripeEvent, cancellationToken),
             EventTypes.CustomerSubscriptionUpdated
                 or EventTypes.CustomerSubscriptionPaused
-                or EventTypes.CustomerSubscriptionResumed => ChangeSubscriptionAsync(stripeEvent, cancellationToken),
-            EventTypes.CustomerSubscriptionDeleted => ChangeSubscriptionAsync(stripeEvent, cancellationToken, ended: true),
+                or EventTypes.CustomerSubscriptionResumed => ChangeSubscriptionAsync(stripeEvent, SubscriptionEventKind.Changed, cancellationToken),
+            EventTypes.CustomerSubscriptionDeleted => ChangeSubscriptionAsync(stripeEvent, SubscriptionEventKind.Deleted, cancellationToken),
 
-            // customer.subscription.created is covered by checkout.session.completed,
-            // which is the only event that names the tenant. Other events
-            // aren't handled yet. Acknowledged.
+            // Checkout links the subscription (only it names the tenant);
+            // created only sets the plan, once that link exists (P0-045.2).
+            EventTypes.CustomerSubscriptionCreated => ChangeSubscriptionAsync(stripeEvent, SubscriptionEventKind.Created, cancellationToken),
+
+            // Other events aren't handled yet. Acknowledged.
             _ => Task.CompletedTask,
         };
     }
@@ -182,7 +187,7 @@ public sealed class StripeWebhookDispatcher
         StripeWebhookLog.PaymentFailed(logger, tenant.TenantId, invoice.Id, markedPastDue, stripeEvent.Id);
     }
 
-    private async Task ChangeSubscriptionAsync(Event stripeEvent, CancellationToken cancellationToken, bool ended = false)
+    private async Task ChangeSubscriptionAsync(Event stripeEvent, SubscriptionEventKind kind, CancellationToken cancellationToken)
     {
         if (stripeEvent.Data?.Object is not Subscription subscription || string.IsNullOrEmpty(subscription.Id))
         {
@@ -196,8 +201,16 @@ public sealed class StripeWebhookDispatcher
             return;
         }
 
-        var change = ended ? TenantSubscriptionChange.End : ChangeFor(subscription.Status);
-        if (change is null)
+        TenantSubscriptionChange? change = kind switch
+        {
+            SubscriptionEventKind.Deleted => TenantSubscriptionChange.End,
+            SubscriptionEventKind.Changed => ChangeFor(subscription.Status),
+            _ => null,
+        };
+
+        // An ended subscription sells nothing: ending already drops to Free.
+        var plan = kind == SubscriptionEventKind.Deleted ? null : PlanFor(subscription, stripeEvent.Id);
+        if (change is null && plan is null)
         {
             return;
         }
@@ -231,10 +244,48 @@ public sealed class StripeWebhookDispatcher
 
         InitializeTenant(tenant);
 
-        var changed = await sender
-            .Send(new ChangeTenantSubscriptionCommand(tenant.TenantId, subscription.Id, change.Value), cancellationToken)
-            .ConfigureAwait(false);
-        StripeWebhookLog.SubscriptionChanged(logger, tenant.TenantId, subscription.Id, change.Value, changed, stripeEvent.Id);
+        // Plan first: a status change can't be undone by it, and each runs
+        // as its own audited command.
+        if (plan is not null)
+        {
+            var planChanged = await sender
+                .Send(new ChangeTenantPlanCommand(tenant.TenantId, subscription.Id, plan.Value), cancellationToken)
+                .ConfigureAwait(false);
+            StripeWebhookLog.PlanChanged(logger, tenant.TenantId, subscription.Id, plan.Value, planChanged, stripeEvent.Id);
+        }
+
+        if (change is not null)
+        {
+            var changed = await sender
+                .Send(new ChangeTenantSubscriptionCommand(tenant.TenantId, subscription.Id, change.Value), cancellationToken)
+                .ConfigureAwait(false);
+            StripeWebhookLog.SubscriptionChanged(logger, tenant.TenantId, subscription.Id, change.Value, changed, stripeEvent.Id);
+        }
+    }
+
+    // P0-045.2. The plan the subscription's prices sell. One price is usual;
+    // with several, the highest plan wins (an add-on never downgrades). A
+    // subscription whose prices are all unknown keeps the tenant's plan and
+    // logs an error: Stripe:Prices is missing a dashboard price.
+    private TenantPlan? PlanFor(Subscription subscription, string eventId)
+    {
+        var priceIds = subscription.Items?.Data?
+            .Select(item => item.Price?.Id)
+            .OfType<string>()
+            .ToList() ?? [];
+        if (priceIds.Count == 0)
+        {
+            return null;
+        }
+
+        var known = priceIds.Select(plans.FindPlan).OfType<TenantPlan>().ToList();
+        if (known.Count == 0)
+        {
+            StripeWebhookLog.UnknownPrice(logger, subscription.Id, string.Join(", ", priceIds), eventId);
+            return null;
+        }
+
+        return known.Max();
     }
 
     // The command runs as the tenant it bills, so its audit row is that

@@ -1082,7 +1082,7 @@ subscription's `status`:
 | `deleted` (any status) | forgets the subscription, plan → Free, status → Active | `SubscriptionEnded` |
 | `updated` with `past_due` | nothing: `invoice.payment_failed` already did it, and names the invoice | — |
 | `updated` with `incomplete`, `incomplete_expired`, `canceled` | nothing: an incomplete subscription never reached the tenant, and a cancel arrives as `deleted` | — |
-| `created` | nothing: `checkout.session.completed` links it, and is the only event that names the tenant | — |
+| `created` | no status change: `checkout.session.completed` links it, and is the only event that names the tenant. Sets the plan (below) | — |
 
 All three run through one `ChangeTenantSubscriptionCommand`, audited in the tenant's log. **Only
 the tenant's current subscription counts.** After a tenant resubscribes, Stripe still sends
@@ -1097,6 +1097,37 @@ nothing to owe. Mapping a price to Pro or Enterprise is P0-045.2. Stripe doesn't
 order; a late `updated` for a subscription that has since been deleted no longer matches the
 current subscription and is ignored. An unknown customer or a deactivated tenant is logged as an
 **error** (event 1611) and acknowledged.
+
+**Price → plan (P0-045.2).** `customer.subscription.created`, `updated`, `paused` and `resumed`
+also carry the subscription's items, each with a price. `Stripe:Prices` maps price ids to plans:
+
+```bash
+# appsettings, user-secrets or the environment; price ids are not secret
+Stripe__Prices__price_1QAbc=Pro
+Stripe__Prices__price_1QXyz=Enterprise
+```
+
+The dashboard prices come with the Stripe account (P0-042.*), so the map is empty until then and
+no event changes a plan. The values are bound as **strings** and checked at startup (`Free`, `Pro`
+or `Enterprise`, any case; numbers refused): the configuration binder silently drops a dictionary
+entry it can't convert, so a typed `Dictionary<string, TenantPlan>` would turn a typo into an
+unmapped price with no error.
+
+`IBillingPlanCatalog` (Infrastructure `StripePlanCatalog`) answers per price. With several items,
+the highest plan wins, so an add-on price never downgrades. When none of the prices is mapped the
+plan stays as it is and event 1613 is logged as an **error**: someone is paying for a price the
+platform doesn't know. A known plan runs `ChangeTenantPlanCommand` → `Tenant.ChangeSubscriptionPlan`,
+which raises `PlanChanged` (from, to) only when the plan actually changes, and only for the current
+subscription. It runs **before** the status command, so one `updated` can move both plan and
+status, as two audit rows. `deleted` ignores the price: ending already drops to Free.
+
+**Known gap: `created` usually arrives before `checkout.session.completed`.** Until checkout has
+recorded the customer and subscription, `created` finds no tenant and is acknowledged without a
+change (event 1611), so a new subscription's plan isn't set until its next `updated`. Closing
+this needs the price at checkout time. That means either reading the subscription from Stripe's API
+when checkout completes (needs the API key) or having P2-008 put the tenant id in the
+subscription's metadata so `created` can find the tenant itself. Recorded in Implementation-Plan
+(P0-045.2 row) as a follow-up for P2-008.
 
 Stripe.net is in Infrastructure (it will also call Stripe's API for checkout in Phase 2). It pins
 an API version: 53.1.0 reads **`2026-10-28.endive`** events. Version checks compare only the
@@ -2967,7 +2998,7 @@ for the task breakdown and [`Plan.md`](../Plan.md) for the full stack/roadmap.
 | **Web Push** (P0-068) | subscribe built | `push_subscriptions` table and `POST /api/push/subscribe` (P0-068.3, P0-068.4, §9.10); VAPID keys (P0-068.1) and the service worker half (P0-068.2) wait on the vault; sending is P1-026 |
 | **Clerk auth** (B2B Orgs = tenants) | started | the signed webhook endpoint provisions tenants from `organization.created` and members from `organizationMembership.created` (§8.5); and keeps each member's profile in step with `user.updated` (P0-036.4–.5); and accepts Clerk session tokens as JWT bearer, with the active organization read from them (P0-035.2–.3, §8.6); and grants `tenant-admin` / `member` only on the session's own club (P0-038.1); `TenantMember` / `TenantAdmin` policies (P0-038.2) |
 | **Email (Resend)** | sender built | `IEmailSender` with a Resend and a logging implementation (P0-053.1, §9.9); the first real send waits for the account (P0-011, P0-055) |
-| **Stripe Billing** | started | signed webhook endpoint (P0-043.1, P0-044, §8.7); tenant Stripe ids (P0-045.1); checkout → `SubscriptionStarted` (P0-043.2); failed payment → past due (P0-043.4); subscription events → suspend / reactivate / end on Free (P0-043.3); the plan update P0-045.2 waits for the dashboard prices (P0-042); checkout UI Phase 2. Tenant *subscription* billing only — **not** member dues |
+| **Stripe Billing** | started | signed webhook endpoint (P0-043.1, P0-044, §8.7); tenant Stripe ids (P0-045.1); checkout → `SubscriptionStarted` (P0-043.2); failed payment → past due (P0-043.4); subscription events → suspend / reactivate / end on Free (P0-043.3); price → plan through `Stripe:Prices` (P0-045.2; empty until the dashboard prices, P0-042; a new subscription's plan waits for its first `updated`, see §8.7); checkout UI Phase 2. Tenant *subscription* billing only — **not** member dues |
 | **SignalR / Redis / Service Bus** | later phases | realtime, cache/locks (Azure Managed Redis, [ADR-0008](./adr/0008-azure-managed-redis.md)), messaging |
 | **Cloud + IaC** | conventions written | **Azure** + **Bicep** (`infra/`), per [ADR-0002](./adr/0002-enterprise-saas-reframe.md). Naming, tagging, region and SKU rules are settled in [`infra-conventions.md`](./infra-conventions.md); the P0-057 modules (resource group, Key Vault, Log Analytics, App Insights), the P0-058.1–.5 modules (Postgres, Container Apps environment, Container App, Service Bus, Redis; the registry was dropped for ghcr.io per ADR-0010) and the shared tag type exist (§12), every planned module, the shared `environment.bicep` wiring, the dev, staging and prod entry points with their parameter files exist (§12.12–12.17), sized for minimum cost, the API has a user-assigned managed identity (§12.18; role assignments P0-062.2–.4 next), and nothing is deployed. |
 | **CD to Azure** (P0-086/087/088) | waits on Azure | CI, image push, Dependabot and SBOMs exist (§12A); staging/prod deploys and the migration runner need the subscription and an OIDC identity |
@@ -3097,6 +3128,8 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `invoice.payment_failed` leaves the tenant active; log event 1608 "no tenant is billed to customer" | the tenant never recorded that customer (checkout made outside the platform, see the row below) | link the tenant to the customer first (§8.7) |
 | Stripe checkout paid but the tenant has no `stripe_customer_id`; log event 1606 | the session had no `client_reference_id`, or not the tenant id (e.g. a Payment Link or a dashboard checkout) | create sessions through the platform, which sets it (P2-008); link the tenant by hand (§8.7) |
 | A cancelled subscription leaves the tenant on its paid plan; log event 1610 "not its current subscription" | the event names an older subscription than `stripe_subscription_id` (the tenant resubscribed, or was linked by hand to another one) | expected for old subscriptions; if the id is the live one, fix the tenant's recorded id (§8.7) |
+| A paid subscription leaves the tenant on Free; log event 1613 "no price in Stripe:Prices" | the dashboard price isn't mapped in `Stripe:Prices` | add `Stripe__Prices__<price_id>=Pro` and restart; the next `customer.subscription.updated` sets the plan (§8.7) |
+| A new subscription leaves the tenant on Free though its price is mapped; log event 1611 on `customer.subscription.created` | `created` arrived before `checkout.session.completed` linked the subscription | expected until P2-008 closes the gap; any later `updated` sets the plan (§8.7) |
 | A "bad setting stops the host" test passes locally but fails on CI with `ObjectDisposedException: IServiceProvider` | `WebApplicationFactory` races a host that fails to start: the app's thread can dispose it before the factory reads it | test the `ValidateOnStart` checks through `AddInfrastructure` + `IStartupValidator.Validate()` instead (`StartupSettingsValidationTests`) |
 | `secrets (gitleaks)` flags a made-up key in a test | gitleaks scans all of history, so editing the test doesn't clear it | allowlist that exact value in `.gitleaks.toml`, then run the planted-secret check (runbook §4) |
 | `TimeZoneNotFoundException` in the container only | plain chiseled images have no `tzdata` | use the `-chiseled-extra` image (§ club time zone, P1-007.1) |
