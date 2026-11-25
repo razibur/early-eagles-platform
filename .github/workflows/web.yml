@@ -54,6 +54,8 @@ jobs:
         run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
+          # No Clerk instance in CI; see apps/web/lib/auth/config.ts.
+          EE_AUTH_DISABLED: '1'
 
   browser-tests:
     name: browser tests (Playwright)
@@ -80,6 +82,7 @@ jobs:
         env:
           CI: 'true'
           NEXT_TELEMETRY_DISABLED: '1'
+          EE_AUTH_DISABLED: '1'
 
       - name: Upload report
         if: ${{ !cancelled() }}
