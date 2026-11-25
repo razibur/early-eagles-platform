@@ -1,4 +1,5 @@
 using EarlyEagles.Application.Tenants;
+using EarlyEagles.Domain.Tenants;
 using EarlyEagles.Infrastructure.Billing;
 
 namespace EarlyEagles.Api.Webhooks;
@@ -73,4 +74,17 @@ internal static partial class StripeWebhookLog
         Level = LogLevel.Error,
         Message = "Subscription {SubscriptionId} change not recorded: {Reason} ({EventId})")]
     public static partial void SubscriptionChangeSkipped(ILogger logger, string subscriptionId, string reason, string eventId);
+
+    [LoggerMessage(
+        EventId = 1612,
+        Level = LogLevel.Information,
+        Message = "Tenant {TenantId} subscription {SubscriptionId} on plan {Plan}: changed {Changed} ({EventId})")]
+    public static partial void PlanChanged(ILogger logger, Guid tenantId, string subscriptionId, TenantPlan plan, bool changed, string eventId);
+
+    // Error: someone pays for a price the platform doesn't map to a plan.
+    [LoggerMessage(
+        EventId = 1613,
+        Level = LogLevel.Error,
+        Message = "Subscription {SubscriptionId} plan not changed: no price in Stripe:Prices among {PriceIds} ({EventId})")]
+    public static partial void UnknownPrice(ILogger logger, string subscriptionId, string priceIds, string eventId);
 }

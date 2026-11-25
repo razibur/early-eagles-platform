@@ -169,7 +169,11 @@ public static class DependencyInjection
             .Validate(
                 options => string.IsNullOrEmpty(options.WebhookSigningSecret) || StripeOptions.IsValidWebhookSecret(options.WebhookSigningSecret),
                 $"{StripeOptions.SectionName}:{nameof(StripeOptions.WebhookSigningSecret)} must look like '{StripeOptions.WebhookSecretPrefix}…'.")
+            .Validate(
+                options => options.Prices.All(p => StripeOptions.IsValidPriceId(p.Key) && StripeOptions.TryParsePlan(p.Value, out _)),
+                $"{StripeOptions.SectionName}:{nameof(StripeOptions.Prices)} keys must be Stripe price ids ('{StripeOptions.PriceIdPrefix}…') and values plans (Free, Pro, Enterprise).")
             .ValidateOnStart();
+        services.AddSingleton<IBillingPlanCatalog, StripePlanCatalog>();
 
         // Feature flags (P1-031). An opted-in tenant that isn't a valid slug
         // could never match, so it fails at startup instead of silently.

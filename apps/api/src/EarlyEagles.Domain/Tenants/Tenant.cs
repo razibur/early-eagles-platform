@@ -338,6 +338,32 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
         return true;
     }
 
+    /// <summary>
+    /// The subscription is billed on a price that belongs to
+    /// <paramref name="plan"/> (P0-045.2): the tenant moves to that plan and
+    /// <see cref="PlanChanged"/> is raised. Returns <c>false</c>, changing
+    /// nothing, when the tenant is already on it or
+    /// <paramref name="subscriptionId"/> isn't its current subscription.
+    /// Deactivated throws.
+    /// </summary>
+    public bool ChangeSubscriptionPlan(string subscriptionId, TenantPlan plan)
+    {
+        if (!Enum.IsDefined(plan))
+        {
+            throw new ArgumentException($"Unknown plan value: {plan}.", nameof(plan));
+        }
+
+        if (!IsCurrentSubscription(subscriptionId) || Plan == plan)
+        {
+            return false;
+        }
+
+        var from = Plan;
+        Plan = plan;
+        RaiseDomainEvent(new PlanChanged(Id, subscriptionId, from, plan));
+        return true;
+    }
+
     public void Suspend()
     {
         if (Status is TenantStatus.Suspended)

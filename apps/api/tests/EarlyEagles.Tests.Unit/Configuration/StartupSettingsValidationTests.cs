@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 
 namespace EarlyEagles.Tests.Unit.Configuration;
 
-// P0-036.1, P0-035.2, P0-044 — malformed Clerk and Stripe settings stop the
+// P0-036.1, P0-035.2, P0-044, P0-045.2 — malformed Clerk and Stripe settings stop the
 // host at startup. IStartupValidator runs exactly the ValidateOnStart checks
 // the host runs before it starts. These were WebApplicationFactory tests, but
 // a host that fails to start races the factory: it can be disposed before the
@@ -24,6 +24,8 @@ public class StartupSettingsValidationTests
             ["Clerk:Issuer"] = Issuer,
             ["Clerk:AuthorizedParties:0"] = Origin,
             ["Stripe:WebhookSigningSecret"] = "whsec_stripe_test_secret",
+            ["Stripe:Prices:price_1QPro"] = "Pro",
+            ["Stripe:Prices:price_1QEnterprise"] = "Enterprise",
         });
     }
 
@@ -38,6 +40,11 @@ public class StartupSettingsValidationTests
     [InlineData("Clerk:AuthorizedParties:0", "https://earlyeagles.club/app", "Clerk:AuthorizedParties")]
     [InlineData("Clerk:AuthorizedParties:0", "earlyeagles.club", "Clerk:AuthorizedParties")]
     [InlineData("Stripe:WebhookSigningSecret", "sk_test_not_a_webhook_secret", "Stripe:WebhookSigningSecret")]
+    [InlineData("Stripe:Prices:prod_1QPro", "Pro", "Stripe:Prices")]
+    [InlineData("Stripe:Prices:price_", "Pro", "Stripe:Prices")]
+    [InlineData("Stripe:Prices:price_1QPro", "7", "Stripe:Prices")]
+    [InlineData("Stripe:Prices:price_1QPro", "1", "Stripe:Prices")]
+    [InlineData("Stripe:Prices:price_1QPro", "Gold", "Stripe:Prices")]
     public void A_Malformed_Setting_Fails_Startup_Validation(string key, string value, string expectedKey)
     {
         var exception = Assert.Throws<OptionsValidationException>(() => Validate(new() { [key] = value }));
