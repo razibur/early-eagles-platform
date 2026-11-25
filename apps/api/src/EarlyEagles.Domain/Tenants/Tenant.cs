@@ -275,6 +275,69 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
         return true;
     }
 
+    /// <summary>
+    /// Stripe reports the subscription active again (P0-043.3): a past-due or
+    /// suspended tenant becomes <see cref="TenantStatus.Active"/> and
+    /// <see cref="SubscriptionReactivated"/> is raised. Returns <c>false</c>,
+    /// changing nothing, when the tenant is already active or
+    /// <paramref name="subscriptionId"/> isn't its current subscription (an
+    /// event about a subscription it has since replaced). Deactivated throws.
+    /// </summary>
+    public bool ReactivateSubscription(string subscriptionId)
+    {
+        if (!IsCurrentSubscription(subscriptionId) || Status is TenantStatus.Active)
+        {
+            return false;
+        }
+
+        Reactivate();
+        RaiseDomainEvent(new SubscriptionReactivated(Id, subscriptionId));
+        return true;
+    }
+
+    /// <summary>
+    /// Stripe stopped collecting the subscription (P0-043.3): an active or
+    /// past-due tenant is <see cref="TenantStatus.Suspended"/> and
+    /// <see cref="SubscriptionSuspended"/> is raised. Returns <c>false</c>,
+    /// changing nothing, when the tenant is already suspended or
+    /// <paramref name="subscriptionId"/> isn't its current subscription.
+    /// Deactivated throws.
+    /// </summary>
+    public bool SuspendSubscription(string subscriptionId)
+    {
+        if (!IsCurrentSubscription(subscriptionId) || Status is TenantStatus.Suspended)
+        {
+            return false;
+        }
+
+        Suspend();
+        RaiseDomainEvent(new SubscriptionSuspended(Id, subscriptionId));
+        return true;
+    }
+
+    /// <summary>
+    /// The subscription ended (P0-043.3): the tenant forgets it, drops to
+    /// <see cref="TenantPlan.Free"/>, owes nothing so is
+    /// <see cref="TenantStatus.Active"/>, and <see cref="SubscriptionEnded"/>
+    /// is raised. The customer stays recorded for a later checkout. Returns
+    /// <c>false</c>, changing nothing, when <paramref name="subscriptionId"/>
+    /// isn't the current subscription: already ended (a redelivery) or
+    /// replaced. Deactivated throws.
+    /// </summary>
+    public bool EndSubscription(string subscriptionId)
+    {
+        if (!IsCurrentSubscription(subscriptionId))
+        {
+            return false;
+        }
+
+        StripeSubscriptionId = null;
+        Plan = TenantPlan.Free;
+        Reactivate();
+        RaiseDomainEvent(new SubscriptionEnded(Id, subscriptionId));
+        return true;
+    }
+
     public void Suspend()
     {
         if (Status is TenantStatus.Suspended)
@@ -391,5 +454,17 @@ public sealed class Tenant : AggregateRoot<Guid>, ITenantScoped
         }
 
         return trimmed;
+    }
+
+    private bool IsCurrentSubscription(string subscriptionId)
+    {
+        ValidateStripeId(subscriptionId, nameof(subscriptionId));
+
+        if (Status is TenantStatus.Deactivated)
+        {
+            throw new InvalidOperationException("Cannot change the subscription of a deactivated tenant.");
+        }
+
+        return StripeSubscriptionId == subscriptionId;
     }
 }

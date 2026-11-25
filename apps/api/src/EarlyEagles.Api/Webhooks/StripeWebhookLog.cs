@@ -1,3 +1,4 @@
+using EarlyEagles.Application.Tenants;
 using EarlyEagles.Infrastructure.Billing;
 
 namespace EarlyEagles.Api.Webhooks;
@@ -53,4 +54,23 @@ internal static partial class StripeWebhookLog
         Level = LogLevel.Error,
         Message = "Failed invoice {InvoiceId} not recorded: {Reason} ({EventId})")]
     public static partial void PaymentFailureSkipped(ILogger logger, string invoiceId, string reason, string eventId);
+
+    [LoggerMessage(
+        EventId = 1609,
+        Level = LogLevel.Information,
+        Message = "Tenant {TenantId} subscription {SubscriptionId} {Change}: {Changed} ({EventId})")]
+    public static partial void SubscriptionChanged(ILogger logger, Guid tenantId, string subscriptionId, TenantSubscriptionChange change, bool changed, string eventId);
+
+    [LoggerMessage(
+        EventId = 1610,
+        Level = LogLevel.Information,
+        Message = "Tenant {TenantId} event about subscription {SubscriptionId} ignored: not its current subscription ({EventId})")]
+    public static partial void SubscriptionNotCurrent(ILogger logger, Guid tenantId, string subscriptionId, string eventId);
+
+    // Error: a customer's subscription changed and no tenant reflects it. Someone has to look.
+    [LoggerMessage(
+        EventId = 1611,
+        Level = LogLevel.Error,
+        Message = "Subscription {SubscriptionId} change not recorded: {Reason} ({EventId})")]
+    public static partial void SubscriptionChangeSkipped(ILogger logger, string subscriptionId, string reason, string eventId);
 }

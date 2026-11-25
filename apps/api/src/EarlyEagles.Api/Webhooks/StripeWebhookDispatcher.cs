@@ -8,7 +8,7 @@ using Stripe.Checkout;
 namespace EarlyEagles.Api.Webhooks;
 
 /// <summary>
-/// Turns a verified Stripe event into a command (P0-043.2, P0-043.4). Called by
+/// Turns a verified Stripe event into a command (P0-043.2, P0-043.3, P0-043.4). Called by
 /// <see cref="StripeWebhookEndpoints"/> only after the signature check.
 /// </summary>
 /// <remarks>
@@ -54,11 +54,28 @@ public sealed class StripeWebhookDispatcher
         {
             EventTypes.CheckoutSessionCompleted => StartSubscriptionAsync(stripeEvent, cancellationToken),
             EventTypes.InvoicePaymentFailed => RecordPaymentFailureAsync(stripeEvent, cancellationToken),
+            EventTypes.CustomerSubscriptionUpdated
+                or EventTypes.CustomerSubscriptionPaused
+                or EventTypes.CustomerSubscriptionResumed => ChangeSubscriptionAsync(stripeEvent, cancellationToken),
+            EventTypes.CustomerSubscriptionDeleted => ChangeSubscriptionAsync(stripeEvent, cancellationToken, ended: true),
 
-            // Events we don't handle yet. Acknowledged.
+            // customer.subscription.created is covered by checkout.session.completed,
+            // which is the only event that names the tenant. Other events
+            // aren't handled yet. Acknowledged.
             _ => Task.CompletedTask,
         };
     }
+
+    // P0-043.3. The subscription's status decides the change; deleted always
+    // ends it. past_due is left to invoice.payment_failed, which names the
+    // invoice; canceled arrives as deleted; incomplete subscriptions never
+    // reached the tenant (checkout only completes once the first payment does).
+    private static TenantSubscriptionChange? ChangeFor(string? status) => status switch
+    {
+        "active" or "trialing" => TenantSubscriptionChange.Reactivate,
+        "unpaid" or "paused" => TenantSubscriptionChange.Suspend,
+        _ => null,
+    };
 
     private async Task StartSubscriptionAsync(Event stripeEvent, CancellationToken cancellationToken)
     {
@@ -163,6 +180,61 @@ public sealed class StripeWebhookDispatcher
             .Send(new RecordTenantPaymentFailureCommand(tenant.TenantId, invoice.Id), cancellationToken)
             .ConfigureAwait(false);
         StripeWebhookLog.PaymentFailed(logger, tenant.TenantId, invoice.Id, markedPastDue, stripeEvent.Id);
+    }
+
+    private async Task ChangeSubscriptionAsync(Event stripeEvent, CancellationToken cancellationToken, bool ended = false)
+    {
+        if (stripeEvent.Data?.Object is not Subscription subscription || string.IsNullOrEmpty(subscription.Id))
+        {
+            StripeWebhookLog.SubscriptionChangeSkipped(logger, "(none)", "the event carries no subscription", stripeEvent.Id);
+            return;
+        }
+
+        if (subscription.Id.Length > Tenant.StripeIdMaxLength)
+        {
+            StripeWebhookLog.SubscriptionChangeSkipped(logger, "(too long)", "subscription id is too long", stripeEvent.Id);
+            return;
+        }
+
+        var change = ended ? TenantSubscriptionChange.End : ChangeFor(subscription.Status);
+        if (change is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(subscription.CustomerId) || subscription.CustomerId.Length > Tenant.StripeIdMaxLength)
+        {
+            StripeWebhookLog.SubscriptionChangeSkipped(logger, subscription.Id, "no usable customer on the subscription", stripeEvent.Id);
+            return;
+        }
+
+        var tenant = await directory.FindByStripeCustomerAsync(subscription.CustomerId, cancellationToken).ConfigureAwait(false);
+        if (tenant is null)
+        {
+            StripeWebhookLog.SubscriptionChangeSkipped(logger, subscription.Id, $"no tenant is billed to customer {subscription.CustomerId}", stripeEvent.Id);
+            return;
+        }
+
+        if (tenant.Status == TenantStatus.Deactivated)
+        {
+            StripeWebhookLog.SubscriptionChangeSkipped(logger, subscription.Id, $"tenant {tenant.TenantId} is deactivated", stripeEvent.Id);
+            return;
+        }
+
+        // A subscription the tenant has replaced, or one already ended: normal
+        // after a resubscribe or a redelivery, so not an error.
+        if (tenant.StripeSubscriptionId != subscription.Id)
+        {
+            StripeWebhookLog.SubscriptionNotCurrent(logger, tenant.TenantId, subscription.Id, stripeEvent.Id);
+            return;
+        }
+
+        InitializeTenant(tenant);
+
+        var changed = await sender
+            .Send(new ChangeTenantSubscriptionCommand(tenant.TenantId, subscription.Id, change.Value), cancellationToken)
+            .ConfigureAwait(false);
+        StripeWebhookLog.SubscriptionChanged(logger, tenant.TenantId, subscription.Id, change.Value, changed, stripeEvent.Id);
     }
 
     // The command runs as the tenant it bills, so its audit row is that

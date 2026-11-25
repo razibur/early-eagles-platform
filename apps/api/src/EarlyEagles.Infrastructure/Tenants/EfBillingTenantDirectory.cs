@@ -36,7 +36,7 @@ public sealed class EfBillingTenantDirectory : IBillingTenantDirectory
             .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(predicate)
-            .Select(t => new BillingTenant(t.Id, t.Slug, t.Status, t.StripeCustomerId))
+            .Select(t => new BillingTenant(t.Id, t.Slug, t.Status, t.StripeCustomerId, t.StripeSubscriptionId))
             .SingleOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
     }
