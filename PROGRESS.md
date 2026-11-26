@@ -20,7 +20,7 @@ Last updated: 2026-11-25
 
 ---
 
-## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~86% (186 / ~215 tasks)
+## Phase 0 — Enterprise Foundations  ▰▰▰▱▱▱▱▱▱▱  ~86% (187 / ~217 tasks)
 
 The non-negotiable platform foundation. **P0-034.* (tenant-isolation integration test) is the gate** — every isolation sub-task must stay green before any feature beyond Phase 0 ships.
 
@@ -441,6 +441,9 @@ Solution scaffolded under [`apps/api/`](./apps/api). **Targets .NET 10 (LTS), no
   ↳ verify: `npm run test:e2e` → **21 passed**: [`e2e/responsive-layout.spec.ts`](./apps/web/e2e/responsive-layout.spec.ts) on Playwright 1.64.0 (installed Chrome, production build on :3200) across phone 390×844, tablet 768×1024, desktop 1280×800 — every nav section returns 200 with no console errors and no horizontal overflow, top bar + theme + account controls present, exactly one navigation visible marking the current section, phone body padding clears the bottom bar; Light theme survives a reload at each width. Full-page screenshots attached in the HTML report (structure asserted, not pixels — baselines don't travel between Windows and Linux CI). First run caught a real bug: body padding 64px vs a 65px bar — fixed.
 - `[x]` **P0-071.1** Install `@tanstack/react-query`; set up `QueryClientProvider`
   ↳ verify: `@tanstack/react-query` 5.104.2; [`QueryProvider`](./apps/web/components/providers/query-provider.tsx) wraps the root layout (new `QueryClient` per server request so cached data can't cross requests or tenants; one lazily created client per browser tab; `staleTime` 60 s). Verified with a throwaway page (deleted, not committed) under a production build: `useQueryClient()` resolved and a `useQuery` returned its data, no console errors. Lint + `tsc` clean. P0-071.2/.3 (auth fetch + first real query) wait on Clerk.
+- `[x]` **P0-071.4** API trusts the forwarded club host only with the shared proxy key — *added 2026-11-26, [ADR-0016](./docs/adr/0016-web-forwards-api-calls-same-origin.md)*
+  ↳ verify: [`ForwardedTenantHostMiddleware`](./apps/api/src/EarlyEagles.Api/Tenancy/ForwardedTenantHostMiddleware.cs) before tenant resolution: `X-EE-Proxy-Key` = `TrustedProxy:Key` (constant time) + one valid DNS `X-Forwarded-Host` → `Request.Host`; key header always stripped; key ≥ 32 chars or startup fails. [`ForwardedTenantHostTests`](./apps/api/tests/EarlyEagles.Tests.Integration/Tenancy/ForwardedTenantHostTests.cs) (13, full Production pipeline): right key → club resolved (prod and `*.localhost:3002` hosts); no / wrong / truncated / empty key, no key configured, a host list or an IP → 400; direct club host still 200; handlers never see the key; two malformed keys fail startup. 28 parser unit tests. Mutating the key compare or the header strip fails tests. Unit 586, integration 448 + 5 skipped.
+- `[ ]` **P0-071.5** Web `proxy.ts` forwards `/api/*` to the API with the club host and the key
 - `[ ]` **P0-071.2** Auth-aware fetch wrapper injects Clerk JWT
 - `[ ]` **P0-071.3** Sample authenticated query renders data from `/api/whoami`
 - `[x]` **P0-072** Zustand store for client-only state
