@@ -1030,6 +1030,42 @@ P1-001.4, P1-012, P1-012.2, P1-012.3, P1-013, P1-004.1. The web pages follow onc
 
 P0-039 also added `EE_AUTH_DISABLED=1` (CI and Playwright only): without it a missing Clerk key stops every page instead of serving them unauthenticated. See walkthrough §4.11.
 
+### Play layer and member extras (2026-11-25)
+
+Added by [ADR-0014](./docs/adr/0014-play-layer-and-member-extras.md). Each task carries its own migration (adds tables only), audit coverage, flag (off by default in production), unit tests and an integration test with the other-club-sees-nothing case. Every task that adds or changes a page also adds or extends a Playwright test for it, so the e2e suite keeps catching breakage as features land. Rotation and scores (P4-033 to P4-038) depend only on Phase 1 and can be moved forward to straight after it.
+
+**Play layer**
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P4-033 (new) | `Match` aggregate (tenant, session, optional event, court number, team A / team B of 1–2 members, Queued / Playing / Finished) + `MatchScore` per game + tables | P1-001.1 | Unit tests reject a member on both teams and a third player on a team; isolation test passes |
+| P4-034 (new) | Club court count on the tenant (default 2), editable by an admin | P4-033 | `PUT /settings/courts` changes it; non-admin gets 403 |
+| P4-035 (new) | Check-in for a session: an admin marks who is at the hall (defaults to RSVP Yes) | P1-007 | `PUT /sessions/{id}/check-in` stores the present list; a member not in the club gets 400 |
+| P4-036 (new) | Rotation generator (pure Domain service): next round of doubles across the courts, longest sat-out first, fewest repeated partners | P4-033, P4-034, P4-035 | Property tests: nobody plays twice in a round; over 10 rounds of 9 players the sit-out gap is at most 1 |
+| P4-037 (new) | Rotation endpoints: generate the next round, start / finish a match, view the queue | P4-036 | `POST /sessions/{id}/rounds` creates Queued matches; `GET /sessions/{id}/queue` lists who plays next |
+| P4-038 (new) | Score entry: either team records game scores; the other team or an admin corrects them; each change audited | P4-037 | Score of 21–17 saved; outsider gets 403; correction writes an `AuditEvent` with the old value |
+| P4-039 (new) | Rotation + score UI at `/play`: court cards, "who plays next", score entry in two taps (frontend-design pass first) | P4-037, P4-038 | Playwright on a phone viewport: generate a round, enter a score, see the queue move |
+| P4-040 (new) | `PlayerRating` per member per club, Elo-style update when a match finishes (doubles: team average) | P4-038 | Unit tests: winners go up, losers go down, totals balanced; replaying the matches gives the same ratings |
+| P4-041 (new) | Hide-my-rating setting; leaderboard and profile show only ratings members chose to show | P4-040 | A hidden member's rating is missing from `GET /leaderboard` for others but present for themselves |
+| P4-042 (new) | Rotation option "balance by rating" (off by default) | P4-036, P4-040 | Property test: balanced rounds have a smaller average team-rating gap than unbalanced ones |
+| P4-043 (new) | Player stats: win / loss, best partner, head-to-head on the member profile | P4-038 | `GET /members/{id}/stats` matches hand-computed numbers for seeded matches |
+| P4-044 (new) | Badges and streaks: fixed set (consecutive Sundays, 10/25/50 sessions, paid on time, matches played), worked out from existing data | P1-011, P4-038 | `GET /members/{id}/badges` returns the expected set for a seeded history; the next session updates the streak |
+
+**Member extras**
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P4-045 (new) | Optional session capacity + waitlist: RSVPs over capacity are waitlisted in order | P1-007 | The 13th Yes on a 12-player session is waitlisted at position 1 |
+| P4-046 (new) | Waitlist promotion when someone drops out, with push to the promoted member | P4-045 | A Yes changed to No moves waitlist #1 to Yes and queues one push |
+| P4-047 (new) | `Poll` aggregate (single / multiple choice, closing time) + create / vote / results endpoints | P1-012 | One vote per member (changeable until close); votes after close get 400 |
+| P4-048 (new) | Poll UI next to announcements | P4-047 | Playwright: member votes and sees results; admin creates and closes a poll |
+| P4-049 (new) | Shared-cost tracker: who paid, amount, split across members; tracking only | P1-001.1 | `GET /costs/balances` totals match the seeded expenses; every entry audited |
+| P4-050 (new) | Carpool board per session: offer seats, claim / release a seat; closes when the session starts | P1-001.1 | A claim on a full ride gets 409; claims after start get 400 |
+| P4-051 (new) | Optional birthday (month + day, no year) on the member, removed when the member leaves the club | P0-036.4 | Field optional; leaving the club clears it |
+| P4-052 (new) | Shout-outs on the club wall: birthdays and milestones (50th session, new badge) | P4-023, P4-044, P4-051 | Seeded birthday shows a post on the day; no post for a member without a birthday |
+
+Already planned and not repeated: calendar export (P4-014), event reminders (P4-013), web push (Phase 1), chat (Phase 3). Tournaments (P4-005, P4-006) now build on the `Match` aggregate from P4-033.
+
 ---
 
 ## Sequencing notes
