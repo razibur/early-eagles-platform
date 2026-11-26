@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next"
 import { headers } from "next/headers"
 import { ClerkProvider } from "@clerk/nextjs"
 import { Big_Shoulders, Hanken_Grotesk } from "next/font/google"
+import { AnonymousApiProvider, ClerkApiProvider } from "@/components/providers/api-provider"
 import { ConsentHydrator } from "@/components/providers/consent-hydrator"
 import { QueryProvider } from "@/components/providers/query-provider"
 import { TenantProvider } from "@/components/providers/tenant-provider"
@@ -63,13 +64,17 @@ export default async function RootLayout({
   // than every page rendering without sign-in.
   const auth = authMode()
 
+  const Api = auth === "clerk" ? ClerkApiProvider : AnonymousApiProvider
   const app = (
     <TenantProvider slug={tenantSlug}>
       <QueryProvider>
-        <AppTopBar />
-        {children}
-        <SiteFooter />
-        <BottomNav />
+        {/* The API client: with the Clerk session token, or none without Clerk (P0-071.2). */}
+        <Api>
+          <AppTopBar />
+          {children}
+          <SiteFooter />
+          <BottomNav />
+        </Api>
       </QueryProvider>
     </TenantProvider>
   )
