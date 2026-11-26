@@ -611,6 +611,22 @@ everywhere rather than skipping sign-in.
 Check it by hand with the dev keys: `npm run build && npx next start`, then
 `curl -I http://localhost:3000/roster` → `307` to `/sign-in?redirect_url=…`.
 
+**Account menu (P0-039.5).** [`UserMenu`](../apps/web/components/shell/user-menu.tsx) only draws;
+[`ClerkUserMenu`](../apps/web/components/shell/clerk-user-menu.tsx) feeds it from `useUser()` and
+signs out with `useClerk().signOut({ redirectUrl: "/sign-in" })`. The top bar (a server component)
+calls `authMode()` to choose: Clerk hooks throw outside `ClerkProvider`, so a build without Clerk
+must never render `ClerkUserMenu`.
+
+⚠ **Gotcha — `user.imageUrl` is never empty.** Clerk returns a generated placeholder for users
+without a photo. Check `user.hasImage` first, or everyone gets Clerk's default avatar instead of
+their initials.
+
+⚠ **Gotcha — port 3000 may be taken.** Another local app (here an Open WebUI container) can hold
+`localhost:3000`, and the page you see is that app, not this one. Run `npm run dev -- --port 3002`
+and add the origin to the API: `dotnet user-secrets set "Clerk:AuthorizedParties:1"
+"http://localhost:3002" --project apps/api/src/EarlyEagles.Api`. Clerk's development instance
+accepts any localhost port.
+
 ⚠ **Gotcha — the API had no `UserSecretsId`.** `dotnet user-secrets set` fails with "Could not
 find the global property 'UserSecretsId'" until `dotnet user-secrets init` adds it to the
 `.csproj` (P0-039.1 did). The id isn't secret; the values live in
