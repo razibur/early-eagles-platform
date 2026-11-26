@@ -743,6 +743,19 @@ url.pathname === "/api/sessions", …)`) when a test needs a real card. Fix the 
 than guessing the new state. Dues are tracked, not collected: the member pays by Zelle outside the
 app, and the form only records that they did.
 
+**The admin's dues desk (P1-017).** [`/admin`](../apps/web/app/admin/page.tsx) is the first admin
+page. [`AdminGate`](../apps/web/components/admin/admin-gate.tsx) shows it only when `/me` says
+`tenantRole: "tenant-admin"`. That check is for the screen only: the security boundary stays in the
+API, which answers 403 to non-admins whatever the browser shows. The panel loads three weeks of
+sessions in parallel (last, this, next), because dues for Sunday arrive on Sunday and the days
+after. It opens on the latest session that has started, and confirm and send back each refetch
+`GET /sessions/{id}/payments`.
+
+⚠ **Gotcha — swap a stubbed route only after the first load.** A test that re-routes
+`/payments` to the "after" answer before the page has fetched the "before" one makes the page load
+the "after" list straight away, and the button the test wants never appears. Wait until the row is
+visible, then re-route, then click.
+
 ---
 
 ## 5. Backend — Clean Architecture solution

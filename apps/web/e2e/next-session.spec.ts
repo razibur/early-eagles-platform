@@ -4,9 +4,11 @@ import {
   describeSession,
   isSessionList,
   isoWeekAfter,
+  isoWeekBefore,
   isoWeekOf,
   nextSession,
   recount,
+  sessionToSettle,
   type SessionSummary,
 } from "../lib/sessions/next-session"
 
@@ -77,5 +79,26 @@ test.describe("next session helpers", () => {
     expect(recount(counts, null, "Yes")).toEqual({ yes: 4, no: 1, maybe: 2 })
     expect(recount(counts, "Maybe", "No")).toEqual({ yes: 3, no: 2, maybe: 1 })
     expect(recount(counts, "Yes", "Yes")).toBe(counts)
+  })
+
+  test("the week before crosses a year boundary", () => {
+    expect(isoWeekBefore(new Date(2027, 0, 4))).toBe("2026-W53")
+  })
+
+  test("the session to settle is the latest that started, not cancelled", () => {
+    const list = [
+      session("last-week", "2026-11-22"),
+      session("this-week", "2026-11-29"),
+      session("next-week", "2026-12-06"),
+      session("off", "2026-11-26", "07:00:00", "Cancelled"),
+    ]
+    expect(sessionToSettle(list, new Date(2026, 10, 30))?.id).toBe("this-week")
+    expect(sessionToSettle(list, new Date(2026, 10, 29, 7, 0))?.id).toBe("this-week")
+    expect(sessionToSettle(list, new Date(2026, 10, 27))?.id).toBe("last-week")
+  })
+
+  test("before any session has started, the next one is settled", () => {
+    expect(sessionToSettle([session("b", "2026-12-06"), session("a", "2026-11-29")], new Date(2026, 10, 1))?.id).toBe("a")
+    expect(sessionToSettle([], new Date())).toBeUndefined()
   })
 })
