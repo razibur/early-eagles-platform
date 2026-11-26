@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Menu as MenuPrimitive } from "@base-ui/react/menu"
-import { IdCard, LogIn, LogOut, Settings, UserRound } from "lucide-react"
+import { ClipboardCheck, IdCard, LogIn, LogOut, Settings, UserRound } from "lucide-react"
 
 import {
   DropdownMenu,
@@ -32,11 +32,14 @@ export function UserMenu({
   account,
   onSignOut,
   signInHref,
+  adminHref,
 }: {
   account?: MenuAccount | null
   onSignOut?: () => void
   /** Where "Sign in" goes; without it sign-in is shown as unavailable. */
   signInHref?: string
+  /** The admin home, passed only for this club's admins (P1-035). */
+  adminHref?: string
 }) {
   return (
     <DropdownMenu>
@@ -71,6 +74,12 @@ export function UserMenu({
               </span>
             </DropdownMenuItem>
           ))}
+        {account && adminHref && (
+          <MenuPrimitive.LinkItem render={<Link href={adminHref} />} className={linkItemClass}>
+            <ClipboardCheck aria-hidden />
+            Club desk
+          </MenuPrimitive.LinkItem>
+        )}
         {account && (
           <MenuPrimitive.LinkItem render={<Link href="/account" />} className={linkItemClass}>
             <IdCard aria-hidden />

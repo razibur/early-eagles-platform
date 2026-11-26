@@ -554,7 +554,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▰▰▰▰▰▱▱▱▱▱  ~60% (27 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▰▰▰▰▰▱▱▱▱▱  ~62% (28 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -627,7 +627,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
 - `[ ]` **P1-032** Member `/` landing (ADR-0004): RSVP-first hero, dues status, attendance, latest announcement
 - `[ ]` **P1-033** Admin `/admin` (ADR-0004): RSVP grid, unpaid list, announcement composer
 - `[ ]` **P1-034** Move the chart dashboard from `/` to `/insights` (admin only)
-- `[ ]` **P1-035** Redirect tenant admins to `/admin` after sign-in
+- `[x]` **P1-035** Redirect tenant admins to `/admin` after sign-in
+  ↳ verify: `npm --workspace web run test:e2e`: [`role-landing.spec.ts`](./apps/web/e2e/role-landing.spec.ts) (5 × 3 widths with `/me` stubbed, + 2 pure). Decided in [ADR-0017](./docs/adr/0017-role-landing-after-sign-in-via-api.md), which refines ADR-0004's login flow. Clerk's after-sign-in fallback is now [`/welcome`](./apps/web/app/welcome/page.tsx) ([`RoleLanding`](./apps/web/components/auth/role-landing.tsx)): it asks a fresh `/me` and replaces itself with `/admin` for `tenant-admin` and `/` for anyone else, or on any error (`landingFor`). A sign-in with its own `redirect_url` still goes back there. `/` itself is never redirected, so admins keep their RSVP card. The account menu shows **Club desk** to admins (from `/me`), and signing out clears the cached API answers. A non-admin on `/admin` sees a message, not a redirect. Mutation-checked (landing rule). The signed-in menu link and the real Clerk round trip are checked by hand, like the rest of the signed-in menu.
 - `[x]` **P1-023** PWA install prompt card
   ↳ verify: `npm --workspace web run test:e2e`: [`install-card.spec.ts`](./apps/web/e2e/install-card.spec.ts) (9 tests × 3 widths). [`InstallCard`](./apps/web/components/pwa/install-card.tsx) waits for the cookie decision, offers Chrome's prompt through its own button, and explains the Share menu on iOS, which has no install API. Shown once per device: [`install-offer.ts`](./apps/web/lib/pwa/install-offer.ts) records `ee-install-card` when the card appears, so ignoring it counts. Nothing shows once installed. Simulated only: the tests fire `beforeinstallprompt` by hand and fake an iPhone user agent, so a real install on an Android phone and an iPhone is still to do (P1-024). **Known limits:** Safari can clear site storage after 7 days without a visit, so an iPhone may be asked again; on a phone the card covers the footer's Cookie settings link until it's answered. Not flagged: the web app has no flag system yet and this is app chrome, like the cookie banner. Mutation-checked (cookie wait, once-per-device check, recording the showing, standalone check, Chrome's bar suppressed).
 - `[ ]` **P1-024** Mobile responsive QA pass
