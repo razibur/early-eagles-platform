@@ -708,6 +708,20 @@ on every call (Clerk caches it and refreshes it before its 60 s expiry) and send
 details, so a page can tell 401 (signed out), 403 (not allowed in this club) and 404 apart. The root
 layout mounts `ClerkApiProvider` when Clerk is on and `AnonymousApiProvider` (no token) otherwise.
 
+**First page on it (P0-071.3).** [`/account`](../apps/web/app/account/page.tsx) asks `/whoami` and
+`/me` and shows the club, your role in it and your Clerk user id. It's the pattern every Phase 1
+page follows: a client component, `useQuery` with `useApiFetch`, and a message per `ApiError.status`
+instead of a generic error.
+
+To see it with a real session: sign in at `http://early-eagles.localhost:3002` (a different host
+from `localhost:3002`, so Clerk asks again) and open `/account`. The API must allow that origin:
+`dotnet user-secrets set "Clerk:AuthorizedParties:2" "http://early-eagles.localhost:3002" --project
+apps/api/src/EarlyEagles.Api`, then restart the API (allowed origins are read at startup).
+
+⚠ **Gotcha — a seeded club has no Clerk organization.** `--seed` creates `early-eagles` without a
+`ClerkOrganizationId`, so `/me` gives everyone `tenantRole: null` there ("Not a member of this club
+yet"). Roles appear once the club is linked to a Clerk organization through the webhook (P0-036).
+
 ---
 
 ## 5. Backend — Clean Architecture solution

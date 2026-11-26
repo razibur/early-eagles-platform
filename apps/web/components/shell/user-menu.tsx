@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Menu as MenuPrimitive } from "@base-ui/react/menu"
-import { LogIn, LogOut, Settings, UserRound } from "lucide-react"
+import { IdCard, LogIn, LogOut, Settings, UserRound } from "lucide-react"
 
 import {
   DropdownMenu,
@@ -71,6 +71,12 @@ export function UserMenu({
               </span>
             </DropdownMenuItem>
           ))}
+        {account && (
+          <MenuPrimitive.LinkItem render={<Link href="/account" />} className={linkItemClass}>
+            <IdCard aria-hidden />
+            Account
+          </MenuPrimitive.LinkItem>
+        )}
         <MenuPrimitive.LinkItem render={<Link href="/settings" />} className={linkItemClass}>
           <Settings aria-hidden />
           Settings
