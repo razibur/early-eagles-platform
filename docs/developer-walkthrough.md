@@ -722,6 +722,21 @@ apps/api/src/EarlyEagles.Api`, then restart the API (allowed origins are read at
 `ClerkOrganizationId`, so `/me` gives everyone `tenantRole: null` there ("Not a member of this club
 yet"). Roles appear once the club is linked to a Clerk organization through the webhook (P0-036).
 
+**First Phase 1 surface (P1-014).** The "This Sunday" card at the top of `/`
+([`this-sunday-card.tsx`](../apps/web/components/home/this-sunday-card.tsx)) follows the same pattern.
+The API lists one ISO week at a time and leaves "this week" to the device, so the card asks for this
+week (`isoWeekOf(now)`), then next week if every session in this week has already started. It shows
+the earliest session still to come, cancelled ones included, then reads `GET /sessions/{id}` for the
+tally and your own answer. A tap sends `PUT /sessions/{id}/rsvp` and updates the card straight away
+(optimistic). A refusal puts the old answer back; 409 means answers are closed. The date maths is in
+[`lib/sessions/next-session.ts`](../apps/web/lib/sessions/next-session.ts), as pure functions.
+
+⚠ **Gotcha — `/` calls the API in every browser test.** Specs that don't stub `/api/sessions` get the
+echo API's JSON object instead of a list. `isSessionList` treats that as an error, so the card shows
+"Couldn't reach the club right now." instead of crashing. Stub the route (`page.route(url =>
+url.pathname === "/api/sessions", …)`) when a test needs a real card. Fix the clock with
+`page.clock.setFixedTime`, not `install`, so animations and TanStack timers keep running.
+
 ---
 
 ## 5. Backend — Clean Architecture solution

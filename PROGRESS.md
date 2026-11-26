@@ -554,7 +554,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▰▰▰▰▰▱▱▱▱▱  ~53% (24 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▰▰▰▰▰▱▱▱▱▱  ~56% (25 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -613,7 +613,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
 **Needs an account, a device or Phase 0 frontend work**
 
 - `[ ]` **P1-004.2** Invite the real Early Eagles members through Clerk (P0-006)
-- `[ ]` **P1-014** "This Sunday" home card with RSVP buttons
+- `[x]` **P1-014** "This Sunday" home card with RSVP buttons
+  ↳ verify: `npm --workspace web run test:e2e`: [`this-sunday.spec.ts`](./apps/web/e2e/this-sunday.spec.ts) (10 × 3 widths, API stubbed, clock fixed) + [`next-session.spec.ts`](./apps/web/e2e/next-session.spec.ts) (8, pure). [`ThisSundayCard`](./apps/web/components/home/this-sunday-card.tsx) sits at the top of `/`, above the sample charts until P1-034. It asks `GET /sessions?week=` for this ISO week on the device's clock, then next week once this week's sessions have started, and shows the earliest one still to come (cancelled ones as "Called off"). It reads `GET /sessions/{id}` for the date, time, venue, fee, the In / Maybe / Out tally and your answer. Three buttons (`aria-pressed`) send `PUT /sessions/{id}/rsvp` with an optimistic update; a refusal restores the old answer, and 409 says answers are closed. 401, 403, 404 (flag off or no club) and other errors each get their own message. Not flagged in the web app (no web flag system yet); the API's `sessions` flag answers 404, which the card explains. Mutation-checked (start-time boundary). Not yet tried with a real member: the seeded club has no Clerk organization, so a real account is not a member there.
 - `[ ]` **P1-015** Week navigator ("Wednesday, January 1, 2025"; forward arrow greyed at today)
 - `[ ]` **P1-016** Payment self-report form
 - `[ ]` **P1-017** Admin payment-confirm UI (one click per member per session)

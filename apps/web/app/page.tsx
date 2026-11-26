@@ -6,6 +6,7 @@ import { RevealStack, RevealItem } from "@/components/editorial/reveal"
 import { AttendanceBarChart } from "@/components/charts/attendance-bar-chart"
 import { DuesLineChart } from "@/components/charts/dues-line-chart"
 import { MemberGrowthAreaChart } from "@/components/charts/member-growth-area-chart"
+import { ThisSundayCard } from "@/components/home/this-sunday-card"
 
 export default function DashboardPage() {
   return (
@@ -13,6 +14,11 @@ export default function DashboardPage() {
       <RevealStack className="flex flex-col gap-12 md:gap-16">
         <RevealItem as="header">
           <Masthead edition="Match Day · 24.05.26" />
+        </RevealItem>
+
+        {/* P1-014: the next session and your answer, ahead of the sample charts (P1-034 moves them) */}
+        <RevealItem as="section">
+          <ThisSundayCard />
         </RevealItem>
 
         {/* Hero strip — the week at a glance */}
