@@ -1022,6 +1022,14 @@ P1-001.4, P1-012, P1-012.2, P1-012.3, P1-013, P1-004.1. The web pages follow onc
 - **"Attended" (P1-011):** an RSVP Yes on a session that has started and wasn't cancelled. No-shows
   count. Admin check-in stays open as a later upgrade.
 
+### Clerk in the web app — P0-039 additions (2026-11-25)
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-039.5 (new) | Top-bar account menu shows the signed-in Clerk user (name, email, photo or initials) and signs out to `/sign-in`; signed out it links to sign-in; builds without Clerk show a guest with sign-in unavailable | P0-039.2, P0-039.3 | Signed in: name + Sign out in the menu, Sign out lands on `/sign-in`; e2e covers the no-Clerk menu |
+
+P0-039 also added `EE_AUTH_DISABLED=1` (CI and Playwright only): without it a missing Clerk key stops every page instead of serving them unauthenticated. See walkthrough §4.11.
+
 ---
 
 ## Sequencing notes
