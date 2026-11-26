@@ -92,3 +92,19 @@ export function recount(counts: SessionDetails["rsvpCounts"], from: RsvpAnswer |
 function key(answer: RsvpAnswer): keyof SessionDetails["rsvpCounts"] {
   return answer === "Yes" ? "yes" : answer === "No" ? "no" : "maybe"
 }
+
+/** The ISO week seven days before `date`. */
+export function isoWeekBefore(date: Date): string {
+  return isoWeekOf(new Date(date.getFullYear(), date.getMonth(), date.getDate() - 7))
+}
+
+/**
+ * The session an admin most likely wants to settle dues for (P1-017): the
+ * latest one that has started and wasn't cancelled, since payments arrive on
+ * and after the day; before any has started, the next one to come.
+ */
+export function sessionToSettle<T extends SessionSummary>(sessions: readonly T[], now: Date): T | undefined {
+  const live = [...sessions].filter((s) => s.status !== "Cancelled").sort((a, b) => startOf(a).getTime() - startOf(b).getTime())
+  const started = live.filter((s) => startOf(s).getTime() <= now.getTime())
+  return started.at(-1) ?? live[0]
+}
