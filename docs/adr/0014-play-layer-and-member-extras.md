@@ -1,6 +1,6 @@
 # ADR-0014: Add a play layer (game rotation, scores, ratings) and small member extras
 
-- **Status:** Accepted
+- **Status:** Accepted (rotation part superseded by [ADR-0015](./0015-court-groups-set-by-admin.md))
 - **Date:** 2026-11-25
 - **Deciders:** Project owner (Moh. Razib)
 - **Related docs:** [`Implementation-Plan.md`](../../Implementation-Plan.md) appendix "Play layer and member extras (2026-11-25)", P4-033 to P4-052, [ADR-0004](./0004-role-based-landing-and-routing.md), [ADR-0005](./0005-light-social-layer.md)
