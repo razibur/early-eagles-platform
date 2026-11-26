@@ -694,6 +694,20 @@ forwarded (path, query, method, body, `Authorization`, forwarded host, key) with
 src/EarlyEagles.Api` fails with "doesn't reference Microsoft.EntityFrameworkCore.Design"; use
 `--startup-project src/EarlyEagles.Infrastructure` (it has the design-time factory).
 
+**The client (P0-071.2).** Components never call `fetch` for API data directly. They take the client
+from `useApiFetch()` and use it inside TanStack Query:
+
+```tsx
+const apiFetch = useApiFetch()
+const me = useQuery({ queryKey: ["me"], queryFn: () => apiFetch<Me>("/me") })
+```
+
+[`createApiFetch`](../apps/web/lib/api/client.ts) prefixes `/api`, asks Clerk for the session token
+on every call (Clerk caches it and refreshes it before its 60 s expiry) and sends it as
+`Authorization: Bearer …`. A non-2xx answer throws `ApiError` with `status` and the API's problem
+details, so a page can tell 401 (signed out), 403 (not allowed in this club) and 404 apart. The root
+layout mounts `ClerkApiProvider` when Clerk is on and `AnonymousApiProvider` (no token) otherwise.
+
 ---
 
 ## 5. Backend — Clean Architecture solution
