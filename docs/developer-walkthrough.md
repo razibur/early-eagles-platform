@@ -657,6 +657,42 @@ it). Log events: **1700** key missing/wrong, **1701** key right but no valid for
 ⚠ **Gotcha — don't host the API at `api.earlyeagles.club`.** The subdomain parser reads any single
 label under a club domain as a club, so that host means "the club called api" (404 in Production).
 Use the Container Apps name or a host outside the club domains.
+**Web side (P0-071.5).** [`proxy.ts`](../apps/web/proxy.ts) sends every `/api/*` request to
+[`lib/api/forwarding.ts`](../apps/web/lib/api/forwarding.ts): `/api/<path>?<query>` →
+`<EE_API_ORIGIN>/<path>?<query>`, keeping the browser's headers (including `Authorization`) and
+setting `X-Forwarded-Host` to the address the browser called and `X-EE-Proxy-Key` to the key. A copy
+of either sent by the browser is replaced. `/api/*` skips Clerk's sign-in redirect: the API is the
+authority and answers 401 itself, which is what `fetch()` wants rather than an HTML sign-in page.
+Missing settings → **503** problem JSON, never a half-working call.
+
+| Web setting (`apps/web/.env.local`, Vercel env) | Value |
+|---|---|
+| `EE_API_ORIGIN` | the API's bare origin: `http://localhost:5174` locally, the Container Apps URL in Azure |
+| `EE_API_PROXY_KEY` | the same value as the API's `TrustedProxy:Key`. Server-only (no `NEXT_PUBLIC_`) |
+
+**Run it locally end to end.**
+
+```bash
+docker compose up -d postgres
+export ConnectionStrings__Postgres="Host=localhost;Port=55432;Database=earlyeagles;Username=postgres;Password=postgres"
+(cd apps/api && dotnet ef database update --project src/EarlyEagles.Infrastructure --startup-project src/EarlyEagles.Infrastructure)
+(cd apps/api && dotnet run --project src/EarlyEagles.Api -- --seed)     # Tenant 0, early-eagles
+(cd apps/api && dotnet run --project src/EarlyEagles.Api --launch-profile http)   # :5174
+npm run dev --workspace web -- --port 3002
+curl -H "Host: early-eagles.localhost:3002" http://localhost:3002/api/whoami
+# {"tenantId":"e0000000-…","slug":"early-eagles"}
+```
+
+The API also needs `ConnectionStrings:Postgres` in its user-secrets (or the env var above) when run
+with `dotnet run`.
+
+**Browser tests.** Playwright starts [`e2e/fixtures/echo-api.mjs`](../apps/web/e2e/fixtures/echo-api.mjs)
+on :3299 and points `EE_API_ORIGIN` at it, so `e2e/api-forwarding.spec.ts` checks exactly what was
+forwarded (path, query, method, body, `Authorization`, forwarded host, key) without a real API.
+
+⚠ **Gotcha — the EF tools need the Infrastructure project as startup project.** `dotnet ef … --startup-project
+src/EarlyEagles.Api` fails with "doesn't reference Microsoft.EntityFrameworkCore.Design"; use
+`--startup-project src/EarlyEagles.Infrastructure` (it has the design-time factory).
 
 ---
 

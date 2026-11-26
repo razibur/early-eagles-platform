@@ -1,5 +1,7 @@
 import { defineConfig } from "@playwright/test"
 
+import { E2E_PROXY_KEY, ECHO_API_PORT } from "./e2e/fixtures/echo-api-settings"
+
 // Browser tests for the web app (P0-070.4). Run against a production build
 // (`next build` + `next start`), not the dev server: dev adds its own overlay
 // and indicator to the page and compiles routes on first hit.
@@ -28,13 +30,26 @@ export default defineConfig({
     { name: "tablet", use: { viewport: { width: 768, height: 1024 }, deviceScaleFactor: 2, hasTouch: true } },
     { name: "desktop", use: { viewport: { width: 1280, height: 800 } } },
   ],
-  webServer: {
-    command: `npm run build && npx next start --port ${port}`,
-    url: `http://localhost:${port}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-    // No Clerk instance here (P0-039.1): run the build without sign-in, even
-    // when apps/web/.env.local holds real keys. Process env beats .env files.
-    env: { EE_AUTH_DISABLED: "1" },
-  },
+  webServer: [
+    {
+      command: `npm run build && npx next start --port ${port}`,
+      url: `http://localhost:${port}`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      // No Clerk instance here (P0-039.1): run the build without sign-in, even
+      // when apps/web/.env.local holds real keys. Process env beats .env files.
+      // /api/* goes to the echo API below instead of a real one (P0-071.5).
+      env: {
+        EE_AUTH_DISABLED: "1",
+        EE_API_ORIGIN: `http://127.0.0.1:${ECHO_API_PORT}`,
+        EE_API_PROXY_KEY: E2E_PROXY_KEY,
+      },
+    },
+    {
+      // Stand-in API that echoes what it receives (e2e/fixtures/echo-api.mjs).
+      command: `node e2e/fixtures/echo-api.mjs ${ECHO_API_PORT}`,
+      url: `http://127.0.0.1:${ECHO_API_PORT}/__ready`,
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
 })
