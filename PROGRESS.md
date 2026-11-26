@@ -645,7 +645,7 @@ In-app chat via SignalR. Per-tenant rooms, DMs, message history, basic moderatio
 
 ## Phase 4 — Events + guests + Club photo wall  ▱▱▱▱▱▱▱▱▱▱  0%
 
-Picnic / fishing / tournament events, family RSVP, guest signup, event photo gallery, plus the **club-wide photo wall**, **reactions on photos**, and **announcement comments** added by ADR-0005. Also the place where the role-based landing pages from [ADR-0004](./docs/adr/0004-role-based-landing-and-routing.md) get their `/wall` route. Plus the **play layer** from [ADR-0014](./docs/adr/0014-play-layer-and-member-extras.md) (game rotation, scores, ratings, badges) and **member extras** (waitlist, polls, shared costs, carpool, shout-outs), P4-033 to P4-052. ~52 tasks. Detail: [Implementation-Plan §Phase 4](./Implementation-Plan.md#phase-4--events--guests).
+Picnic / fishing / tournament events, family RSVP, guest signup, event photo gallery, plus the **club-wide photo wall**, **reactions on photos**, and **announcement comments** added by ADR-0005. Also the place where the role-based landing pages from [ADR-0004](./docs/adr/0004-role-based-landing-and-routing.md) get their `/wall` route. Plus the **play layer** from [ADR-0014](./docs/adr/0014-play-layer-and-member-extras.md) (scores, ratings, badges), **court groups** from [ADR-0015](./docs/adr/0015-court-groups-set-by-admin.md) (admin-published "who is on which court" with a court picture on the member home) and **member extras** (waitlist, polls, shared costs, carpool, shout-outs), P4-033 to P4-060. ~55 tasks. Detail: [Implementation-Plan §Phase 4](./Implementation-Plan.md#phase-4--events--guests).
 
 ## Phase 5 — AI Coach  ▱▱▱▱▱▱▱▱▱▱  0%
 

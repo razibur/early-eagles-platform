@@ -1066,6 +1066,33 @@ Added by [ADR-0014](./docs/adr/0014-play-layer-and-member-extras.md). Each task 
 
 Already planned and not repeated: calendar export (P4-014), event reminders (P4-013), web push (Phase 1), chat (Phase 3). Tournaments (P4-005, P4-006) now build on the `Match` aggregate from P4-033.
 
+### Court groups (2026-11-26)
+
+Added by [ADR-0015](./docs/adr/0015-court-groups-set-by-admin.md), which replaces ADR-0014's live rotation with court groups the admin publishes before the session. Same rules as the block above: migration, audit, flag, unit and integration tests (other club sees nothing), and a Playwright test for every page. P4-053 to P4-058 depend only on Phase 1 and can be moved to straight after it.
+
+**Changes to the play-layer rows** (originals above are left as written):
+
+| ID | Change |
+|---|---|
+| P4-034 | **Reworded**: the tenant setting is `maxPerCourt` (default 6), not a fixed court count. Courts per session are worked out by P4-053. |
+| P4-035, P4-036, P4-037, P4-039 | **Dropped**: no check-in, live rotation, queue or `/play` rotation UI. |
+| P4-038 | **Reworded**: a member records a match by picking 2–4 club members and the score; no dependency on rotation. Depends on P4-033. |
+| P4-042 | **Dropped**: balancing by rating moves into the court-group draft as P4-060. |
+| P4-033 | Unchanged, but `Match.court_number` is optional (players may move courts at the hall). |
+
+**New rows**
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P4-053 (new) | Courts to book: `max(1, floor(yes / maxPerCourt))` and flex count for a session; shown on the admin home as "Book N courts" | P1-007, P4-034 | Unit tests: 5 Yes → 1 court, 0 flex; 31 → 5 courts, 1 flex; 35 → 5 courts, 5 flex; the admin home shows the live number |
+| P4-054 (new) | `CourtAssignment` aggregate: session, courts (number → up to `maxPerCourt` members), flex list, Draft / Published + table | P1-001.2, P4-053 | Unit tests reject a member twice, a non-Yes member and a court over `maxPerCourt`; isolation test passes |
+| P4-055 (new) | Draft generator (pure Domain service): spread Yes players evenly over the courts, leftovers to flex, fewest repeats of last week's groups | P4-054 | Property tests: every Yes player placed exactly once; no court over the limit; groups differ from last week where possible |
+| P4-056 (new) | Admin endpoints: generate draft, move a player between courts / flex, publish; every change audited | P4-055 | `POST /sessions/{id}/courts/draft`, `PUT …/courts/move`, `POST …/courts/publish` work; member gets 403; each call writes an `AuditEvent` |
+| P4-057 (new) | Admin court board at `/admin/courts`: "Book N courts", the draft, move players (tap or drag), publish (frontend-design pass first) | P4-056 | Playwright: generate, move a player to another court, publish; phone viewport works |
+| P4-058 (new) | Member court picture on `/`: top-down courts with names, my court highlighted, flex list "play on any court with a free spot"; hidden until published (frontend-design pass first) | P4-056, P1-032 | Playwright: a member sees their court highlighted after publish and a "not published yet" state before |
+| P4-059 (new) | Notifications: push "You're on Court N" on publish; after publishing, an RSVP change alerts the admin; republishing pushes only to members whose court changed | P4-056 | Integration test: publish queues one push per placed member; moving one player and republishing queues pushes for that player only |
+| P4-060 (new) | Draft option "balance by rating" (off by default) | P4-055, P4-040 | Property test: balanced drafts have a smaller gap in average court rating than unbalanced ones |
+
 ---
 
 ## Sequencing notes
