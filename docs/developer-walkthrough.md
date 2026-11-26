@@ -737,6 +737,12 @@ echo API's JSON object instead of a list. `isSessionList` treats that as an erro
 url.pathname === "/api/sessions", …)`) when a test needs a real card. Fix the clock with
 `page.clock.setFixedTime`, not `install`, so animations and TanStack timers keep running.
 
+**Dues on the card (P1-016).** [`DuesStrip`](../apps/web/components/home/dues-strip.tsx) reads
+`myPayment` from the same `GET /sessions/{id}` answer, so it needs no extra request. Reporting posts
+`{ senderName, reference }` to `/sessions/{id}/payment-report` and then refetches the session rather
+than guessing the new state. Dues are tracked, not collected: the member pays by Zelle outside the
+app, and the form only records that they did.
+
 ---
 
 ## 5. Backend — Clean Architecture solution

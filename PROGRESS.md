@@ -554,7 +554,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▰▰▰▰▰▱▱▱▱▱  ~56% (25 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▰▰▰▰▰▱▱▱▱▱  ~58% (26 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -616,7 +616,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
 - `[x]` **P1-014** "This Sunday" home card with RSVP buttons
   ↳ verify: `npm --workspace web run test:e2e`: [`this-sunday.spec.ts`](./apps/web/e2e/this-sunday.spec.ts) (10 × 3 widths, API stubbed, clock fixed) + [`next-session.spec.ts`](./apps/web/e2e/next-session.spec.ts) (8, pure). [`ThisSundayCard`](./apps/web/components/home/this-sunday-card.tsx) sits at the top of `/`, above the sample charts until P1-034. It asks `GET /sessions?week=` for this ISO week on the device's clock, then next week once this week's sessions have started, and shows the earliest one still to come (cancelled ones as "Called off"). It reads `GET /sessions/{id}` for the date, time, venue, fee, the In / Maybe / Out tally and your answer. Three buttons (`aria-pressed`) send `PUT /sessions/{id}/rsvp` with an optimistic update; a refusal restores the old answer, and 409 says answers are closed. 401, 403, 404 (flag off or no club) and other errors each get their own message. Not flagged in the web app (no web flag system yet); the API's `sessions` flag answers 404, which the card explains. Mutation-checked (start-time boundary). Not yet tried with a real member: the seeded club has no Clerk organization, so a real account is not a member there.
 - `[ ]` **P1-015** Week navigator ("Wednesday, January 1, 2025"; forward arrow greyed at today)
-- `[ ]` **P1-016** Payment self-report form
+- `[x]` **P1-016** Payment self-report form
+  ↳ verify: `npm --workspace web run test:e2e`: [`dues-strip.spec.ts`](./apps/web/e2e/dues-strip.spec.ts) (7 × 3 widths, API stubbed). [`DuesStrip`](./apps/web/components/home/dues-strip.tsx) sits under the RSVP buttons on the "This Sunday" card and shows your dues for that session: not paid yet, reported (waiting for the admin), paid, or not confirmed with the admin's reason. "I've paid" (or "Report again" after a rejection) opens a two-field form, name on the transfer and Zelle reference (both required, trimmed, 100 characters max like the API), sent to `POST /sessions/{id}/payment-report`; the card then refetches. A 409 or 400 keeps the form open with a reason. The amount shown is the one reported, not today's fee. Free and cancelled sessions show no dues. Mutation-checked (trimming).
 - `[ ]` **P1-017** Admin payment-confirm UI (one click per member per session)
 - `[ ]` **P1-018** Member roster page
 - `[ ]` **P1-019** Leaderboard page (sortable, three metrics)

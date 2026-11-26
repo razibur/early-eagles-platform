@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useId, useState } from "react"
 
+import { DuesStrip } from "@/components/home/dues-strip"
 import { useApiFetch } from "@/components/providers/api-provider"
 import { ApiError, type ApiFetch } from "@/lib/api/client"
 import {
@@ -22,6 +23,7 @@ import { cn } from "@/lib/utils"
 // fixture card, with the member's answer one tap away. Reads
 // GET /sessions?week= (this week, then next week once this week's sessions
 // have started) and GET /sessions/{id}; answers with PUT /sessions/{id}/rsvp.
+// Dues for the session sit underneath (DuesStrip, P1-016).
 
 const NEXT_KEY = ["sessions", "next"] as const
 const detailsKey = (id: string) => ["sessions", id] as const
@@ -201,6 +203,8 @@ function Fixture({ session }: { session: SessionDetails }) {
           </p>
         </div>
       )}
+
+      <DuesStrip session={session} queryKey={detailsKey(session.id)} />
     </article>
   )
 }

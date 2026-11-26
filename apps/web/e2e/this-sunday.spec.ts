@@ -68,7 +68,7 @@ test("shows this week's Sunday with the tally and the three answers", async ({ p
   await expect(card.getByText("This Sunday")).toBeVisible()
   await expect(card.getByText("7:00 AM")).toBeVisible()
   await expect(card.getByText("Eastside Rec Center")).toBeVisible()
-  await expect(card.getByText("$15")).toBeVisible()
+  await expect(card.getByText("$15", { exact: true })).toBeVisible()
   await expect(card.getByText("12", { exact: true })).toBeVisible()
   await expect(card.getByText("Are you playing?")).toBeVisible()
   for (const name of [/I'm in/, /Maybe/, /Can't make it/]) {
