@@ -1093,6 +1093,15 @@ Added by [ADR-0015](./docs/adr/0015-court-groups-set-by-admin.md), which replace
 | P4-059 (new) | Notifications: push "You're on Court N" on publish; after publishing, an RSVP change alerts the admin; republishing pushes only to members whose court changed | P4-056 | Integration test: publish queues one push per placed member; moving one player and republishing queues pushes for that player only |
 | P4-060 (new) | Draft option "balance by rating" (off by default) | P4-055, P4-040 | Property test: balanced drafts have a smaller gap in average court rating than unbalanced ones |
 
+### Calling the API — P0-071 additions (2026-11-26)
+
+Decided in [ADR-0016](./docs/adr/0016-web-forwards-api-calls-same-origin.md): the browser calls `/api/*` on the club's own address and the web app forwards it. Two tasks come before P0-071.2:
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-071.4 (new) | API: `ForwardedTenantHostMiddleware` + `TrustedProxy:Key`; the forwarded host is believed only with the key | P0-031 | Right key → club resolved; wrong / missing key → ignored (400 in Production) |
+| P0-071.5 (new) | Web: `proxy.ts` forwards `/api/*` to the API origin with `X-Forwarded-Host` and the key; signed-out calls get 401, not a sign-in page | P0-071.4, P0-039.4 | `/api/whoami` on a club host returns that club |
+
 ---
 
 ## Sequencing notes

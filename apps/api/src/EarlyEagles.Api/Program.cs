@@ -33,6 +33,16 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddExceptionHandling();
 builder.Services.AddClerkAuthentication();
 builder.Services.AddTransient<TenantResolutionMiddleware>();
+
+// The web app's /api/* forwarding (P0-071.4, ADR-0016): optional, but a key
+// that is set must be long enough, or the API refuses to start.
+builder.Services.AddOptions<TrustedProxyOptions>()
+    .Bind(builder.Configuration.GetSection(TrustedProxyOptions.SectionName))
+    .Validate(
+        options => string.IsNullOrEmpty(options.Key) || TrustedProxyOptions.IsValidKey(options.Key),
+        $"{TrustedProxyOptions.SectionName}:{nameof(TrustedProxyOptions.Key)} must be at least {TrustedProxyOptions.MinimumKeyLength} characters with no whitespace.")
+    .ValidateOnStart();
+builder.Services.AddTransient<ForwardedTenantHostMiddleware>();
 builder.Services.AddTransient<TelemetryEnrichmentMiddleware>();
 builder.Services.AddScoped<ClerkWebhookDispatcher>();
 builder.Services.AddScoped<StripeWebhookDispatcher>();
@@ -90,6 +100,9 @@ app.UseHttpsRedirection();
 // ITenantContext having been populated for subdomain-bearing requests. In
 // Production a missing subdomain -> 400 and an unknown slug -> 404 (P0-031.3);
 // outside Production misses pass through unresolved for dev-host convenience.
+// A request forwarded by the web app carries the club's address in
+// X-Forwarded-Host, believed only with the shared proxy key (ADR-0016).
+app.UseMiddleware<ForwardedTenantHostMiddleware>();
 app.UseMiddleware<TenantResolutionMiddleware>();
 
 // Clerk session tokens (P0-035.2). Before telemetry enrichment, which tags

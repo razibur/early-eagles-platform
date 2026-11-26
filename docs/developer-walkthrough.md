@@ -635,6 +635,29 @@ find the global property 'UserSecretsId'" until `dotnet user-secrets init` adds 
 ⚠ **Gotcha — process env beats `.env.local`.** The Playwright web server sets
 `EE_AUTH_DISABLED=1` itself, so the browser tests run without sign-in even on a machine whose
 `.env.local` holds real keys.
+### 4.12 Calling the API — same-origin `/api/*` (P0-071, ADR-0016)
+
+The API reads the club from the host name, and in production the web app (Vercel) and the API
+(Container Apps) live on different hosts. So the browser never calls the API directly: it calls
+`/api/<path>` on the club's own address, and the web app forwards that to `<API origin>/<path>`
+([ADR-0016](./adr/0016-web-forwards-api-calls-same-origin.md)).
+
+**API side (P0-071.4).** [`ForwardedTenantHostMiddleware`](../apps/api/src/EarlyEagles.Api/Tenancy/ForwardedTenantHostMiddleware.cs)
+runs just before tenant resolution. When the request carries `X-EE-Proxy-Key` equal to
+`TrustedProxy:Key` (constant-time compare), it sets `Request.Host` to the `X-Forwarded-Host` the web
+app sent, so tenant resolution finds the club. Without the key, with a wrong one, or with no key
+configured, the forwarded host is ignored. Only one DNS name, optionally with a port, is accepted:
+no lists, no IP literals. The key header is removed from every request (logs and handlers never see
+it). Log events: **1700** key missing/wrong, **1701** key right but no valid forwarded host.
+
+| Setting | Where |
+|---|---|
+| `TrustedProxy:Key` (`TrustedProxy__Key`) | A random string, at least 32 characters, no whitespace; the same value goes to the web app. Locally: `dotnet user-secrets set "TrustedProxy:Key" "<key>" --project apps/api/src/EarlyEagles.Api`. In Azure: Key Vault. A malformed key stops the API at startup |
+
+⚠ **Gotcha — don't host the API at `api.earlyeagles.club`.** The subdomain parser reads any single
+label under a club domain as a club, so that host means "the club called api" (404 in Production).
+Use the Container Apps name or a host outside the club domains.
+
 ---
 
 ## 5. Backend — Clean Architecture solution
