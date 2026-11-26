@@ -617,6 +617,17 @@ signs out with `useClerk().signOut({ redirectUrl: "/sign-in" })`. The top bar (a
 calls `authMode()` to choose: Clerk hooks throw outside `ClerkProvider`, so a build without Clerk
 must never render `ClerkUserMenu`.
 
+**Landing by role (P1-035, ADR-0017).** Sign-in and sign-up land on `/welcome` (`AFTER_AUTH_PATH`),
+not `/`. [`RoleLanding`](../apps/web/components/auth/role-landing.tsx) asks `/me` and calls
+`router.replace` with `/admin` for `tenant-admin` and `/` for everyone else. The role comes from the
+API, not from Clerk's `orgRole` in the proxy, because only the API knows whether the user's active
+organization is the club at this address. `ClerkUserMenu` uses the same `/me` query to show a
+**Club desk** link to admins, and calls `queryClient.clear()` before signing out.
+
+⚠ **Gotcha — don't act on a cached `/me` after sign-in.** TanStack keeps `/me` for 60 s, and one
+tab can see two users (sign out, sign in as someone else). `RoleLanding` sets
+`refetchOnMount: "always"` and waits until `isFetching` is false before redirecting.
+
 ⚠ **Gotcha — `user.imageUrl` is never empty.** Clerk returns a generated placeholder for users
 without a photo. Check `user.hasImage` first, or everyone gets Clerk's default avatar instead of
 their initials.
