@@ -419,6 +419,33 @@ structure and attach screenshots for humans instead.
 caught the body padding at `4rem`, leaving the last pixel of every phone page under the bar. It's
 now `calc(4rem + 1px + env(safe-area-inset-bottom))`.
 
+**iPhone run (P0-070.5).** A fourth project, **iphone**, runs every spec again in Playwright's
+**WebKit** (the engine behind every iPhone browser) with `devices["iPhone 15"]`: 393×659 (Safari's
+toolbars make it shorter than the Chrome phone run), touch, an iPhone user agent. Chrome runs keep
+using the installed Chrome; WebKit is downloaded once:
+
+```pwsh
+cd apps/web; npx playwright install webkit          # once per machine; CI uses --with-deps
+npx playwright test --project=iphone                 # just the iPhone run
+```
+
+The iphone project depends on **iphone-setup** ([`returning-visitor.setup.ts`](../apps/web/e2e/returning-visitor.setup.ts)),
+which answers the cookie banner and dismisses the install card, then saves the browser state to the
+gitignored `e2e/.state/`. Specs start from there, as a member on their second visit. The cookie and
+install-card specs reset it with `test.use({ storageState: { cookies: [], origins: [] } })`.
+
+⚠ **Gotcha — WebKit hides service-worker-era fetches from `page.route`.** Once `sw.js` controls the
+page, later `fetch` calls in WebKit no longer reach the spec's route stubs, so they went to the echo
+API and the page crashed on a session with no `date`. The iphone project sets
+`serviceWorkers: "block"`. Real iPhones are unaffected: the worker has no fetch handler.
+
+⚠ **Gotcha — branch on width, not project name.** A spec that checked `project.name === "phone"` broke
+when a second phone-sized project arrived. Use `page.viewportSize().width < 768`.
+
+⚠ **Gotcha — fixed cards on short screens.** On the iPhone screen the install card covered the
+footer, and the page couldn't scroll far enough to free it. [`FloatingCard`](../apps/web/components/shell/floating-card.tsx)
+now publishes its height as `--floating-card-space` and the body's bottom padding adds it (P0-070.6).
+
 ### 4.7 Server state — TanStack Query (P0-071.1)
 
 `@tanstack/react-query` 5.104.2 caches data fetched from the API on the client.
@@ -3110,7 +3137,7 @@ path-filtered required check never reports on PRs outside its filter and blocks 
 | Workflow | Jobs | What runs |
 |---|---|---|
 | [`backend.yml`](../.github/workflows/backend.yml) (P0-078.1, P0-079) | `build + unit tests` · `integration tests (tenant-isolation gate)` | Release build with warnings-as-errors and the Unit project, then the Integration project against Testcontainers Postgres (Docker is preinstalled on `ubuntu-latest`). The Service Bus emulator tests skip because `EE_SERVICEBUS_EMULATOR` isn't set. |
-| [`web.yml`](../.github/workflows/web.yml) (P0-078.2) | `lint + build` · `browser tests (Playwright)` | `npm ci` at the root (one lockfile for every workspace), `npm run lint`, `npm run build`, then `npm run test:e2e` on the runner's Google Chrome, with the HTML report uploaded as an artifact for 14 days |
+| [`web.yml`](../.github/workflows/web.yml) (P0-078.2) | `lint + build` · `browser tests (Playwright)` | `npm ci` at the root (one lockfile for every workspace), `npm run lint`, `npm run build`, then `npm run test:e2e` on the runner's Google Chrome plus a downloaded WebKit for the iphone project (P0-070.5), with the HTML report uploaded as an artifact for 14 days |
 | [`security.yml`](../.github/workflows/security.yml) (P0-081, P0-082) | `secrets (gitleaks)` · `sast (semgrep)` | gitleaks over the full git history, and Semgrep CE's `p/default` rules over C#, TypeScript, Dockerfiles and workflows. Also runs weekly. Any finding fails the job. See below. |
 
 Validate workflow files locally before pushing; the image bundles shellcheck for the `run:` steps:
@@ -3404,6 +3431,8 @@ A quick index of the traps documented above, for when you hit the symptom:
 | `TimeZoneNotFoundException` in the container only | plain chiseled images have no `tzdata` | use the `-chiseled-extra` image (§ club time zone, P1-007.1) |
 | A test passes locally but gets 404 on CI | it relies on a flag from the gitignored `appsettings.Development.json` | set the flag in the test host (`UseSetting`), as `SessionApi` does |
 | `security` → `sast` fails: `github-actions-mutable-action-tag` | a new `uses:` with a tag instead of a SHA | pin the full commit SHA with a `# vX.Y.Z` comment (§12A) |
+| iphone e2e: page shows "This page couldn't load" after a tap; trace has `undefined is not an object (evaluating 'e.date.split')` | WebKit stopped routing fetches to `page.route` once the service worker took control; the echo API answered | `serviceWorkers: "block"` on the iphone project (§4.6) |
+| iphone e2e: click times out, "… from <section role="dialog"> subtree intercepts pointer events" | the cookie banner / install card covers the target on the short iPhone screen | start as a returning visitor (iphone-setup); keep `--floating-card-space` padding (§4.6) |
 
 ---
 

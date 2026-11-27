@@ -1122,6 +1122,18 @@ first (P1-019). The rest of P1-018 needs an endpoint that lists members on their
 | P1-018.1 (new) | API: `GET /members`, any member: name, avatar and role for every current member of the club | P1-001 | Integration: lists this club's members only; another club's member never appears |
 | P1-018.2 (new) | Web: roles on `/roster` (admin badge) from P1-018.1 | P1-018.1, P1-019 | Playwright: the club's admins carry an admin badge |
 
+### iPhone browser tests and notification status (2026-11-27)
+
+Members use Android and iPhone; the owner and the admin use Android. Every browser test so far ran in Chrome (Android's engine) only.
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P0-070.5 (new) | Playwright `iphone` project: Playwright's iPhone 15 profile in WebKit, so every e2e spec also runs on an iPhone-like phone; CI installs WebKit | P0-070.4 | CI shows the iphone run green next to phone / tablet / desktop |
+| P0-070.6 (new) | Floating cards (cookie banner, install card) reserve their height at the bottom of the page, so content can always scroll out from under them | P0-076.1, P1-023 | On the iPhone run, the footer's Cookie settings can be tapped while the install card shows |
+| P1-036 (new) | Admin member list shows who has notifications turned on (iPhone push needs the app on the home screen) | P0-068.3.1, P1-015 | Admin sees "Notifications on / off" per member; a member never sees others' status |
+
+P0-070.6 was found by P0-070.5's first run and is committed separately.
+
 ---
 
 ## Sequencing notes

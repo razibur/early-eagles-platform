@@ -6,9 +6,10 @@
 #     type-checks. The fast lane.
 #
 #   * browser-tests — the Playwright suite (P0-070.4 onward): responsive layout
-#     at three widths, cookie consent, tenant subdomains. playwright.config.ts
+#     at three widths in Chrome plus an iPhone run in WebKit (P0-070.5), cookie
+#     consent, tenant subdomains. playwright.config.ts
 #     builds and starts the app itself and drives the runner's installed Google
-#     Chrome (`channel: "chrome"`), so no browser download is needed.
+#     Chrome (`channel: "chrome"`) for the Chrome runs; only WebKit is downloaded.
 #
 # npm workspaces: install at the repo root (one lockfile), run in apps/web.
 
@@ -76,6 +77,10 @@ jobs:
 
       - name: Verify Google Chrome is available
         run: google-chrome --version
+
+      - name: Install WebKit for the iphone project
+        working-directory: apps/web
+        run: npx playwright install --with-deps webkit
 
       - name: Playwright
         run: npm run test:e2e

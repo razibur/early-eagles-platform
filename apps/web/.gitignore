@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Playwright: saved browser state (e2e/returning-visitor.setup.ts)
+/e2e/.state/
