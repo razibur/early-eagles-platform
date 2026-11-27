@@ -1102,6 +1102,16 @@ Decided in [ADR-0016](./docs/adr/0016-web-forwards-api-calls-same-origin.md): th
 | P0-071.4 (new) | API: `ForwardedTenantHostMiddleware` + `TrustedProxy:Key`; the forwarded host is believed only with the key | P0-031 | Right key → club resolved; wrong / missing key → ignored (400 in Production) |
 | P0-071.5 (new) | Web: `proxy.ts` forwards `/api/*` to the API origin with `X-Forwarded-Host` and the key; signed-out calls get 401, not a sign-in page | P0-071.4, P0-039.4 | `/api/whoami` on a club host returns that club |
 
+### Admin home — P1-033 split (2026-11-27)
+
+P1-033 bundled three surfaces. The unpaid list already shipped as the dues desk (P1-017), so it
+splits into:
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P1-033.1 (new) | Web: roll call on `/admin`: every member against the next session, the ones who haven't answered first | P1-007.2, P1-035 | Playwright: tallies and groups for the next Sunday; called off / nothing scheduled / empty roster each say so |
+| P1-033.2 (new) | Web: announcement composer on `/admin` | P1-020 | Playwright: an admin posts an announcement and it appears in the feed |
+
 ---
 
 ## Sequencing notes
