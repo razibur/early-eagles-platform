@@ -554,7 +554,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▰▰▰▰▰▰▱▱▱▱  ~64% (29 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▰▰▰▰▰▰▱▱▱▱  ~67% (30 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -620,8 +620,9 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
   ↳ verify: `npm --workspace web run test:e2e`: [`dues-strip.spec.ts`](./apps/web/e2e/dues-strip.spec.ts) (7 × 3 widths, API stubbed). [`DuesStrip`](./apps/web/components/home/dues-strip.tsx) sits under the RSVP buttons on the "This Sunday" card and shows your dues for that session: not paid yet, reported (waiting for the admin), paid, or not confirmed with the admin's reason. "I've paid" (or "Report again" after a rejection) opens a two-field form, name on the transfer and Zelle reference (both required, trimmed, 100 characters max like the API), sent to `POST /sessions/{id}/payment-report`; the card then refetches. A 409 or 400 keeps the form open with a reason. The amount shown is the one reported, not today's fee. Free and cancelled sessions show no dues. Mutation-checked (trimming).
 - `[x]` **P1-017** Admin payment-confirm UI (one click per member per session)
   ↳ verify: `npm --workspace web run test:e2e`: [`admin-payments.spec.ts`](./apps/web/e2e/admin-payments.spec.ts) (8 × 3 widths, API stubbed, clock fixed) + 3 pure tests in `next-session.spec.ts`. New page [`/admin`](./apps/web/app/admin/page.tsx) ("Club desk"), wrapped in [`AdminGate`](./apps/web/components/admin/admin-gate.tsx): `/me` must say `tenant-admin`, otherwise the page says it's for admins and asks for nothing (a convenience only; the API answers 403 anyway). [`PaymentsPanel`](./apps/web/components/admin/payments-panel.tsx) lists last week's, this week's and next week's paid, not-cancelled sessions as buttons and opens on the latest one that has started (`sessionToSettle`). For that session it reads `GET /sessions/{id}/payments`: a tally (to check, sent back, not reported, outstanding $), then reported payments with sender and Zelle reference, each with **Confirm** (one tap, `POST …/confirm`) and **Send back** (a reason the member sees, required, 500 max, `POST …/reject`); rejected and not-reported members are listed without actions. Every action refetches the list; a 409 or 404 says it was refreshed. Not linked from the navigation yet (P1-035 sends admins here). Mutation-checked (grouping).
-- `[ ]` **P1-018** Member roster page
-- `[ ]` **P1-019** Leaderboard page (sortable, three metrics)
+- `[~]` **P1-018** Member roster page: the standings (P1-019) are on `/roster` and list every current member; a directory with roles and contact details needs an API endpoint that lists members (P1-018.1, not started)
+- `[x]` **P1-019** Leaderboard page (sortable, three metrics)
+  ↳ verify: `npm --workspace web run test:e2e`: [`roster.spec.ts`](./apps/web/e2e/roster.spec.ts) (8 × 3 widths + 4 pure, API stubbed). [`/roster`](./apps/web/app/roster/page.tsx) replaces the coming-soon page with [`StandingsTable`](./apps/web/components/roster/standings-table.tsx), from `GET /leaderboard?period=year`: standing, member, sessions played, times paid, last played (hidden on a phone). Members level on both counts share a place (1, 2, 2, 4). Every column header is a sort button with `aria-sort`; counts and dates sort high first, names A to Z, a second tap flips it; unnamed members and members who haven't played stay last either way. Your own row is marked **You** (`aria-current`, from `/me`). Empty club and 401 / 403 / 404 / other errors each get a message. Pure helpers in [`lib/roster/standings.ts`](./apps/web/lib/roster/standings.ts). Mutation-checked (shared ranks, nulls last).
 - `[ ]` **P1-020** Announcements feed, create, comment
 - `[ ]` **P1-021** Profile page: Clerk name + avatar, link to Clerk's profile
 - `[ ]` **P1-032** Member `/` landing (ADR-0004): RSVP-first hero, dues status, attendance, latest announcement

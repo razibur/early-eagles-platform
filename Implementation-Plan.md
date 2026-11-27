@@ -1112,6 +1112,16 @@ splits into:
 | P1-033.1 (new) | Web: roll call on `/admin`: every member against the next session, the ones who haven't answered first | P1-007.2, P1-035 | Playwright: tallies and groups for the next Sunday; called off / nothing scheduled / empty roster each say so |
 | P1-033.2 (new) | Web: announcement composer on `/admin` | P1-020 | Playwright: an admin posts an announcement and it appears in the feed |
 
+### Roster — P1-018 split (2026-11-27)
+
+The leaderboard (P1-011) already lists every current member, so `/roster` shows the standings
+first (P1-019). The rest of P1-018 needs an endpoint that lists members on their own:
+
+| ID | Task | Depends on | Verify |
+|---|---|---|---|
+| P1-018.1 (new) | API: `GET /members`, any member: name, avatar and role for every current member of the club | P1-001 | Integration: lists this club's members only; another club's member never appears |
+| P1-018.2 (new) | Web: roles on `/roster` (admin badge) from P1-018.1 | P1-018.1, P1-019 | Playwright: the club's admins carry an admin badge |
+
 ---
 
 ## Sequencing notes

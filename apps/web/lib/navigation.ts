@@ -31,7 +31,6 @@ export const navItems: NavItem[] = [
     href: "/roster",
     label: "Roster",
     icon: UsersRound,
-    phase: { number: 1, summary: "Member directory with roles, attendance streaks and the leaderboard." },
   },
   {
     href: "/events",
