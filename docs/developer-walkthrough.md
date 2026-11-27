@@ -733,6 +733,20 @@ apps/api/src/EarlyEagles.Api`, then restart the API (allowed origins are read at
 `ClerkOrganizationId`, so `/me` gives everyone `tenantRole: null` there ("Not a member of this club
 yet"). Roles appear once the club is linked to a Clerk organization through the webhook (P0-036).
 
+To try the admin pages locally without the webhook, link the seeded club to a Clerk organization
+you're an `org:admin` of, by hand (copy the `org_…` id from the Clerk dashboard → Organizations):
+
+```bash
+docker exec early-eagles-postgres-1 psql -U postgres -d earlyeagles -c   "update tenants set clerk_organization_id = 'org_…' where slug = 'early-eagles' and clerk_organization_id is null"
+```
+
+The API reads the tenant on every request, so no restart is needed. Sign out and in again so the
+token carries the organization; `/account` should then say "Club admin" and the menu shows **Club
+desk**. The token names only the session's *active* organization: if `/account` still says "Not a
+member", turn off **Allow personal accounts** in Clerk (Configure → Organizations) so sign-in asks
+you to pick one. Your own account isn't in `tenant_members`, so the desk lists you as "Unnamed
+member".
+
 **First Phase 1 surface (P1-014).** The "This Sunday" card at the top of `/`
 ([`this-sunday-card.tsx`](../apps/web/components/home/this-sunday-card.tsx)) follows the same pattern.
 The API lists one ISO week at a time and leaves "this week" to the device, so the card asks for this
@@ -3348,6 +3362,7 @@ A quick index of the traps documented above, for when you hit the symptom:
 | Background poller reads zero rows forever | its scope has no ambient tenant, so the query filter matches nothing | `IgnoreQueryFilters()` on the drain query |
 | gitleaks misses a planted secret | an allowlist with `paths` + `regexes` (OR'd), or a placeholder-looking test value | `condition = "AND"` or regex only; plant a random value (§12A) |
 | Signed-in admin gets no `tenantRole` on their own club | the tenant row has no `clerk_organization_id` (seed data), or the session's active organization is another club | link the tenant (webhook, §8.5); switch the active org in Clerk (§8.6) |
+| A new page answers 404 in `next dev`, though its `app/<route>/page.tsx` exists | a long-running dev server (here, two days old) missed the new route folder on Windows | restart `next dev`; check `.next/dev/server/app/` lists the route |
 | Swagger UI's *Authorize* token isn't sent / generated client omits the token | the operation has no `security` requirement | it comes from `BearerSecurityRequirementOperationTransformer`; guard the endpoint with `RequireAuthorization` (§7) |
 | Role from a v2 session token is `admin`, webhook role is `org:admin` | v2's compact `o.rol` omits the prefix | read it through `ClerkActiveOrganization.From`, which restores it (§8.6) |
 | Every Clerk session token → 401 though the signature is right | `Clerk:AuthorizedParties` missing the web origin the token's `azp` names (e.g. `http://localhost:3000`) | add the exact origin, no trailing slash (§8.6) |
