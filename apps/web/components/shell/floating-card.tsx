@@ -1,11 +1,41 @@
+"use client"
+
+import { useEffect, useRef } from "react"
+
 import { cn } from "@/lib/utils"
 
 // The card that floats above the bottom nav: the cookie banner (P0-076.1) and
 // the install card (P1-023). They share one spot, so only one shows at a time.
 // Non-modal on purpose: the page behind stays usable and focus isn't taken.
+//
+// While it shows, it publishes its height (plus its gap) as
+// --floating-card-space on <html>, and the body's bottom padding adds it
+// (app/layout.tsx). Otherwise, on a short screen such as an iPhone with
+// Safari's toolbars, the end of the page can't scroll out from under the card
+// and buttons there can't be tapped until the card is dismissed (P0-070.6).
+const SPACE = "--floating-card-space"
+const GAP_PX = 24
+
 export function FloatingCard({ labelledBy, children }: { labelledBy: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const card = ref.current
+    if (!card) return
+    const root = document.documentElement
+    const publish = () => root.style.setProperty(SPACE, `${Math.ceil(card.getBoundingClientRect().height) + GAP_PX}px`)
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(card)
+    return () => {
+      observer.disconnect()
+      root.style.removeProperty(SPACE)
+    }
+  }, [])
+
   return (
     <section
+      ref={ref}
       role="dialog"
       aria-modal="false"
       aria-labelledby={labelledBy}
