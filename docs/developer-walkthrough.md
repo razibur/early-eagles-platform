@@ -639,6 +639,16 @@ as the home card, so an admin who answers on `/` and comes back sees the same se
 is checked with `Array.isArray` before use: in browser tests an unstubbed call reaches the echo API,
 which answers with an object.
 
+**Roster as standings (P1-019).** `/roster` shows
+[`StandingsTable`](../apps/web/components/roster/standings-table.tsx), from
+`GET /leaderboard?period=year`, which already lists every current member. The page ranks rows in
+the API's order (level members share a place) and sorts on the client, since 35 rows need no server
+paging. The sorting lives in pure functions in
+[`lib/roster/standings.ts`](../apps/web/lib/roster/standings.ts). Column headers are buttons
+inside `<th aria-sort>`, the accessible pattern for a sortable table. The page doesn't print the
+year: a Server Component computes `new Date()` at build time, so the label would go stale after
+New Year until the next deploy.
+
 ⚠ **Gotcha — don't act on a cached `/me` after sign-in.** TanStack keeps `/me` for 60 s, and one
 tab can see two users (sign out, sign in as someone else). `RoleLanding` sets
 `refetchOnMount: "always"` and waits until `isFetching` is false before redirecting.
