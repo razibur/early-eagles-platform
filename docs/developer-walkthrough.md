@@ -631,6 +631,14 @@ says so. `/` is now the member home: the masthead and the "This Sunday" card, wi
 P1-032. The page is a Server Component that passes the chart sections to the client `AdminGate` as
 `children`, so the charts stay Client Components composed into a server page.
 
+**Roll call (P1-033.1).** `/admin` opens with
+[`RollCallPanel`](../apps/web/components/admin/roll-call-panel.tsx): the next session's
+`GET /sessions/{id}/rsvps`, grouped with the members who haven't answered first. It finds the next
+session with [`fetchNextSession`](../apps/web/lib/sessions/fetch-next.ts) under the same query key
+as the home card, so an admin who answers on `/` and comes back sees the same session. The response
+is checked with `Array.isArray` before use: in browser tests an unstubbed call reaches the echo API,
+which answers with an object.
+
 ⚠ **Gotcha — don't act on a cached `/me` after sign-in.** TanStack keeps `/me` for 60 s, and one
 tab can see two users (sign out, sign in as someone else). `RoleLanding` sets
 `refetchOnMount: "always"` and waits until `isFetching` is false before redirecting.

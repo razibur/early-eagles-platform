@@ -5,18 +5,9 @@ import { useId, useState } from "react"
 
 import { DuesStrip } from "@/components/home/dues-strip"
 import { useApiFetch } from "@/components/providers/api-provider"
-import { ApiError, type ApiFetch } from "@/lib/api/client"
-import {
-  describeSession,
-  isSessionList,
-  isoWeekAfter,
-  isoWeekOf,
-  nextSession,
-  recount,
-  type RsvpAnswer,
-  type SessionDetails,
-  type SessionSummary,
-} from "@/lib/sessions/next-session"
+import { ApiError } from "@/lib/api/client"
+import { fetchNextSession, NEXT_SESSION_KEY } from "@/lib/sessions/fetch-next"
+import { describeSession, recount, type RsvpAnswer, type SessionDetails } from "@/lib/sessions/next-session"
 import { cn } from "@/lib/utils"
 
 // "This Sunday" on the member home (P1-014): the next session as a match-day
@@ -25,19 +16,7 @@ import { cn } from "@/lib/utils"
 // have started) and GET /sessions/{id}; answers with PUT /sessions/{id}/rsvp.
 // Dues for the session sit underneath (DuesStrip, P1-016).
 
-const NEXT_KEY = ["sessions", "next"] as const
 const detailsKey = (id: string) => ["sessions", id] as const
-
-async function fetchNext(apiFetch: ApiFetch): Promise<SessionSummary | null> {
-  const now = new Date()
-  for (const week of [isoWeekOf(now), isoWeekAfter(now)]) {
-    const list = await apiFetch<unknown>(`/sessions?week=${week}`)
-    if (!isSessionList(list)) throw new Error("Unexpected session list")
-    const next = nextSession(list, now)
-    if (next) return next
-  }
-  return null
-}
 
 const answers: { value: RsvpAnswer; label: string; hint: string }[] = [
   { value: "Yes", label: "I'm in", hint: "Count me on court" },
@@ -47,7 +26,7 @@ const answers: { value: RsvpAnswer; label: string; hint: string }[] = [
 
 export function ThisSundayCard() {
   const apiFetch = useApiFetch()
-  const next = useQuery({ queryKey: NEXT_KEY, queryFn: () => fetchNext(apiFetch), retry: false })
+  const next = useQuery({ queryKey: NEXT_SESSION_KEY, queryFn: () => fetchNextSession(apiFetch), retry: false })
   const id = next.data?.id
   const details = useQuery({
     queryKey: detailsKey(id ?? ""),
