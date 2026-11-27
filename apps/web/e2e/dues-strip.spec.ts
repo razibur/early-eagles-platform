@@ -35,6 +35,10 @@ async function open(page: Page, details: Record<string, unknown>, report?: (rout
     return json(route, 200, { paymentId: "p1" })
   })
   await page.goto("/")
+  // Answer the cookie banner first, as a member would: on a phone it floats
+  // over the bottom of this short page, where the dues strip sits.
+  const answered = (await page.context().cookies()).some((cookie) => cookie.name === "ee_consent")
+  if (!answered) await page.getByRole("button", { name: "Necessary only" }).click()
   return { reports, dues: page.getByRole("region", { name: "Your dues" }) }
 }
 

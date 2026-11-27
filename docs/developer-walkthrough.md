@@ -624,6 +624,13 @@ API, not from Clerk's `orgRole` in the proxy, because only the API knows whether
 organization is the club at this address. `ClerkUserMenu` uses the same `/me` query to show a
 **Club desk** link to admins, and calls `queryClient.clear()` before signing out.
 
+**Insights (P1-034).** The Phase 0 sample dashboard moved from `/` to
+[`/insights`](../apps/web/app/insights/page.tsx), behind the same `AdminGate` as `/admin`; the menu
+shows admins an **Insights** link under **Club desk**. The figures are still samples and the page
+says so. `/` is now the member home: the masthead and the "This Sunday" card, with more to come in
+P1-032. The page is a Server Component that passes the chart sections to the client `AdminGate` as
+`children`, so the charts stay Client Components composed into a server page.
+
 ⚠ **Gotcha — don't act on a cached `/me` after sign-in.** TanStack keeps `/me` for 60 s, and one
 tab can see two users (sign out, sign in as someone else). `RoleLanding` sets
 `refetchOnMount: "always"` and waits until `isFetching` is false before redirecting.

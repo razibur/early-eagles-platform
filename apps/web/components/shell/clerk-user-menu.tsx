@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { useApiFetch } from "@/components/providers/api-provider"
 import { UserMenu, type MenuAccount } from "@/components/shell/user-menu"
-import { ADMIN_HOME_PATH, SIGN_IN_PATH, landingFor } from "@/lib/auth/routes"
+import { ADMIN_HOME_PATH, INSIGHTS_PATH, SIGN_IN_PATH, landingFor } from "@/lib/auth/routes"
 
 // UserMenu filled from Clerk (P0-039.5). Rendered only under ClerkProvider,
 // i.e. when authMode() is "clerk"; the top bar picks this or the bare menu.
@@ -40,6 +40,7 @@ export function ClerkUserMenu() {
       account={account}
       signInHref={SIGN_IN_PATH}
       adminHref={account && isAdmin ? ADMIN_HOME_PATH : undefined}
+      insightsHref={account && isAdmin ? INSIGHTS_PATH : undefined}
       onSignOut={() => {
         // Drop every cached API answer, so the next person in this tab never
         // sees the last one's role or club data.
