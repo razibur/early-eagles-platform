@@ -91,7 +91,7 @@ export default async function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       {/* Bottom padding on phones = BottomNav height (4rem of tabs + 1px border + safe area), so the page end stays clear of it. */}
-      <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-primary/30 selection:text-foreground pb-[calc(4rem+1px+env(safe-area-inset-bottom))] md:pb-0">
+      <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-primary/30 selection:text-foreground pb-[calc(4rem+1px+env(safe-area-inset-bottom)+var(--floating-card-space,0px))] md:pb-[var(--floating-card-space,0px)]">
         {/* Clerk's session context for everything below (P0-039.2). Off only in
             builds that opted out with EE_AUTH_DISABLED=1 (CI, Playwright). */}
         {auth === "clerk" ? (
