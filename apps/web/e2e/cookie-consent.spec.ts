@@ -2,6 +2,10 @@ import { expect, test } from "@playwright/test"
 
 // P0-076.1 / P0-076.2 — the consent banner and the policy behind it.
 
+// About the first-visit card: start fresh even in the iphone project, which
+// otherwise starts as a returning visitor (e2e/returning-visitor.setup.ts).
+test.use({ storageState: { cookies: [], origins: [] } })
+
 const banner = (page: import("@playwright/test").Page) => page.getByRole("dialog", { name: /cookies, briefly|cookie settings/i })
 
 async function consentCookie(page: import("@playwright/test").Page) {

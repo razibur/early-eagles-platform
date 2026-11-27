@@ -3,6 +3,10 @@ import { expect, test, type Page } from "@playwright/test"
 // P1-023 — the install card. Chrome only fires a real beforeinstallprompt on its
 // own schedule, so these tests fire one by hand and watch what the page does with it.
 
+// About the first-visit card: start fresh even in the iphone project, which
+// otherwise starts as a returning visitor (e2e/returning-visitor.setup.ts).
+test.use({ storageState: { cookies: [], origins: [] } })
+
 const iPhone =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
 

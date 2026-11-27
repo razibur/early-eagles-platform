@@ -69,10 +69,11 @@ test("tapping a column sorts by it, and tapping again flips it", async ({ page }
   expect((await names(table))[0]).toBe("Rahim Uddin")
 })
 
-test("the last-played column shows dates from tablet width up", async ({ page }, testInfo) => {
+test("the last-played column shows dates from tablet width up", async ({ page }) => {
   const table = await open(page)
   const lastPlayed = table.getByRole("columnheader", { name: "Last played" })
-  if (testInfo.project.name === "phone") {
+  // By width, not project name: the phone and iphone projects are both below md.
+  if ((page.viewportSize()?.width ?? 0) < 768) {
     await expect(lastPlayed).toBeHidden()
   } else {
     await expect(lastPlayed).toBeVisible()
