@@ -554,7 +554,7 @@ All of these must be true before declaring Phase 0 done:
 
 ---
 
-## Phase 1 — Attendance core (Tenant 0 only)  ▰▰▰▰▰▱▱▱▱▱  ~62% (28 / ~45 tasks)
+## Phase 1 — Attendance core (Tenant 0 only)  ▰▰▰▰▰▰▱▱▱▱  ~64% (29 / ~45 tasks)
 
 **Goal:** Make the Sunday attendance workflow real for Early Eagles. Domain
 (Member, Session, Attendance, Payment), API endpoints, frontend pages, tests.
@@ -626,7 +626,8 @@ Roughly 30 tasks. Detail in [Implementation-Plan.md](Implementation-Plan.md#phas
 - `[ ]` **P1-021** Profile page: Clerk name + avatar, link to Clerk's profile
 - `[ ]` **P1-032** Member `/` landing (ADR-0004): RSVP-first hero, dues status, attendance, latest announcement
 - `[ ]` **P1-033** Admin `/admin` (ADR-0004): RSVP grid, unpaid list, announcement composer
-- `[ ]` **P1-034** Move the chart dashboard from `/` to `/insights` (admin only)
+- `[x]` **P1-034** Move the chart dashboard from `/` to `/insights` (admin only)
+  ↳ verify: `npm --workspace web run test:e2e`: [`insights.spec.ts`](./apps/web/e2e/insights.spec.ts) (4 × 3 widths + 1 pure, `/me` stubbed). The Phase 0 sample dashboard (KPI tiles, attendance, dues and roster charts) moved from `/` to [`/insights`](./apps/web/app/insights/page.tsx), wrapped in `AdminGate` like `/admin`, and is labelled "Sample figures" until the API serves real numbers. A member sees "This page is for the club's admins." and no charts; a 401 asks them to sign in as an admin. `/` keeps the masthead and the "This Sunday" card. Admins get an **Insights** entry under **Club desk** in the account menu (`INSIGHTS_PATH`). No horizontal scroll at phone width. Mutation-checked (gate removed: the member and 401 tests fail). **Known limit:** `/` is now short, so on a phone the cookie banner covers the dues strip until it's answered and the page can't scroll it clear; [`dues-strip.spec.ts`](./apps/web/e2e/dues-strip.spec.ts) answers the banner first. Reserving room under the floating card is left for P1-024 (mobile QA).
 - `[x]` **P1-035** Redirect tenant admins to `/admin` after sign-in
   ↳ verify: `npm --workspace web run test:e2e`: [`role-landing.spec.ts`](./apps/web/e2e/role-landing.spec.ts) (5 × 3 widths with `/me` stubbed, + 2 pure). Decided in [ADR-0017](./docs/adr/0017-role-landing-after-sign-in-via-api.md), which refines ADR-0004's login flow. Clerk's after-sign-in fallback is now [`/welcome`](./apps/web/app/welcome/page.tsx) ([`RoleLanding`](./apps/web/components/auth/role-landing.tsx)): it asks a fresh `/me` and replaces itself with `/admin` for `tenant-admin` and `/` for anyone else, or on any error (`landingFor`). A sign-in with its own `redirect_url` still goes back there. `/` itself is never redirected, so admins keep their RSVP card. The account menu shows **Club desk** to admins (from `/me`), and signing out clears the cached API answers. A non-admin on `/admin` sees a message, not a redirect. Mutation-checked (landing rule). The signed-in menu link and the real Clerk round trip are checked by hand, like the rest of the signed-in menu.
 - `[x]` **P1-023** PWA install prompt card

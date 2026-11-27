@@ -14,6 +14,9 @@ export const AFTER_AUTH_PATH = "/welcome"
 /** The admin home (ADR-0004). */
 export const ADMIN_HOME_PATH = "/admin"
 
+/** The admins' analytics page (ADR-0004, P1-034). */
+export const INSIGHTS_PATH = "/insights"
+
 /** Where a role lands after sign-in (ADR-0004): admins on /admin, everyone else on /. */
 export function landingFor(tenantRole: string | null | undefined): string {
   return tenantRole === "tenant-admin" ? ADMIN_HOME_PATH : "/"
